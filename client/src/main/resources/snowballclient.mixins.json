@@ -1,0 +1,30 @@
+{
+	"required": true,
+	"package": "dev.snowballclient.client.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"AbstractContainerScreenAccessor",
+		"CameraMixin",
+		"ChatComponentMixin",
+		"ChatScreenMixin",
+		"ClientClockManagerMixin",
+		"EntityRenderDispatcherMixin",
+		"FramerateLimitTrackerMixin",
+		"GameRendererMixin",
+		"ItemStackMixin",
+		"LevelRendererMixin",
+		"LightmapRenderStateExtractorMixin",
+		"MouseHandlerMixin",
+		"OverlayTextureMixin",
+		"ParticleEngineMixin",
+		"ScreenEffectRendererMixin",
+		"TextureAtlasMixin",
+		"WeatherEffectRendererMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

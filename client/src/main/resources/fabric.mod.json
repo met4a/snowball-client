@@ -1,0 +1,26 @@
+{
+	"schemaVersion": 1,
+	"id": "snowballclient",
+	"version": "${version}",
+	"name": "Snowball Client",
+	"description": "Client-side quality-of-life, HUD and performance layer with a radial control menu.",
+	"authors": ["Snowball Client contributors"],
+	"license": "MIT",
+	"icon": "assets/snowballclient/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": ["dev.snowballclient.client.SnowballClient"]
+	},
+	"mixins": [
+		"snowballclient.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	},
+	"breaks": {
+		"optifabric": "*"
+	}
+}

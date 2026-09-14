@@ -1,0 +1,26 @@
+# Gradle / Fabric client
+client/.gradle/
+client/build/
+client/run/
+client/logs/
+client/out/
+client/*.iml
+client/.idea/
+
+# Launcher
+launcher/node_modules/
+launcher/dist/
+launcher/release/
+launcher/coverage/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+*.log
+
+# Website downloads (large binaries, copied from launcher/release)
+website/downloads/
+
+# Local editor/assistant settings
+.claude/

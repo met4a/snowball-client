@@ -1,0 +1,28 @@
+# Snowball Client website. Caddy obtains and renews the HTTPS certificate automatically.
+snowball.krakensmp.xyz {
+	root * /var/www/snowball
+	encode zstd gzip
+	file_server
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	# Installers download instead of opening in the browser.
+	@installers path /downloads/*.exe
+	header @installers Content-Disposition attachment
+
+	# Long cache for images and fonts; pages always revalidate.
+	@static path /assets/*
+	header @static Cache-Control "public, max-age=604800"
+	@pages path / /*.html
+	header @pages Cache-Control "no-cache"
+
+	# Deployment files are not part of the public site.
+	@private path /deploy/* /serve.mjs
+	respond @private 404
+}

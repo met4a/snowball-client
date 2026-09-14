@@ -1,0 +1,13 @@
+{
+	"schemaVersion": 1,
+	"id": "snowballclient-gametest",
+	"version": "1.0.0",
+	"name": "Snowball Client UI tests",
+	"environment": "client",
+	"entrypoints": {
+		"fabric-client-gametest": ["dev.snowballclient.gametest.SnowballMenuGameTest", "dev.snowballclient.gametest.SnowballSceneCapture"]
+	},
+	"depends": {
+		"snowballclient": "*"
+	}
+}

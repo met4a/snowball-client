@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Code signing policy - Snowball Client</title>
+    <meta name="theme-color" content="#05070a" />
+    <link rel="icon" type="image/png" href="assets/logo.png" />
+    <link rel="stylesheet" href="styles.css?v=5" />
+  </head>
+  <body>
+    <!-- Publish this page only after SignPath Foundation approves the project. -->
+    <header class="site-header">
+      <div class="wrap">
+        <a class="brand" href="index.html"><img src="assets/logo.png" alt="" />SNOWBALL <span>CLIENT</span></a>
+        <a class="btn primary small" href="index.html#download" style="margin-left:auto">Download</a>
+      </div>
+    </header>
+
+    <main class="wrap doc">
+      <h1>Code signing policy</h1>
+      <p class="updated">Last updated 14 September 2026</p>
+
+      <p>Free code signing provided by <a href="https://signpath.io">SignPath.io</a>, certificate by <a href="https://signpath.org">SignPath Foundation</a>.</p>
+
+      <h2>What is signed</h2>
+      <p>The Snowball Client launcher installers for Windows (<code>SnowballClient-*-setup.exe</code> and <code>SnowballClient-*-portable.exe</code>). They are built from the public source code at <a href="https://github.com/met4a/snowball-client">github.com/met4a/snowball-client</a> by GitHub Actions, and only those builds are signed.</p>
+
+      <h2>Team roles</h2>
+      <ul>
+        <li>Committers and reviewers: <a href="https://github.com/met4a">met4a</a></li>
+        <li>Approvers (release signing): <a href="https://github.com/met4a">met4a</a></li>
+      </ul>
+      <p>All team members use multi-factor authentication for GitHub and SignPath.</p>
+
+      <h2>Privacy</h2>
+      <p>This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. To install and run Minecraft it connects to Microsoft and Xbox services for sign-in, and downloads game files, Java, mod loaders and mods from Mojang, FabricMC, QuiltMC, MinecraftForge, NeoForged and Modrinth. See the <a href="privacy.html">privacy policy</a> for details.</p>
+
+      <h2>Uninstalling</h2>
+      <p>The installer version can be removed from Windows Settings &gt; Apps. The portable version is a single file you can delete. Game files and settings live in <code>%APPDATA%\SnowballClientLauncher</code>.</p>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <span>&copy; 2026 Snowball Client</span>
+        <div class="links">
+          <a href="index.html">Home</a>
+          <a href="privacy.html">Privacy</a>
+          <a href="terms.html">Terms</a>
+        </div>
+        <p class="disclaimer">Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.</p>
+      </div>
+    </footer>
+  </body>
+</html>

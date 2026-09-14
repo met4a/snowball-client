@@ -1,0 +1,75 @@
+{
+  "name": "snowball-client-launcher",
+  "productName": "Snowball Client Launcher",
+  "version": "1.1.0",
+  "description": "Instance-based Minecraft launcher for Snowball Client",
+  "license": "MIT",
+  "main": "dist/main/main.js",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.renderer.json && node scripts/copy-static.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "start": "npm run build && electron .",
+    "test": "vitest run",
+    "build:client": "node scripts/build-client.mjs",
+    "dist": "npm run build:client && npm run build && electron-builder --win --publish never",
+    "dist:store": "npm run build:client && npm run build && electron-builder --win appx --publish never"
+  },
+  "build": {
+    "appId": "dev.snowballclient.launcher",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json",
+      "app-config.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../client/build/libs/snowball-client-1.1.0.jar",
+        "to": "client/snowball-client.jar"
+      }
+    ],
+    "icon": "build-resources/icon.png",
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "portable": {
+      "artifactName": "SnowballClient-${version}-portable.exe"
+    },
+    "nsis": {
+      "artifactName": "SnowballClient-${version}-setup.exe",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    },
+    "appx": {
+      "identityName": "SnowballClient.Launcher",
+      "publisher": "CN=00000000-0000-0000-0000-000000000000",
+      "publisherDisplayName": "Snowball Client",
+      "applicationId": "SnowballClient",
+      "displayName": "Snowball Client",
+      "backgroundColor": "#05070a",
+      "languages": [
+        "en-US"
+      ],
+      "artifactName": "SnowballClient-${version}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  }
+}

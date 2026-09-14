@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Snowball Client - Minecraft launcher and client</title>
+    <meta name="description" content="Snowball Client is a free Minecraft: Java Edition launcher and Fabric client with a radial menu, HUD modules, performance profiles and isolated instances." />
+    <link rel="canonical" href="https://snowball.krakensmp.xyz/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://snowball.krakensmp.xyz/" />
+    <meta property="og:title" content="Snowball Client" />
+    <meta property="og:description" content="A clean, fast Minecraft launcher and client. Instances, performance profiles and a radial in-game menu." />
+    <meta property="og:image" content="https://snowball.krakensmp.xyz/assets/menu-client.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#05070a" />
+    <link rel="icon" type="image/png" href="assets/logo.png" />
+    <link rel="stylesheet" href="styles.css?v=5" />
+    <link rel="stylesheet" href="demo.css?v=1" />
+    <script>document.documentElement.classList.add('js');</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap">
+        <a class="brand" href="index.html"><img src="assets/logo.png" alt="" />SNOWBALL <span>CLIENT</span></a>
+        <nav class="nav" aria-label="Main">
+          <a href="#features">FEATURES</a>
+          <a href="#try">TRY IT</a>
+          <a href="#launcher">LAUNCHER</a>
+          <a href="#download">DOWNLOAD</a>
+          <a href="#faq">FAQ</a>
+        </nav>
+        <a class="btn primary small" href="#download">Download</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="snow" aria-hidden="true"></div>
+        <div class="wrap">
+          <a class="pill" href="#download"><span class="dot"></span>Version 1.1.0 is out - free for Windows</a>
+          <img class="hero-logo" src="assets/logo.png" alt="Snowball Client logo" width="112" height="112" />
+          <h1>SNOWBALL <span>CLIENT</span></h1>
+          <p class="lead">A fast, clean Minecraft: Java Edition launcher and client. Isolated instances, one-click performance mods and a radial in-game menu for everything else.</p>
+          <div class="hero-actions">
+            <a class="btn primary big" href="#download">Download for Windows</a>
+            <a class="btn big" href="#features">See features</a>
+          </div>
+          <p class="hero-meta">Free <b>/</b> Minecraft 26.2 <b>/</b> Fabric <b>/</b> Windows 10 and 11</p>
+
+          <figure class="window hero-shot reveal">
+            <div class="window-bar"><i></i><i></i><i></i><span>In game - Right Shift</span></div>
+            <img src="assets/menu-client.jpg" alt="The Snowball Client radial menu in game, with the CLIENT category open" width="1920" height="1080" />
+          </figure>
+        </div>
+      </section>
+
+      <section class="stats-band" aria-label="At a glance">
+        <div class="wrap stats">
+          <div><strong>50+</strong><span>modules</span></div>
+          <div><strong>6</strong><span>menu categories</span></div>
+          <div><strong>4</strong><span>mod loaders</span></div>
+          <div><strong>0</strong><span>cheats</span></div>
+        </div>
+      </section>
+
+      <section id="features">
+        <div class="wrap">
+          <div class="split reveal">
+            <div>
+              <p class="section-title">IN GAME</p>
+              <h2 class="section-heading">Everything one key away</h2>
+              <p class="section-lead">Press Right Shift to open the radial menu. Pick a category, toggle a module, open its settings. Settings are saved per instance.</p>
+              <ul class="cats">
+                <li>CLIENT</li><li>FPS BOOST</li><li>RENDER</li><li>MISC</li><li>QOL</li><li>STORAGE</li>
+              </ul>
+            </div>
+            <figure class="window">
+              <div class="window-bar"><i></i><i></i><i></i><span>RENDER category</span></div>
+              <img src="assets/menu-render.jpg" alt="The RENDER category of the radial menu, each module with a short description" width="1010" height="700" loading="lazy" />
+            </figure>
+          </div>
+
+          <div class="grid">
+            <div class="card reveal"><span class="tag">FPS BOOST</span><h3>One-click Boost</h3><p>Pick Max FPS, Balanced or Quality. Boost sets your video options and installs Sodium-based mods, and switching it off restores your settings.</p></div>
+            <div class="card reveal"><span class="tag">CLIENT</span><h3>PvP HUD</h3><p>Direction compass, speed, combo counter, reach display, memory and pack display, all movable and scalable.</p></div>
+            <div class="card reveal"><span class="tag">RENDER</span><h3>Visual tweaks</h3><p>Hit colour, block outline colour, low fire, no hurt shake and a time changer that only changes your sky.</p></div>
+            <div class="card reveal"><span class="tag">MISC</span><h3>Chat upgrades</h3><p>Repeated messages stack as (x3), mentions of your name light up, right-click copies a line, and Nick Hider keeps your name off stream.</p></div>
+            <div class="card reveal"><span class="tag">QOL</span><h3>Camera</h3><p>Hold-to-zoom with a zoom level readout, Freelook, Snaplook and a smooth third-person distance.</p></div>
+            <div class="card reveal"><span class="tag">QOL</span><h3>Keystrokes and waypoints</h3><p>Keys, clicks per second, toggle sprint, and waypoints with on-screen markers.</p></div>
+            <div class="card reveal"><span class="tag">MENU</span><h3>Search everything</h3><p>Start typing in the menu to find any module. Every row explains what it does in a few words.</p></div>
+            <div class="card reveal"><span class="tag">STORAGE</span><h3>Profiles and packs</h3><p>Save module setups, switch mod sets, browse screenshots, peek inside shulker boxes and search chests.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="launcher" class="alt">
+        <div class="wrap split reverse reveal">
+          <div>
+            <p class="section-title">LAUNCHER</p>
+            <h2 class="section-heading">Instances that never conflict</h2>
+            <p class="section-lead">Each instance has its own version, mods, worlds and settings, so your PvP setup never breaks your modpack.</p>
+            <ul class="checks">
+              <li><strong>Fabric, Quilt, Forge and NeoForge</strong> installed for you</li>
+              <li><strong>Java handled automatically</strong>, or pick your own per instance</li>
+              <li><strong>Mod manager</strong> that catches duplicates and version conflicts</li>
+              <li><strong>Microsoft sign-in</strong> on Microsoft's own login page</li>
+              <li><strong>Crash detection</strong> and live game logs</li>
+            </ul>
+          </div>
+          <figure class="window">
+            <div class="window-bar"><i></i><i></i><i></i><span>Snowball Client Launcher</span></div>
+            <img src="assets/launcher-home.png" alt="The Snowball Client launcher home screen with an instance ready to play" width="1184" height="721" loading="lazy" />
+          </figure>
+        </div>
+      </section>
+
+      <section id="try">
+        <div class="wrap wide">
+          <p class="section-title center">TRY IT</p>
+          <h2 class="section-heading center">Play with the menu</h2>
+          <p class="section-lead center">This is the Snowball Client menu, running in your browser. Pick a category, switch modules on and off and watch the HUD change. Start typing to search.</p>
+          <div class="demo" id="demo">
+            <div class="demo-in">
+              <div class="demo-scene" aria-hidden="true"></div>
+              <div class="demo-hud" aria-hidden="true">
+                <div class="hud-tl">
+                  <span class="hud-text" data-hud="fps_counter"><span data-v="fps">144</span> FPS</span>
+                  <span class="hud-text" data-hud="ping_display"><span data-v="ping">21</span> ms</span>
+                  <span class="hud-text" data-hud="coordinates">XYZ 118 101 178  WEST</span>
+                  <span class="hud-text" data-hud="cps_counter"><span data-v="cps">0 | 0</span> CPS</span>
+                  <span class="hud-text" data-hud="speed_display"><span data-v="speed">0.00</span> b/s</span>
+                </div>
+                <div class="hud-tr">
+                  <span class="hud-text" data-hud="clock" data-v="clock">12:00</span>
+                  <span class="hud-text" data-hud="session_timer">Session <span data-v="session">00:00</span></span>
+                  <span class="hud-text" data-hud="server_info">krakensmp.xyz</span>
+                  <span class="hud-text" data-hud="memory_usage">Mem <span data-v="mem">34%  1394/4096 MB</span></span>
+                </div>
+                <div class="hud-dir" data-hud="direction_hud">
+                  <div class="hud-dir-strip"></div>
+                  <span class="deg" data-v="deg">90&deg;</span>
+                </div>
+                <div class="hud-center">
+                  <span class="hud-text" data-hud="combo_counter" data-needs="combat"><span data-v="combo">0</span> Combo</span>
+                  <span class="hud-text" data-hud="reach_display" data-needs="combat"><span data-v="reach">0.00</span> blocks</span>
+                </div>
+                <div class="hud-keys" data-hud="keystrokes">
+                  <span class="hud-key w" data-key="w">W</span>
+                  <span class="hud-key a" data-key="a">A</span>
+                  <span class="hud-key" data-key="s">S</span>
+                  <span class="hud-key" data-key="d">D</span>
+                  <span class="hud-key wide3" data-key="lmb"><span data-v="lcps">0</span> CPS</span>
+                  <span class="hud-key wide3" data-key="rmb"><span data-v="rcps">0</span> CPS</span>
+                  <span class="hud-key space" data-key="space"></span>
+                </div>
+                <div class="hud-text hud-sprint" data-hud="toggle_sprint">[Sprinting (Toggled)]</div>
+                <div class="hud-toast"><b></b><span></span></div>
+              </div>
+              <svg class="wheel" viewBox="-124 -124 248 248" aria-label="Menu categories"></svg>
+              <div class="panel" role="group"></div>
+              <p class="demo-tip" aria-live="polite"></p>
+            </div>
+            <noscript><img src="assets/menu-client.jpg" alt="The Snowball Client radial menu in game" width="1920" height="1080" /></noscript>
+          </div>
+          <p class="note demo-note">A live preview of the in-game menu. In Minecraft, press Right Shift to open it.</p>
+        </div>
+      </section>
+      <script src="demo.js?v=3" defer></script>
+
+      <section class="steps-section">
+        <div class="wrap">
+          <p class="section-title center">GET STARTED</p>
+          <h2 class="section-heading center">Playing in three steps</h2>
+          <ol class="steps">
+            <li class="card reveal"><span class="num">1</span><h3>Download</h3><p>Grab the installer or the portable version below.</p></li>
+            <li class="card reveal"><span class="num">2</span><h3>Sign in</h3><p>Use your Microsoft account on Microsoft's own login page.</p></li>
+            <li class="card reveal"><span class="num">3</span><h3>Press Play</h3><p>The launcher downloads Minecraft, Java and your mods for you.</p></li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="download" class="download">
+        <div class="wrap">
+          <p class="section-title">DOWNLOAD</p>
+          <h2 class="section-heading">Get Snowball Client</h2>
+          <p class="section-lead center">Version 1.1.0 for Windows 10 and 11 (64-bit). You need a Microsoft account that owns Minecraft: Java Edition.</p>
+          <div class="options">
+            <div class="card featured reveal">
+              <span class="tag">RECOMMENDED</span>
+              <h3>Installer</h3>
+              <p>Installs Snowball Client with a Start menu shortcut and uninstaller.</p>
+              <p class="size">.exe - 107 MB</p>
+              <a class="btn primary" href="https://github.com/met4a/snowball-website/releases/download/v1.1.0/SnowballClient-1.1.0-setup.exe">Download installer</a>
+            </div>
+            <div class="card reveal">
+              <span class="tag">PORTABLE</span>
+              <h3>Portable</h3>
+              <p>A single file you can run from anywhere. Nothing is installed.</p>
+              <p class="size">.exe - 106 MB</p>
+              <a class="btn" href="https://github.com/met4a/snowball-website/releases/download/v1.1.0/SnowballClient-1.1.0-portable.exe">Download portable</a>
+            </div>
+          </div>
+          <p class="note">Windows may show "Windows protected your PC" because the app is new and not yet code-signed. Choose More info, then Run anyway.</p>
+          <details class="checksums">
+            <summary>SHA-256 checksums</summary>
+            <dl>
+              <dt>SnowballClient-1.1.0-setup.exe</dt>
+              <dd>0770e775d32af802702b9d6f47c62109d7d260962639ed61c1b9fe28f5dc17bc</dd>
+              <dt>SnowballClient-1.1.0-portable.exe</dt>
+              <dd>e75f50ae8e522c9616b4287a500e18e9e74b140730f04f41086b1b40196304fc</dd>
+            </dl>
+          </details>
+          <p class="note"><a href="https://github.com/met4a/snowball-website/releases">All releases</a></p>
+        </div>
+      </section>
+
+      <section id="faq">
+        <div class="wrap narrow">
+          <p class="section-title">FAQ</p>
+          <h2 class="section-heading">Questions</h2>
+          <details>
+            <summary>Is Snowball Client allowed on servers?</summary>
+            <p>Snowball Client only adds visual, interface and quality-of-life features. It has no hacks such as X-ray, ESP, reach, aim assist or auto clickers. Some servers ban all client mods, so always follow each server's rules.</p>
+          </details>
+          <details>
+            <summary>Do you see my Microsoft password?</summary>
+            <p>No. You sign in on Microsoft's own page. The launcher only receives a sign-in token from Microsoft, which is encrypted on your computer and never sent to us.</p>
+          </details>
+          <details>
+            <summary>Sign-in says Minecraft has not approved the launcher yet</summary>
+            <p>New launchers have to be approved by Mojang before Minecraft accepts their sign-ins. Our approval request is under review. Once it is approved, sign-in starts working in the version you already have, with no update needed.</p>
+          </details>
+          <details>
+            <summary>Windows says "Windows protected your PC"</summary>
+            <p>This appears for new apps that are not code-signed yet. Choose More info, then Run anyway. You can compare the file with the SHA-256 checksums in the download section.</p>
+          </details>
+          <details>
+            <summary>Which Minecraft versions are supported?</summary>
+            <p>The launcher runs any Java Edition version. The Snowball Client mod itself is built for Minecraft 26.2 with Fabric.</p>
+          </details>
+          <details>
+            <summary>Can I add my own mods?</summary>
+            <p>Yes. Each instance has its own mods folder and the Mods page shows what is installed, warns about duplicates and version conflicts, and lets you turn mods on and off.</p>
+          </details>
+          <details>
+            <summary>Does it cost anything?</summary>
+            <p>No. Snowball Client is free. You still need to own Minecraft: Java Edition.</p>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <a class="brand small" href="index.html"><img src="assets/logo.png" alt="" />SNOWBALL <span>CLIENT</span></a>
+        <div class="links">
+          <a href="#download">Download</a>
+          <a href="https://github.com/met4a/snowball-website/releases">Releases</a>
+          <a href="privacy.html">Privacy</a>
+          <a href="terms.html">Terms</a>
+        </div>
+        <p class="disclaimer">&copy; 2026 Snowball Client. Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.</p>
+      </div>
+    </footer>
+
+    <script>
+      (function () {
+        var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var items = document.querySelectorAll('.reveal');
+        if (reduce || !('IntersectionObserver' in window)) {
+          items.forEach(function (el) { el.classList.add('in'); });
+        } else {
+          var io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (e) {
+              if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+            });
+          }, { rootMargin: '0px 0px -8% 0px' });
+          items.forEach(function (el) { io.observe(el); });
+        }
+        if (reduce) return;
+        var snow = document.querySelector('.snow');
+        for (var i = 0; i < 36; i++) {
+          var f = document.createElement('i');
+          var size = 2 + Math.floor(Math.random() * 3);
+          f.style.left = (Math.random() * 100) + '%';
+          f.style.width = f.style.height = size + 'px';
+          f.style.opacity = (0.25 + Math.random() * 0.5).toFixed(2);
+          f.style.animationDuration = (9 + Math.random() * 12).toFixed(1) + 's';
+          f.style.animationDelay = (-Math.random() * 20).toFixed(1) + 's';
+          snow.appendChild(f);
+        }
+      })();
+    </script>
+  </body>
+</html>

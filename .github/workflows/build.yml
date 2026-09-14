@@ -1,0 +1,58 @@
+name: Build
+
+# Builds the client mod, the Windows installers and the Microsoft Store package from source.
+# Runs for release tags (v1.2.0, ...) and can be started by hand from the Actions tab.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: launcher/package-lock.json
+
+      - name: Install launcher dependencies
+        working-directory: launcher
+        run: npm ci
+
+      - name: Test launcher
+        working-directory: launcher
+        run: npm test
+
+      - name: Build client mod and installers
+        working-directory: launcher
+        run: npm run dist
+
+      - name: Build Microsoft Store package
+        working-directory: launcher
+        run: npx electron-builder --win appx --publish never
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: snowball-client-windows
+          path: |
+            launcher/release/SnowballClient-*-setup.exe
+            launcher/release/SnowballClient-*-portable.exe
+            launcher/release/SnowballClient-*.appx
+          if-no-files-found: error
+
+      # Once SignPath Foundation approves the project, a signing step goes here: it submits the
+      # uploaded installers to SignPath and replaces them with signed copies. The organization id,
+      # project slug and signing policy slug come from the SignPath dashboard.
