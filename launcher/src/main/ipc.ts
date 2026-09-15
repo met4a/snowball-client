@@ -2,7 +2,7 @@ import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { join } from 'node:path';
 import { LOADER_IDS, PERFORMANCE_PROFILES as PROFILE_IDS, type InstanceConfig, type InstanceSummary } from '../core/instance/InstanceManager.js';
 import { recommendMemory } from '../core/java/JavaManager.js';
-import { SNOWBALL_CLIENT_MC, type Launcher } from '../core/Launcher.js';
+import type { Launcher } from '../core/Launcher.js';
 import { getLogger, logSink } from '../core/logging/Logger.js';
 import { SEARCH_SORTS } from '../core/mods/Modrinth.js';
 import { PERFORMANCE_PROFILES } from '../core/performance/PerformanceProfiles.js';
@@ -23,7 +23,7 @@ function joinArgs(args: string[]): string {
   return args.map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(' ');
 }
 
-function toDto(summary: InstanceSummary, running: boolean): Snowball.Instance {
+function toDto(summary: InstanceSummary, launcher: Launcher): Snowball.Instance {
   const c = summary.config;
   return {
     id: c.id,
@@ -36,12 +36,12 @@ function toDto(summary: InstanceSummary, running: boolean): Snowball.Instance {
     jvmArgs: joinArgs(c.jvmArgs),
     gameArgs: joinArgs(c.gameArgs),
     window: c.window,
-    clientProfile: c.clientProfile,
+    snowball: launcher.snowballSupport(c.minecraftVersion, c.loader),
     performanceProfile: c.performanceProfile,
     created: c.timestamps.created,
     lastPlayed: c.timestamps.lastPlayed,
     totalPlayMs: c.timestamps.totalPlayMs,
-    running,
+    running: launcher.processes.isRunning(c.id),
     error: summary.error,
   };
 }
@@ -51,6 +51,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow): void {
     if (!win.isDestroyed()) win.webContents.send(`evt:${event}`, payload);
   };
   launcher.on('progress', (p) => send('progress', p));
+  launcher.activity.on('activity', (e) => send('activity', e));
   launcher.processes.on('log', (l) => send('game-log', l));
   launcher.processes.on('started', () => {
     send('state', null);
@@ -83,21 +84,20 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow): void {
   const dto = async (id: string) => {
     const summary = (await launcher.instances.list()).find((i) => i.config.id === id);
     if (!summary) throw new Error('Instance not found');
-    return toDto(summary, launcher.processes.isRunning(id));
+    return toDto(summary, launcher);
   };
 
   handle('state:get', async (): Promise<Snowball.AppState> => {
     const rec = recommendMemory();
     const instances = await launcher.instances.list();
     return {
-      instances: instances.map((i) => toDto(i, launcher.processes.isRunning(i.config.id))),
+      instances: instances.map((i) => toDto(i, launcher)),
       accounts: launcher.auth.list(),
       settings: launcher.settings.get(),
       memory: { totalMb: rec.totalMb, recommendedMaxMb: rec.recommendedMaxMb, safeUpperLimitMb: rec.safeUpperLimitMb },
       profiles: [{ id: 'none', name: 'None', description: 'No optimisation mods are managed by the launcher.', mods: [] }, ...PERFORMANCE_PROFILES.map((p) => ({ id: p.id, name: p.name, description: p.description, mods: p.mods.map((m) => m.name) }))],
       dataRoot: launcher.paths.root,
-      clientJarAvailable: launcher.clientJarAvailable,
-      clientMinecraftVersion: SNOWBALL_CLIENT_MC,
+      snowballBuilds: launcher.core.registry.builds.map((b) => ({ version: b.version, minecraft: b.label })),
       canAddOffline: launcher.auth.canAddOffline(),
       microsoftSignInConfigured: launcher.microsoftSignInConfigured,
       launcherVersion: process.env.npm_package_version ?? '1.1.2',
@@ -120,7 +120,6 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow): void {
       minecraftVersion: str(raw?.minecraftVersion, 'Minecraft version', 64),
       loader,
       loaderVersion: raw?.loaderVersion ? str(raw.loaderVersion, 'loader version', 64) : null,
-      clientProfile: raw?.clientProfile === 'snowballclient' ? 'snowballclient' : 'none',
       performanceProfile: profile,
     });
     return dto(config.id);
@@ -146,7 +145,6 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow): void {
       if (typeof patch.jvmArgs === 'string') c.jvmArgs = splitArgs(str(patch.jvmArgs, 'JVM arguments', 4096));
       if (typeof patch.gameArgs === 'string') c.gameArgs = splitArgs(str(patch.gameArgs, 'game arguments', 4096));
       if (patch.window) c.window = { width: Number(patch.window.width), height: Number(patch.window.height), fullscreen: patch.window.fullscreen === true };
-      if (patch.clientProfile) c.clientProfile = patch.clientProfile === 'snowballclient' ? 'snowballclient' : 'none';
     });
     return dto(iid);
   });
@@ -179,7 +177,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow): void {
     const mods = await launcher.mods.list(gameDir);
     const managed = new Set(config.managedMods);
     return {
-      mods: mods.map((m) => ({ fileName: m.fileName, enabled: m.enabled, name: m.name, id: m.id, version: m.version, loader: m.loader, size: m.size, managed: managed.has(m.fileName.replace(/\.disabled$/, '')), error: m.error })),
+      mods: mods.map((m) => ({ fileName: m.fileName, enabled: m.enabled, name: m.name, id: m.id, version: m.version, loader: m.loader, size: m.size, managed: managed.has(m.fileName.replace(/\.disabled$/, '')), protection: m.protection ?? null, error: m.error })),
       issues: launcher.mods.analyze(mods, config.minecraftVersion, config.loader).map((i) => ({ severity: i.severity, message: i.message, files: i.files, dependency: i.dependency })),
     };
   });
@@ -271,6 +269,16 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow): void {
   });
   handle('game:stop', async (id: unknown) => launcher.processes.kill(await instanceId(id)));
   handle('game:logs', async (id: unknown) => launcher.processes.recentLines(await instanceId(id)));
+  handle('game:activity', async (id: unknown) => launcher.activity.recent(await instanceId(id)));
+
+  handle('core:status', async (id: unknown) => launcher.inspectCore(await instanceId(id)));
+  handle('core:repair', async (id: unknown) => {
+    const iid = await instanceId(id);
+    if (launcher.processes.isRunning(iid)) throw new Error('Stop the game before repairing Snowball Client.');
+    return launcher.repairCore(iid);
+  });
+  handle('core:supports', async (mc: unknown, loader: unknown) =>
+    launcher.snowballSupport(str(mc, 'Minecraft version', 64), LOADER_IDS.includes(loader as never) ? (loader as InstanceConfig['loader']) : 'vanilla'));
 
   handle('settings:update', async (patch: Partial<Snowball.Settings>) => {
     const updated = await launcher.settings.update((s) => {

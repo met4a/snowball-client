@@ -18,7 +18,8 @@ declare namespace Snowball {
     jvmArgs: string;
     gameArgs: string;
     window: { width: number; height: number; fullscreen: boolean };
-    clientProfile: 'snowballclient' | 'none';
+    /** Snowball Client build for this instance's version and loader; supported is false when none exists yet. */
+    snowball: { supported: boolean; version: string | null };
     performanceProfile: PerformanceProfileId;
     created: string;
     lastPlayed: string | null;
@@ -37,7 +38,6 @@ declare namespace Snowball {
     jvmArgs?: string;
     gameArgs?: string;
     window?: { width: number; height: number; fullscreen: boolean };
-    clientProfile?: 'snowballclient' | 'none';
   }
 
   interface CreateInstance {
@@ -45,7 +45,6 @@ declare namespace Snowball {
     minecraftVersion: string;
     loader: LoaderId;
     loaderVersion: string | null;
-    clientProfile: 'snowballclient' | 'none';
     performanceProfile: PerformanceProfileId;
   }
 
@@ -58,7 +57,24 @@ declare namespace Snowball {
     loader: string;
     size: number;
     managed: boolean;
+    /** Snowball Client ("core") and the Fabric API it needs ("required") can't be removed or turned off. */
+    protection: 'core' | 'required' | null;
     error?: string;
+  }
+
+  interface CoreReport {
+    supported: boolean;
+    build: { version: string; minecraft: string } | null;
+    client: 'unsupported' | 'ok' | 'missing' | 'damaged' | 'outdated' | 'disabled' | 'duplicate';
+    fabricApi: 'ok' | 'missing' | 'disabled' | 'not-needed';
+    problems: string[];
+  }
+
+  interface ActivityEvent {
+    instanceId: string;
+    time: number;
+    level: 'info' | 'success' | 'warn' | 'error';
+    message: string;
   }
 
   type ModSort = 'relevance' | 'downloads' | 'follows' | 'updated' | 'newest';
@@ -144,8 +160,8 @@ declare namespace Snowball {
     memory: { totalMb: number; recommendedMaxMb: number; safeUpperLimitMb: number };
     profiles: PerformanceProfile[];
     dataRoot: string;
-    clientJarAvailable: boolean;
-    clientMinecraftVersion: string;
+    /** Snowball Client builds shipped with this launcher, newest first. */
+    snowballBuilds: Array<{ version: string; minecraft: string }>;
     canAddOffline: boolean;
     microsoftSignInConfigured: boolean;
     launcherVersion: string;
@@ -163,6 +179,7 @@ declare namespace Snowball {
     stream: 'stdout' | 'stderr';
     line: string;
     time: number;
+    level?: string;
   }
 
   interface GameExit {
@@ -192,7 +209,7 @@ declare namespace Snowball {
     stable: boolean;
   }
 
-  type EventName = 'progress' | 'game-log' | 'game-exit' | 'launch-error' | 'launcher-log' | 'state';
+  type EventName = 'progress' | 'game-log' | 'game-exit' | 'launch-error' | 'launcher-log' | 'state' | 'activity';
 
   interface Api {
     getState(): Promise<AppState>;
@@ -219,6 +236,10 @@ declare namespace Snowball {
     launch(id: string): Promise<void>;
     stop(id: string): Promise<boolean>;
     gameLogs(id: string): Promise<GameLog[]>;
+    gameActivity(id: string): Promise<ActivityEvent[]>;
+    coreStatus(id: string): Promise<CoreReport>;
+    repairCore(id: string): Promise<CoreReport>;
+    snowballSupport(minecraftVersion: string, loader: LoaderId): Promise<{ supported: boolean; version: string | null }>;
     updateSettings(patch: Partial<Settings>): Promise<Settings>;
     addOfflineAccount(name: string): Promise<Account>;
     removeAccount(id: string): Promise<void>;

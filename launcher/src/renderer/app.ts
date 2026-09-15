@@ -33,6 +33,8 @@
       paint: () => {},
     },
     updates: new Map<string, Map<string, Snowball.ModUpdate>>(),
+    activity: new Map<string, Snowball.ActivityEvent[]>(),
+    logMode: 'activity' as 'activity' | 'technical',
   };
 
   // ---------- DOM helpers ----------
@@ -63,6 +65,7 @@
     instances: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
     mods: '<path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M12 22V12M21 7l-9 5-9-5"/>',
     browse: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+    lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
     java: '<path d="M6 8h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17M9 2v3M13 2v3"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   };
@@ -294,7 +297,18 @@
     const stat = (label: string, value: Node | string) => h('div', { class: 'stat' }, h('div', { class: 'stat-label' }, label), typeof value === 'string' ? h('div', { class: 'stat-value' }, value) : value);
 
     const logView = h('div', { class: 'log-view', id: 'home-log' });
+    const logTabs = h('div', { class: 'log-tabs' });
+    const paintTabs = () => logTabs.replaceChildren(...(['activity', 'technical'] as const).map((mode) =>
+      h('button', { class: `log-tab${ui.logMode === mode ? ' active' : ''}`, onClick: () => { ui.logMode = mode; paintTabs(); fillLog(logView, inst.id); } }, mode === 'activity' ? 'ACTIVITY' : 'TECHNICAL')));
+    paintTabs();
     fillLog(logView, inst.id);
+    if (!ui.activity.has(inst.id)) {
+      void api.gameActivity(inst.id).then((events) => {
+        if (ui.activity.get(inst.id)?.length) return;
+        ui.activity.set(inst.id, events);
+        fillLog(logView, inst.id);
+      }).catch(() => undefined);
+    }
     if (inst.running && !ui.logs.get(inst.id)?.length) {
       void api.gameLogs(inst.id).then((lines) => {
         ui.logs.set(inst.id, lines);
@@ -309,7 +323,7 @@
         h('div', { class: 'card hero-main' },
           h('div', { class: 'row' },
             h('span', { class: 'tag accent' }, LOADER_NAMES[inst.loader]),
-            inst.clientProfile === 'snowballclient' ? h('span', { class: 'tag accent' }, 'SNOWBALL CLIENT') : null,
+            inst.snowball.supported ? h('span', { class: 'tag accent' }, `SNOWBALL CLIENT ${inst.snowball.version}`) : null,
             inst.running ? h('span', { class: 'tag running' }, 'RUNNING') : null),
           h('div', { class: 'hero-name' }, inst.name),
           h('div', { class: 'stats' },
@@ -324,18 +338,30 @@
             h('button', { class: 'btn', onClick: () => editInstanceDialog(inst) }, 'Edit'),
             h('button', { class: 'btn ghost', onClick: () => void guard(() => api.openInstanceFolder(inst.id, 'root')) }, 'Open folder')),
           progressBar(inst.id)),
-        h('div', { class: 'card', style: 'display:flex;flex-direction:column' },
-          h('div', { class: 'section-title' }, 'GAME OUTPUT'),
+        h('div', { class: 'card output-card' },
+          h('div', { class: 'row log-head' }, h('div', { class: 'section-title' }, 'OUTPUT'), h('div', { class: 'spacer' }), logTabs),
           logView)));
   }
 
+  function activityRow(e: Snowball.ActivityEvent): HTMLElement {
+    const time = new Date(e.time).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return h('div', { class: `act ${e.level}` }, h('span', { class: 'act-time' }, time), h('span', { class: 'act-tag' }, '[Snowball]'), h('span', { class: 'act-msg' }, e.message));
+  }
+
+  function techRow(l: Snowball.GameLog): HTMLElement {
+    const bad = l.level ? l.level === 'ERROR' || l.level === 'FATAL' : l.stream === 'stderr' || /ERROR|Exception/.test(l.line);
+    return h('div', { class: bad ? 'err' : l.level === 'WARN' ? 'warn' : '' }, l.line);
+  }
+
+  /** Activity is the readable timeline; the technical log is the game's own output. */
   function fillLog(view: HTMLElement, id: string): void {
-    const lines = (ui.logs.get(id) ?? []).slice(-300);
-    if (lines.length === 0) {
-      view.replaceChildren(h('span', { class: 'muted' }, 'Game output appears here while the instance is running.'));
-      return;
+    if (ui.logMode === 'activity') {
+      const events = (ui.activity.get(id) ?? []).slice(-300);
+      view.replaceChildren(...(events.length ? events.map(activityRow) : [h('span', { class: 'muted' }, 'Press Play and Snowball shows each step here.')]));
+    } else {
+      const lines = (ui.logs.get(id) ?? []).slice(-300);
+      view.replaceChildren(...(lines.length ? lines.map(techRow) : [h('span', { class: 'muted' }, 'Game output appears here while the instance is running.')]));
     }
-    view.replaceChildren(...lines.map((l) => h('div', { class: l.stream === 'stderr' || /ERROR|Exception/.test(l.line) ? 'err' : '' }, l.line)));
     view.scrollTop = view.scrollHeight;
   }
 
@@ -419,6 +445,38 @@
         : null;
       return h('div', { class: `issue row${i.severity === 'warning' ? ' warning' : ''}` }, h('span', { class: 'issue-text' }, i.message), action);
     };
+    // Snowball Client status with Verify / Repair; protection itself is enforced by the launcher core.
+    const coreEl = h('div', {});
+    const loadCore = async () => {
+      if (inst.loader === 'vanilla') return;
+      const report = await api.coreStatus(inst.id).catch(() => null);
+      if (!report) return;
+      if (!report.supported) {
+        const available = state.snowballBuilds.map((b) => b.minecraft).join(', ');
+        coreEl.replaceChildren(h('div', { class: 'issue warning' }, `Snowball Client isn't available for ${LOADER_NAMES[inst.loader]} ${inst.minecraftVersion} yet${available ? ` (it runs on Fabric ${available})` : ''}. This instance works without it.`));
+        return;
+      }
+      const healthy = report.client === 'ok' && report.fabricApi === 'ok';
+      const repair = h('button', {
+        class: `btn small${healthy ? '' : ' primary'}`,
+        disabled: inst.running,
+        onClick: async () => {
+          repair.disabled = true;
+          repair.textContent = healthy ? 'Checking...' : 'Repairing...';
+          const r = await guard(() => api.repairCore(inst.id));
+          if (r) toast(healthy ? 'Snowball Client verified' : 'Snowball Client repaired');
+          await load();
+          await loadCore();
+        },
+      }, healthy ? 'Verify' : 'Repair now');
+      coreEl.replaceChildren(h('div', { class: 'card core-card' },
+        h('img', { class: 'core-logo', src: 'assets/logo.png', alt: '' }),
+        h('div', { class: 'grow-1' },
+          h('div', { class: 'core-title' }, `SNOWBALL CLIENT ${report.build?.version ?? ''}`),
+          h('div', { class: 'muted' }, healthy ? `Built in for Minecraft ${report.build?.minecraft}. Checked before every launch.` : `${report.problems.join('. ')}. It is repaired automatically when you press Play.`)),
+        h('span', { class: `tag${healthy ? ' accent' : ' warn'}` }, healthy ? 'VERIFIED' : 'NEEDS REPAIR'),
+        repair));
+    };
     const load = async () => {
       const result = await guard(() => api.listMods(inst.id));
       if (!result) return;
@@ -427,16 +485,25 @@
         listEl.replaceChildren(h('div', { class: 'muted' }, inst.loader === 'vanilla' ? 'This instance has no mod loader. Choose Fabric, Quilt, Forge or NeoForge in the instance editor.' : 'No mods installed yet.'));
         return;
       }
-      listEl.replaceChildren(...result.mods.map((m) =>
-        h('div', { class: 'list-row' },
-          toggle(m.enabled, async (value) => { await guard(() => api.setModEnabled(inst.id, m.fileName, value)); await load(); }, inst.running),
+      const rank = (m: Snowball.Mod) => (m.protection === 'core' ? 0 : m.protection === 'required' ? 1 : 2);
+      listEl.replaceChildren(...[...result.mods].sort((a, b) => rank(a) - rank(b)).map((m) => {
+        const locked = m.protection !== null;
+        const note = m.protection === 'core' ? ' - built in, repaired automatically' : m.protection === 'required' ? ' - needed by Snowball Client' : m.managed ? ' - managed by performance profile' : '';
+        return h('div', { class: `list-row${m.protection === 'core' ? ' core-row' : ''}` },
+          locked
+            ? h('span', { class: 'lock', title: m.protection === 'core' ? 'Snowball Client is built in' : 'Required by Snowball Client' }, icon('lock'))
+            : toggle(m.enabled, async (value) => { await guard(() => api.setModEnabled(inst.id, m.fileName, value)); await load(); }, inst.running),
           h('div', { class: 'grow' },
             h('div', { class: 'truncate' }, m.name, m.version ? h('span', { class: 'muted' }, `  ${m.version}`) : null),
-            h('div', { class: 'muted truncate', style: 'font-size:12px' }, `${m.fileName} - ${m.loader}${m.managed ? ' - managed by performance profile' : ''}`, m.error ? h('span', { class: 'danger-text' }, ` - ${m.error}`) : null)),
+            h('div', { class: 'muted truncate', style: 'font-size:12px' }, `${m.fileName} - ${m.loader}${note}`, m.error ? h('span', { class: 'danger-text' }, ` - ${m.error}`) : null)),
           updateButton(m),
-          h('button', { class: 'btn small danger', disabled: inst.running, onClick: () => confirmDialog('Remove mod', `Remove ${m.fileName} from ${inst.name}? The file will be deleted.`, 'Remove', async () => { await api.removeMod(inst.id, m.fileName); await load(); }) }, 'Remove'))));
+          locked
+            ? h('span', { class: 'tag accent' }, m.protection === 'core' ? 'BUILT IN' : 'REQUIRED')
+            : h('button', { class: 'btn small danger', disabled: inst.running, onClick: () => confirmDialog('Remove mod', `Remove ${m.fileName} from ${inst.name}? The file will be deleted.`, 'Remove', async () => { await api.removeMod(inst.id, m.fileName); await load(); }) }, 'Remove'));
+      }));
     };
     void load();
+    void loadCore();
 
     const profileSelect = h('select', { class: 'input' }, ...state.profiles.map((p) => h('option', { value: p.id, selected: p.id === inst.performanceProfile }, p.name)));
     const profileInfo = h('div', { class: 'muted', style: 'margin-top:8px' });
@@ -487,6 +554,7 @@
         h('div', { class: 'section-title' }, 'PERFORMANCE PROFILE'),
         h('div', { class: 'row' }, h('div', { style: 'flex:1' }, profileSelect), applyButton),
         profileInfo),
+      coreEl,
       issuesEl,
       h('div', { class: 'card' },
         h('div', { class: 'row', style: 'margin-bottom:12px' }, h('div', { class: 'section-title', style: 'margin:0' }, 'INSTALLED MODS'), h('div', { class: 'spacer' }), updatesButton,
@@ -725,7 +793,7 @@
         h('div', { class: 'list' },
           settingRow('Launcher folder', state.dataRoot, h('button', { class: 'btn', onClick: () => void guard(() => api.openLauncherFolder('root')) }, 'Open')),
           settingRow('Logs', 'Launcher logs (tokens are always redacted).', h('button', { class: 'btn', onClick: () => void guard(() => api.openLauncherFolder('logs')) }, 'Open')),
-          settingRow('Snowball Client mod', state.clientJarAvailable ? `Bundled, for Fabric ${state.clientMinecraftVersion}` : 'Not bundled in this build', h('span', { class: `tag${state.clientJarAvailable ? ' accent' : ''}` }, state.clientJarAvailable ? 'READY' : 'MISSING')))));
+          settingRow('Snowball Client', state.snowballBuilds.length ? state.snowballBuilds.map((b) => `${b.version} for Fabric ${b.minecraft}`).join(', ') : 'Not bundled in this build', h('span', { class: `tag${state.snowballBuilds.length ? ' accent' : ''}` }, state.snowballBuilds.length ? 'BUILT IN' : 'MISSING')))));
   }
 
   // ---------- dialogs ----------
@@ -736,14 +804,14 @@
     const snapshots = h('input', { type: 'checkbox' }) as HTMLInputElement;
     const loader = h('select', { class: 'input' }, ...(['fabric', 'vanilla', 'quilt', 'forge', 'neoforge'] as Snowball.LoaderId[]).map((l) => h('option', { value: l }, LOADER_NAMES[l]))) as HTMLSelectElement;
     const loaderVersion = h('select', { class: 'input' }) as HTMLSelectElement;
-    const client = h('input', { type: 'checkbox', checked: true }) as HTMLInputElement;
-    const clientNote = h('span', { class: 'muted' });
+    const clientNote = h('div', { class: 'muted core-note' });
+    const defaultVersion = state.snowballBuilds[0]?.minecraft.split(', ')[0] ?? '';
     const profile = h('select', { class: 'input' }, ...state.profiles.map((p) => h('option', { value: p.id, selected: p.id === 'fps-boost' }, p.name))) as HTMLSelectElement;
 
     const loadVersions = async () => {
       const list = await guard(() => api.listMinecraftVersions(snapshots.checked));
       if (!list) return;
-      version.replaceChildren(...list.map((v) => h('option', { value: v.id, selected: v.id === state.clientMinecraftVersion }, v.type === 'release' ? v.id : `${v.id} (${v.type})`)));
+      version.replaceChildren(...list.map((v) => h('option', { value: v.id, selected: v.id === defaultVersion }, v.type === 'release' ? v.id : `${v.id} (${v.type})`)));
       await loadLoaders();
     };
     const loadLoaders = async () => {
@@ -759,11 +827,16 @@
       loaderVersion.replaceChildren(h('option', { value: '' }, 'Latest stable'), ...(list ?? []).slice(0, 60).map((v) => h('option', { value: v.version }, v.stable ? v.version : `${v.version} (beta)`)));
       if (list && list.length === 0) loaderVersion.replaceChildren(h('option', { value: '' }, `No ${LOADER_NAMES[loader.value as Snowball.LoaderId]} build for ${version.value}`));
     };
+    let supportCheck = 0;
     const updateClient = () => {
-      const supported = loader.value === 'fabric' && version.value === state.clientMinecraftVersion && state.clientJarAvailable;
-      client.disabled = !supported;
-      if (!supported) client.checked = false;
-      clientNote.textContent = supported ? 'Adds the Snowball radial menu, HUD and QoL modules.' : `Available for Fabric ${state.clientMinecraftVersion}${state.clientJarAvailable ? '' : ' (mod not bundled in this build)'}.`;
+      const check = ++supportCheck;
+      void api.snowballSupport(version.value, loader.value as Snowball.LoaderId).then((s) => {
+        if (check !== supportCheck) return;
+        const available = state.snowballBuilds.map((b) => b.minecraft).join(', ');
+        clientNote.textContent = s.supported
+          ? `Snowball Client ${s.version} and Fabric API are set up automatically.`
+          : `Snowball Client isn't available for ${LOADER_NAMES[loader.value as Snowball.LoaderId]} ${version.value} yet${available ? ` (it runs on Fabric ${available})` : ''}. The instance works without it.`;
+      }).catch(() => undefined);
       profile.disabled = !(loader.value === 'fabric' || loader.value === 'quilt');
       if (profile.disabled) profile.value = 'none';
     };
@@ -778,7 +851,7 @@
       h('label', { class: 'field' }, 'Mod loader', loader),
       h('label', { class: 'field' }, 'Loader version', loaderVersion),
       h('label', { class: 'field' }, 'Performance profile', profile),
-      h('label', { class: 'field full' }, h('span', { class: 'row' }, client, 'Install Snowball Client'), clientNote));
+      clientNote);
 
     modal('NEW INSTANCE', body, [
       { label: 'Cancel', kind: 'ghost', onClick: (close) => close() },
@@ -792,7 +865,6 @@
             minecraftVersion: version.value,
             loader: loader.value as Snowball.LoaderId,
             loaderVersion: loaderVersion.value || null,
-            clientProfile: client.checked ? 'snowballclient' : 'none',
             performanceProfile: profile.value as Snowball.PerformanceProfileId,
           }));
           if (!created) return;
@@ -800,7 +872,7 @@
           ui.selectedId = created.id;
           ui.view = 'home';
           await refresh();
-          toast(`Created ${created.name}. Press Play to install and launch.`);
+          toast(created.snowball.supported ? `Created ${created.name} with Snowball Client ${created.snowball.version}. Press Play to start.` : `Created ${created.name}. Press Play to install and launch.`);
         },
       },
     ]);
@@ -815,7 +887,6 @@
     const version = h('input', { class: 'input', value: inst.minecraftVersion }) as HTMLInputElement;
     const loader = h('select', { class: 'input' }, ...(Object.keys(LOADER_NAMES) as Snowball.LoaderId[]).map((l) => h('option', { value: l, selected: l === inst.loader }, LOADER_NAMES[l]))) as HTMLSelectElement;
     const loaderVersion = h('input', { class: 'input', value: inst.loaderVersion ?? '', placeholder: 'Latest stable' }) as HTMLInputElement;
-    const client = h('input', { type: 'checkbox', checked: inst.clientProfile === 'snowballclient' }) as HTMLInputElement;
     const javaPath = h('input', { class: 'input', value: inst.javaExecutable ?? '', placeholder: 'Automatic (recommended)' }) as HTMLInputElement;
     const maxMem = h('input', { type: 'range', min: '1024', max: String(state.memory.safeUpperLimitMb), step: '256', value: String(inst.memory.maxMb) }) as HTMLInputElement;
     const minMem = h('input', { type: 'range', min: '512', max: String(state.memory.safeUpperLimitMb), step: '256', value: String(inst.memory.minMb) }) as HTMLInputElement;
@@ -839,7 +910,7 @@
         h('label', { class: 'field' }, 'Minecraft version', version),
         h('label', { class: 'field' }, 'Mod loader', loader),
         h('label', { class: 'field' }, 'Loader version', loaderVersion),
-        h('label', { class: 'field' }, h('span', { class: 'row' }, client, 'Snowball Client'), h('span', { class: 'muted' }, `Fabric ${state.clientMinecraftVersion} only`))),
+        h('div', { class: 'muted core-note' }, inst.snowball.supported ? `Snowball Client ${inst.snowball.version} is built in and checked before every launch.` : "Snowball Client isn't available for this Minecraft version and loader yet.")),
       'Java & Memory': h('div', { class: 'form-grid' },
         h('label', { class: 'field full' }, 'Java executable', h('div', { class: 'row' }, javaPath, h('button', { class: 'btn', onClick: async () => { const p = await guard(() => api.browseJava()); if (p) javaPath.value = p; } }, 'Browse'), h('button', { class: 'btn ghost', onClick: () => (javaPath.value = '') }, 'Auto'))),
         h('label', { class: 'field full' }, 'Maximum memory', maxMem),
@@ -875,7 +946,6 @@
             minecraftVersion: version.value.trim(),
             loader: loader.value as Snowball.LoaderId,
             loaderVersion: loaderVersion.value.trim() || null,
-            clientProfile: client.checked ? 'snowballclient' : 'none',
             javaExecutable: javaPath.value.trim() || null,
             memory: { minMb: Number(minMem.value), maxMb: Number(maxMem.value) },
             jvmArgs: jvmArgs.value,
@@ -932,19 +1002,28 @@
     else ui.busy.add(p.instanceId);
     if (ui.view === 'home' || ui.view === 'instances') render();
   });
+  const appendToOutput = (instanceId: string, mode: 'activity' | 'technical', row: HTMLElement) => {
+    const view = document.getElementById('home-log');
+    if (!view || ui.view !== 'home' || ui.selectedId !== instanceId || ui.logMode !== mode) return;
+    if (view.firstElementChild?.classList.contains('muted')) view.replaceChildren();
+    const atBottom = view.scrollTop + view.clientHeight >= view.scrollHeight - 30;
+    view.append(row);
+    while (view.childElementCount > 300) view.firstElementChild?.remove();
+    if (atBottom) view.scrollTop = view.scrollHeight;
+  };
   api.on('game-log', (l: Snowball.GameLog) => {
     const lines = ui.logs.get(l.instanceId) ?? [];
     lines.push(l);
     if (lines.length > 2000) lines.splice(0, lines.length - 2000);
     ui.logs.set(l.instanceId, lines);
-    const view = document.getElementById('home-log');
-    if (view && ui.view === 'home' && ui.selectedId === l.instanceId) {
-      if (view.firstElementChild?.classList.contains('muted')) view.replaceChildren();
-      const atBottom = view.scrollTop + view.clientHeight >= view.scrollHeight - 30;
-      view.append(h('div', { class: l.stream === 'stderr' || /ERROR|Exception/.test(l.line) ? 'err' : '' }, l.line));
-      while (view.childElementCount > 300) view.firstElementChild?.remove();
-      if (atBottom) view.scrollTop = view.scrollHeight;
-    }
+    appendToOutput(l.instanceId, 'technical', techRow(l));
+  });
+  api.on('activity', (e: Snowball.ActivityEvent) => {
+    const events = ui.activity.get(e.instanceId) ?? [];
+    events.push(e);
+    if (events.length > 400) events.splice(0, events.length - 400);
+    ui.activity.set(e.instanceId, events);
+    appendToOutput(e.instanceId, 'activity', activityRow(e));
   });
   api.on('game-exit', (e: Snowball.GameExit) => {
     ui.busy.delete(e.instanceId);

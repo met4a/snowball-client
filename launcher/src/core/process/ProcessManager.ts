@@ -5,6 +5,7 @@ import { readdir, stat } from 'node:fs/promises';
 import { platform } from 'node:os';
 import { join } from 'node:path';
 import { getLogger, redactText } from '../logging/Logger.js';
+import { formatRecord, GameOutputParser, type GameLogLevel, type GameRecord } from './GameOutput.js';
 
 const log = getLogger('process');
 const MAX_BUFFERED_LINES = 5000;
@@ -15,6 +16,12 @@ export interface GameLogLine {
   stream: 'stdout' | 'stderr';
   line: string;
   time: number;
+  level: GameLogLevel;
+}
+
+export interface GameRecordEvent {
+  instanceId: string;
+  record: GameRecord;
 }
 
 export interface GameExit {
@@ -34,6 +41,7 @@ interface RunningGame {
   killedByUser: boolean;
   sawCrashMarker: boolean;
   lines: GameLogLine[];
+  parser: GameOutputParser;
 }
 
 export type Spawner = typeof spawn;
@@ -65,7 +73,7 @@ export class ProcessManager extends EventEmitter {
     if (this.running.has(instanceId)) throw new Error('This instance is already running.');
     log.info(`Launching instance ${instanceId}`, { java: javaPath, args: args.map(redactText).join(' ') });
     const child = this.spawner(javaPath, args, { cwd: gameDir, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], shell: false, env: { ...process.env } });
-    const game: RunningGame = { child, startedAt: Date.now(), gameDir, killedByUser: false, sawCrashMarker: false, lines: [] };
+    const game: RunningGame = { child, startedAt: Date.now(), gameDir, killedByUser: false, sawCrashMarker: false, lines: [], parser: new GameOutputParser() };
     this.running.set(instanceId, game);
 
     const attach = (stream: NodeJS.ReadableStream | null, name: 'stdout' | 'stderr') => {
@@ -95,13 +103,21 @@ export class ProcessManager extends EventEmitter {
     this.emit('started', { instanceId, pid: child.pid });
   }
 
+  /** Emits readable technical lines ('log') and one structured record per game event ('record'). */
   private pushLine(instanceId: string, game: RunningGame, stream: 'stdout' | 'stderr', raw: string): void {
-    const line = redactText(raw);
-    if (CRASH_MARKERS.some((m) => m.test(line))) game.sawCrashMarker = true;
-    const entry: GameLogLine = { instanceId, stream, line, time: Date.now() };
-    game.lines.push(entry);
-    if (game.lines.length > MAX_BUFFERED_LINES) game.lines.splice(0, game.lines.length - MAX_BUFFERED_LINES);
-    this.emit('log', entry);
+    for (const record of game.parser.push(redactText(raw), stream)) {
+      const text = formatRecord(record);
+      if (CRASH_MARKERS.some((m) => m.test(text))) game.sawCrashMarker = true;
+      const time = Date.now();
+      for (const line of text.split('\n')) {
+        const entry: GameLogLine = { instanceId, stream, line, time, level: record.level };
+        game.lines.push(entry);
+        this.emit('log', entry);
+      }
+      if (game.lines.length > MAX_BUFFERED_LINES) game.lines.splice(0, game.lines.length - MAX_BUFFERED_LINES);
+      const event: GameRecordEvent = { instanceId, record };
+      this.emit('record', event);
+    }
   }
 
   private async finish(instanceId: string, game: RunningGame, code: number | null, signal: NodeJS.Signals | null): Promise<void> {

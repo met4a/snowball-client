@@ -634,6 +634,101 @@ input[type='range'] {
   }
 }
 
+/* ---------- output & Snowball core ---------- */
+.log-head {
+  margin-bottom: 10px;
+}
+.log-head .section-title {
+  margin: 0;
+}
+.log-tabs {
+  display: flex;
+  gap: 4px;
+}
+.log-tab {
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--muted);
+  font-family: 'Monocraft', monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+.log-tab.active {
+  color: var(--text);
+  border-color: rgba(127, 203, 255, 0.35);
+  background: var(--accent-soft);
+}
+.log-view .act {
+  display: flex;
+  gap: 8px;
+  padding: 1px 0;
+}
+.act-time {
+  flex: none;
+  color: #56606b;
+}
+.act-tag {
+  flex: none;
+  color: var(--accent);
+}
+.act.success .act-msg {
+  color: #9be3b0;
+}
+.act.warn .act-msg {
+  color: var(--warning);
+}
+.act.error .act-msg {
+  color: #ff9a9a;
+}
+.log-view .warn {
+  color: #ffd98a;
+}
+.core-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.core-logo {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 8px rgba(127, 203, 255, 0.45));
+}
+.core-title {
+  font-family: 'Monocraft', monospace;
+  letter-spacing: 0.1em;
+  margin-bottom: 2px;
+}
+.grow-1 {
+  flex: 1;
+  min-width: 0;
+}
+.tag.warn {
+  color: var(--warning);
+  border-color: rgba(255, 209, 102, 0.4);
+}
+.lock {
+  width: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+.lock svg {
+  width: 16px;
+  height: 16px;
+}
+.list-row.core-row {
+  border-color: rgba(127, 203, 255, 0.28);
+}
+.core-note {
+  grid-column: 1 / -1;
+}
+
 /* ---------- mod browser ---------- */
 .browse-toolbar {
   display: grid;

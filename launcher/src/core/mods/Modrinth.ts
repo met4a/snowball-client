@@ -5,6 +5,7 @@ import type { DownloadManager } from '../download/DownloadManager.js';
 import type { LoaderId } from '../instance/InstanceManager.js';
 import { getLogger } from '../logging/Logger.js';
 import { sha1File } from '../util/fsutil.js';
+import { assertModChangeAllowed } from '../snowball/protection.js';
 import { safeJoin, sanitizeFileName } from '../util/paths.js';
 import { readModMetadata, type ModInfo, type ModManager } from './ModManager.js';
 import { compareVersions } from './versionRange.js';
@@ -224,6 +225,7 @@ export class ModrinthService {
       const loaders = modrinthLoaders(target.loader);
       const item = (await this.scan(target.gameDir)).installed.find((i) => i.fileName === fileName);
       if (!item) throw new ModInstallError(`${fileName} is not a Modrinth mod, so it cannot be updated here.`);
+      await assertModChangeAllowed(this.mods.modsDir(target.gameDir), fileName, 'replace');
       const next = (await this.latestVersions([item.sha1], target.minecraftVersion, loaders))[item.sha1];
       if (!isNewerCompatible(next, item, target.minecraftVersion, loaders)) throw new ModInstallError(`${fileName} is already up to date.`);
       const file = primaryFile(next)!;

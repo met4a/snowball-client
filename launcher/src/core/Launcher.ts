@@ -1,11 +1,11 @@
 import { EventEmitter } from 'node:events';
-import { existsSync } from 'node:fs';
-import { copyFile, mkdir, rm } from 'node:fs/promises';
+import { mkdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { AuthManager, type SecretCipher } from './auth/AuthManager.js';
 import { DownloadManager, type DownloadProgress } from './download/DownloadManager.js';
-import { InstanceManager, type CreateInstanceOptions, type InstanceConfig, type PerformanceProfileId } from './instance/InstanceManager.js';
+import { InstanceManager, type CreateInstanceOptions, type InstanceConfig, type LoaderId, type PerformanceProfileId } from './instance/InstanceManager.js';
 import { JavaManager, recommendMemory } from './java/JavaManager.js';
+import { ActivityLog } from './logging/Activity.js';
 import { getLogger, logSink, LogLevel } from './logging/Logger.js';
 import type { VersionJson } from './minecraft/types.js';
 import { VersionManager } from './minecraft/VersionManager.js';
@@ -13,17 +13,17 @@ import { ModLoaderRegistry } from './modloader/ModLoaderRegistry.js';
 import { ModManager } from './mods/ModManager.js';
 import { ModrinthService } from './mods/Modrinth.js';
 import { getProfile, installProfile, PERFORMANCE_PROFILES, resolveProfile } from './performance/PerformanceProfiles.js';
+import { GameActivityInterpreter } from './process/GameOutput.js';
 import { buildLaunchPlan } from './process/LaunchArguments.js';
-import { ProcessManager, type GameExit } from './process/ProcessManager.js';
+import { ProcessManager, type GameExit, type GameRecordEvent } from './process/ProcessManager.js';
 import { SettingsStore } from './settings/LauncherSettings.js';
-import { sha1File } from './util/fsutil.js';
+import { ClientBuildRegistry, SnowballCore, type CoreReport, type CoreTarget } from './snowball/SnowballCore.js';
 import { createLauncherPaths, type LauncherPaths } from './util/paths.js';
 
 const log = getLogger('launcher');
 
-/** Minecraft version the bundled Snowball Client mod is built for. */
-export const SNOWBALL_CLIENT_MC = '26.2';
-export const SNOWBALL_CLIENT_MOD_FILE = 'snowball-client.jar';
+/** Progress stages that are not worth a line in the activity timeline. */
+const QUIET_STAGES = new Set(['Preparing', 'Running']);
 
 export interface LaunchProgress {
   instanceId: string;
@@ -42,8 +42,8 @@ export class LaunchBlockedError extends Error {
 export interface LauncherOptions {
   root: string;
   cipher: SecretCipher;
-  /** Path to the Snowball Client mod jar shipped with the launcher (null when unavailable). */
-  clientJarPath: string | null;
+  /** Folders holding the Snowball Client jars shipped with the launcher (missing folders are ignored). */
+  clientBuildDirs: string[];
   launcherVersion: string;
   consoleLogs?: boolean;
   /** Azure application (client) ID shipped with this build (app-config.json); Settings can override it. */
@@ -55,6 +55,11 @@ export interface LauncherOptions {
  * headless end-to-end script) talk to this class only; it contains no UI code.
  */
 export class Launcher extends EventEmitter {
+  /** Readable per-instance timeline, shown as the Activity view. */
+  readonly activity = new ActivityLog();
+  private readonly interpreters = new Map<string, GameActivityInterpreter>();
+  private readonly lastStage = new Map<string, string>();
+
   private constructor(
     readonly paths: LauncherPaths,
     readonly settings: SettingsStore,
@@ -64,6 +69,7 @@ export class Launcher extends EventEmitter {
     readonly instances: InstanceManager,
     readonly mods: ModManager,
     readonly modrinth: ModrinthService,
+    readonly core: SnowballCore,
     readonly loaders: ModLoaderRegistry,
     readonly auth: AuthManager,
     readonly processes: ProcessManager,
@@ -88,14 +94,23 @@ export class Launcher extends EventEmitter {
     const instances = new InstanceManager(paths.instances);
     const mods = new ModManager();
     const modrinth = new ModrinthService(downloads, mods);
+    const core = new SnowballCore(await ClientBuildRegistry.discover(options.clientBuildDirs), {
+      ensure: (gameDir, minecraftVersion, signal) => modrinth.ensureFabricApi(gameDir, minecraftVersion, signal),
+    });
     const loaders = new ModLoaderRegistry(downloads);
     const auth = new AuthManager(paths.accountsFile, options.cipher, () => settings.get().accounts.microsoftClientId || options.defaultMicrosoftClientId || '');
     await auth.load();
     const processes = new ProcessManager();
 
-    const launcher = new Launcher(paths, settings, downloads, versions, java, instances, mods, modrinth, loaders, auth, processes, options);
+    const launcher = new Launcher(paths, settings, downloads, versions, java, instances, mods, modrinth, core, loaders, auth, processes, options);
+    processes.on('record', ({ instanceId, record }: GameRecordEvent) => {
+      for (const line of launcher.interpreters.get(instanceId)?.interpret(record) ?? []) launcher.activity.add(instanceId, line.level, line.message);
+    });
     processes.on('exit', (exit: GameExit) => {
       instances.markPlayed(exit.instanceId, exit.durationMs).catch((err) => log.warn('Could not record play time', { error: String(err) }));
+      launcher.interpreters.delete(exit.instanceId);
+      launcher.lastStage.delete(exit.instanceId);
+      void launcher.reportExit(exit);
     });
     log.info('Launcher started', { root: paths.root, version: options.launcherVersion });
     return launcher;
@@ -104,6 +119,9 @@ export class Launcher extends EventEmitter {
   private progress(instanceId: string, stage: string, p?: DownloadProgress): void {
     const event: LaunchProgress = { instanceId, stage, completed: p?.completed, total: p?.total };
     this.emit('progress', event);
+    // A new stage is also a readable activity line; download counters for the same stage are not repeated.
+    if (!QUIET_STAGES.has(stage) && this.lastStage.get(instanceId) !== stage) this.activity.add(instanceId, 'info', stage);
+    this.lastStage.set(instanceId, stage);
   }
 
   /** True when an Azure client ID is available, so Microsoft sign-in can be offered. */
@@ -111,17 +129,66 @@ export class Launcher extends EventEmitter {
     return /^[0-9a-f-]{36}$/i.test(this.settings.get().accounts.microsoftClientId || this.options.defaultMicrosoftClientId || '');
   }
 
-  get clientJarAvailable(): boolean {
-    return !!this.options.clientJarPath && existsSync(this.options.clientJarPath);
+  /** Whether this launcher has a Snowball Client build for a Minecraft version and loader. */
+  snowballSupport(minecraftVersion: string, loader: LoaderId): { supported: boolean; version: string | null } {
+    const build = this.core.registry.find(minecraftVersion, loader);
+    return { supported: build !== null, version: build?.version ?? null };
   }
 
+  private coreTarget(instanceId: string, config: InstanceConfig): CoreTarget {
+    return { gameDir: this.instances.gameDir(instanceId), minecraftVersion: config.minecraftVersion, loader: config.loader };
+  }
+
+  async inspectCore(instanceId: string): Promise<CoreReport> {
+    return this.core.inspect(this.coreTarget(instanceId, await this.instances.load(instanceId)));
+  }
+
+  async repairCore(instanceId: string, signal?: AbortSignal): Promise<CoreReport> {
+    return this.core.ensure(this.coreTarget(instanceId, await this.instances.load(instanceId)), this.activity.reporter(instanceId), signal);
+  }
+
+  /**
+   * Creates an instance ready to play: the loader version is chosen, Fabric API and Snowball Client are
+   * installed and verified. Steps that need the internet and fail (e.g. offline) finish on the next Play.
+   */
   async createInstance(options: CreateInstanceOptions): Promise<InstanceConfig> {
     const rec = recommendMemory();
     const maxMb = this.settings.get().java.defaultMaxMemoryMb ?? rec.recommendedMaxMb;
-    const config = await this.instances.create({ memory: { minMb: Math.min(1024, maxMb), maxMb }, ...options });
-    if (!config.pendingFabricApi) return config;
-    await this.installPendingFabricApi(config.id);
-    return this.instances.load(config.id);
+    let config = await this.instances.create({ memory: { minMb: Math.min(1024, maxMb), maxMb }, ...options });
+    const id = config.id;
+    const say = this.activity.reporter(id);
+    say('info', `Created ${config.name} for Minecraft ${config.minecraftVersion}`);
+
+    if (config.loader !== 'vanilla' && !config.loaderVersion) {
+      try {
+        config = await this.pinLoaderVersion(id, config);
+      } catch (err) {
+        say('warn', `Could not choose a loader version yet (${(err as Error).message}). The launcher will try again when you press Play.`);
+      }
+    }
+    if (config.pendingFabricApi) await this.installPendingFabricApi(id);
+    if (this.core.registry.find(config.minecraftVersion, config.loader)) {
+      try {
+        await this.core.ensure(this.coreTarget(id, config), say);
+        say('success', `${config.name} is ready to play`);
+      } catch (err) {
+        say('warn', `Snowball Client setup will finish when you press Play (${(err as Error).message})`);
+      }
+    }
+    return this.instances.load(id);
+  }
+
+  /** Stores the newest stable loader version for the instance's Minecraft version. */
+  private async pinLoaderVersion(instanceId: string, config: InstanceConfig): Promise<InstanceConfig> {
+    const loader = this.loaders.get(config.loader);
+    if (!loader) throw new Error(`Unsupported mod loader: ${config.loader}`);
+    const list = await loader.listVersions(config.minecraftVersion);
+    const chosen = (list.find((v) => v.stable) ?? list[0])?.version;
+    if (!chosen) throw new Error(`${loader.displayName} has no release for Minecraft ${config.minecraftVersion}.`);
+    this.activity.add(instanceId, 'info', `Using ${loader.displayName} ${chosen}`);
+    return this.instances.update(instanceId, (c) => {
+      c.loaderVersion = chosen;
+    });
   }
 
   /**
@@ -132,7 +199,9 @@ export class Launcher extends EventEmitter {
     const config = await this.instances.load(instanceId);
     if (!config.pendingFabricApi) return;
     try {
-      await this.modrinth.ensureFabricApi(this.instances.gameDir(instanceId), config.minecraftVersion, signal);
+      if (await this.modrinth.ensureFabricApi(this.instances.gameDir(instanceId), config.minecraftVersion, signal)) {
+        this.activity.add(instanceId, 'success', 'Fabric API installed');
+      }
       await this.instances.update(instanceId, (c) => {
         c.pendingFabricApi = false;
       });
@@ -172,17 +241,11 @@ export class Launcher extends EventEmitter {
     } else {
       const loader = this.loaders.get(config.loader);
       if (!loader) throw new Error(`Unsupported mod loader: ${config.loader}`);
-      let loaderVersion = config.loaderVersion;
-      if (!loaderVersion) {
+      if (!config.loaderVersion) {
         stage(`Finding ${loader.displayName} version`);
-        const list = await loader.listVersions(mc);
-        loaderVersion = (list.find((v) => v.stable) ?? list[0])?.version ?? null;
-        if (!loaderVersion) throw new Error(`${loader.displayName} has no release for Minecraft ${mc}.`);
-        const chosen = loaderVersion;
-        config = await this.instances.update(instanceId, (c) => {
-          c.loaderVersion = chosen;
-        });
+        config = await this.pinLoaderVersion(instanceId, config);
       }
+      const loaderVersion = config.loaderVersion!;
       const installed = await loader.findInstalled(mc, loaderVersion, { versions: this.versions });
       if (installed) {
         stage('Checking game files');
@@ -223,34 +286,16 @@ export class Launcher extends EventEmitter {
         stage('Applying performance profile');
         await this.applyPerformanceProfile(instanceId, wanted as PerformanceProfileId, signal);
       }
-      if (config.clientProfile === 'snowballclient') {
-        stage('Installing Snowball Client');
-        await this.installSnowballClient(config, gameDir, signal);
-      }
     }
+
+    // Snowball Client is verified and repaired before every launch; on versions without a build, a
+    // stray copy is set aside so it cannot stop the game from starting.
+    if (this.core.registry.find(mc, config.loader)) stage('Checking core files');
+    await this.core.ensure(this.coreTarget(instanceId, config), this.activity.reporter(instanceId), signal);
 
     const issues = this.mods.analyze(await this.mods.list(gameDir), mc, config.loader).filter((i) => i.severity === 'error');
     if (issues.length) throw new LaunchBlockedError(issues.map((i) => i.message));
     return { config: await this.instances.load(instanceId), version, javaPath };
-  }
-
-  private async installSnowballClient(config: InstanceConfig, gameDir: string, signal?: AbortSignal): Promise<void> {
-    if (config.loader !== 'fabric' || config.minecraftVersion !== SNOWBALL_CLIENT_MC) {
-      throw new Error(`Snowball Client currently supports Fabric on Minecraft ${SNOWBALL_CLIENT_MC}. Change the instance or turn off the client profile.`);
-    }
-    const source = this.options.clientJarPath;
-    if (!source || !existsSync(source)) {
-      throw new Error('The bundled Snowball Client mod is missing. Build the client (client: gradlew build) or reinstall the launcher.');
-    }
-    const modsDir = join(gameDir, 'mods');
-    const dest = join(modsDir, SNOWBALL_CLIENT_MOD_FILE);
-    if (!existsSync(dest) || (await sha1File(dest)) !== (await sha1File(source))) await copyFile(source, dest);
-
-    try {
-      await this.modrinth.ensureFabricApi(gameDir, config.minecraftVersion, signal);
-    } catch (err) {
-      throw new Error(`Could not install Fabric API (required by Snowball Client): ${(err as Error).message}`);
-    }
   }
 
   /** Installs (or removes, with 'none') the optimisation stack of a performance profile. */
@@ -283,29 +328,69 @@ export class Launcher extends EventEmitter {
 
   /** Prepares the instance, signs in the selected account and starts the game process. */
   async launch(instanceId: string, signal?: AbortSignal): Promise<void> {
-    if (this.processes.isRunning(instanceId)) throw new Error('This instance is already running.');
-    const accounts = this.auth.list();
-    const accountId = this.settings.get().accounts.selectedAccountId ?? accounts[0]?.id;
-    if (!accountId || !accounts.some((a) => a.id === accountId)) throw new Error('Add an account in Settings before playing.');
+    const say = this.activity.reporter(instanceId);
+    try {
+      if (this.processes.isRunning(instanceId)) throw new Error('This instance is already running.');
+      const accounts = this.auth.list();
+      const accountId = this.settings.get().accounts.selectedAccountId ?? accounts[0]?.id;
+      if (!accountId || !accounts.some((a) => a.id === accountId)) throw new Error('Add an account in Settings before playing.');
 
-    this.progress(instanceId, 'Preparing');
-    const prep = await this.prepare(instanceId, signal);
-    const session = await this.auth.session(accountId);
-    const nativesDir = join(this.instances.instanceDir(instanceId), 'natives');
-    await rm(nativesDir, { recursive: true, force: true });
-    await this.versions.extractNatives(prep.version, nativesDir);
+      this.lastStage.delete(instanceId);
+      this.progress(instanceId, 'Preparing');
+      say('info', `Preparing ${(await this.instances.load(instanceId)).name}`);
+      const prep = await this.prepare(instanceId, signal);
+      const session = await this.auth.session(accountId);
+      say('info', `Signed in as ${session.name}`);
+      const nativesDir = join(this.instances.instanceDir(instanceId), 'natives');
+      await rm(nativesDir, { recursive: true, force: true });
+      await this.versions.extractNatives(prep.version, nativesDir);
 
-    const plan = buildLaunchPlan({
-      instance: prep.config,
-      gameDir: this.instances.gameDir(instanceId),
-      version: prep.version,
-      paths: this.paths,
-      account: session,
-      nativesDir,
-      launcherName: 'snowball-client-launcher',
-      launcherVersion: this.options.launcherVersion,
-    });
-    this.processes.launch(instanceId, JavaManager.windowless(prep.javaPath), plan.args, this.instances.gameDir(instanceId));
-    this.progress(instanceId, 'Running');
+      const plan = buildLaunchPlan({
+        instance: prep.config,
+        gameDir: this.instances.gameDir(instanceId),
+        version: prep.version,
+        paths: this.paths,
+        account: session,
+        nativesDir,
+        launcherName: 'snowball-client-launcher',
+        launcherVersion: this.options.launcherVersion,
+      });
+      say('info', 'Starting Minecraft...');
+      this.interpreters.set(instanceId, new GameActivityInterpreter({ minecraftVersion: prep.config.minecraftVersion, loader: prep.config.loader }));
+      this.processes.launch(instanceId, JavaManager.windowless(prep.javaPath), plan.args, this.instances.gameDir(instanceId));
+      this.progress(instanceId, 'Running');
+    } catch (err) {
+      say('error', `Could not start: ${(err as Error).message}`);
+      throw err;
+    }
+  }
+
+  private async reportExit(exit: GameExit): Promise<void> {
+    const duration = formatDuration(exit.durationMs);
+    if (exit.killedByUser) {
+      this.activity.add(exit.instanceId, 'info', 'Minecraft was stopped');
+    } else if (exit.crashed) {
+      const reason = exit.crashReport ? await crashDescription(exit.crashReport) : null;
+      this.activity.add(exit.instanceId, 'error', `Minecraft crashed after ${duration}${reason ? `: ${reason}` : ''}`);
+    } else {
+      this.activity.add(exit.instanceId, 'success', `Minecraft closed after ${duration}`);
+    }
+  }
+}
+
+function formatDuration(ms: number): string {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+/** The "Description:" line of a crash report, e.g. "Rendering overlay". */
+async function crashDescription(path: string): Promise<string | null> {
+  try {
+    return /^Description: (.+)$/m.exec(await readFile(path, 'utf8'))?.[1].trim().slice(0, 200) ?? null;
+  } catch (err) {
+    log.warn('Could not read crash report', { path, error: (err as Error).message });
+    return null;
   }
 }

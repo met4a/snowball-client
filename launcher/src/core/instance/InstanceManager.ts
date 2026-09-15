@@ -34,7 +34,6 @@ export interface InstanceConfig {
   jvmArgs: string[];
   gameArgs: string[];
   window: { width: number; height: number; fullscreen: boolean };
-  clientProfile: 'snowballclient' | 'none';
   performanceProfile: PerformanceProfileId;
   /** Filenames managed by the launcher (e.g. installed by a performance profile). */
   managedMods: string[];
@@ -58,7 +57,6 @@ export interface CreateInstanceOptions {
   loaderVersion?: string | null;
   icon?: string;
   memory?: { minMb: number; maxMb: number };
-  clientProfile?: InstanceConfig['clientProfile'];
   performanceProfile?: PerformanceProfileId;
 }
 
@@ -80,7 +78,6 @@ function defaults(): Omit<InstanceConfig, 'id' | 'name' | 'minecraftVersion'> {
     jvmArgs: [],
     gameArgs: [],
     window: { width: 1280, height: 720, fullscreen: false },
-    clientProfile: 'none',
     performanceProfile: 'none',
     managedMods: [],
     pendingFabricApi: false,
@@ -128,7 +125,6 @@ export function normalizeInstanceConfig(raw: unknown, fallbackId: string): Insta
       height: clampInt(r.window?.height, 240, 16384, d.window.height),
       fullscreen: r.window?.fullscreen === true,
     },
-    clientProfile: r.clientProfile === 'snowballclient' ? 'snowballclient' : 'none',
     performanceProfile: PERFORMANCE_PROFILES.includes(r.performanceProfile) ? r.performanceProfile : 'none',
     managedMods: stringArray(r.managedMods),
     pendingFabricApi: loader === 'fabric' && r.pendingFabricApi === true,
@@ -221,7 +217,6 @@ export class InstanceManager {
         loaderVersion: options.loaderVersion ?? null,
         icon: options.icon,
         memory: options.memory,
-        clientProfile: options.clientProfile ?? 'none',
         performanceProfile: options.performanceProfile ?? 'none',
         pendingFabricApi: options.loader === 'fabric',
       },

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { DownloadManager } from '../download/DownloadManager.js';
 import type { PerformanceProfileId } from '../instance/InstanceManager.js';
 import { getLogger } from '../logging/Logger.js';
+import { folderProtection } from '../snowball/protection.js';
 import { safeJoin, sanitizeFileName } from '../util/paths.js';
 
 const log = getLogger('performance');
@@ -106,9 +107,12 @@ export async function resolveProfile(profile: PerformanceProfile, minecraftVersi
 export async function installProfile(gameDir: string, previouslyManaged: string[], resolved: ResolvedFile[], downloads: Pick<DownloadManager, 'downloadAll'>, signal?: AbortSignal): Promise<string[]> {
   const modsDir = join(gameDir, 'mods');
   const keep = new Set(resolved.map((r) => r.fileName));
+  const protectedFiles = await folderProtection(modsDir);
   for (const old of previouslyManaged) {
     if (keep.has(old)) continue;
     for (const candidate of [old, old + '.disabled']) {
+      // Snowball Client and the Fabric API it needs are never removed by a profile change.
+      if (protectedFiles.has(candidate)) continue;
       const path = safeJoin(modsDir, candidate);
       if (existsSync(path)) await rm(path);
     }

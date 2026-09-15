@@ -160,6 +160,17 @@ settings.json accounts.json
   Installed mods are recognised by SHA-1, so hand-added and profile-installed mods count too.
 - New Fabric instances get the newest Fabric API for their exact Minecraft version once; if it cannot
   be installed yet it is retried on launch, and removing it afterwards is respected.
+- Snowball Client is a protected core component (`src/core/snowball/`). Every instance with a matching
+  client build gets it automatically, with Fabric API, when it is created. Before each launch the
+  launcher checks it by SHA-1 and repairs it: a missing, damaged, outdated or turned-off client is
+  restored; extra copies are renamed to `.duplicate`; a copy in an instance without a matching build is
+  renamed to `.unsupported`. Removing or turning off the client (and its Fabric API) is refused in
+  `ModManager`, performance profiles and updates, not just hidden in the UI. Client builds are found by
+  reading each jar's `fabric.mod.json` in `resources/client/` (development: `client/build/libs/`), so a
+  build for another Minecraft version is supported by adding its jar.
+- Readable output: the Home page shows an Activity timeline (`[Snowball] Starting Minecraft...`,
+  `Loading 56 mods`, `Joined the world`, crash and out-of-memory explanations) next to the technical
+  log, which reassembles Minecraft's Log4j XML console output into normal log lines.
 - Performance profiles (Balanced, FPS Boost, Maximum FPS, Visual Quality) that install compatible
   Sodium-based stacks from Modrinth and only ever remove files they installed.
 - Launching in the background with live log capture, crash detection (exit code, crash reports,

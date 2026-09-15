@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 // The renderer runs sandboxed with no Node access; it can only call these whitelisted channels.
 const invoke = (channel: string) => (...args: unknown[]) => ipcRenderer.invoke(channel, ...args);
-const EVENTS = new Set(['progress', 'game-log', 'game-exit', 'launch-error', 'launcher-log', 'state']);
+const EVENTS = new Set(['progress', 'game-log', 'game-exit', 'launch-error', 'launcher-log', 'state', 'activity']);
 
 const api = {
   getState: invoke('state:get'),
@@ -29,6 +29,10 @@ const api = {
   launch: invoke('game:launch'),
   stop: invoke('game:stop'),
   gameLogs: invoke('game:logs'),
+  gameActivity: invoke('game:activity'),
+  coreStatus: invoke('core:status'),
+  repairCore: invoke('core:repair'),
+  snowballSupport: invoke('core:supports'),
   updateSettings: invoke('settings:update'),
   addOfflineAccount: invoke('accounts:add-offline'),
   removeAccount: invoke('accounts:remove'),

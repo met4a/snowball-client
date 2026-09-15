@@ -16,11 +16,9 @@ const cipher: SecretCipher = {
   decrypt: (encoded) => safeStorage.decryptString(Buffer.from(encoded, 'base64')),
 };
 
-function clientJarPath(): string {
-  // Packaged builds ship the mod as an extra resource; development uses the Gradle output.
-  return app.isPackaged
-    ? join(process.resourcesPath, 'client', 'snowball-client.jar')
-    : join(app.getAppPath(), '..', 'client', 'build', 'libs', 'snowball-client-1.1.0.jar');
+function clientBuildDirs(): string[] {
+  // Packaged builds ship the client jars as extra resources; development uses the Gradle output.
+  return app.isPackaged ? [join(process.resourcesPath, 'client')] : [join(app.getAppPath(), '..', 'client', 'build', 'libs')];
 }
 
 /** Build-time configuration shipped inside the app (e.g. the Azure client ID for Microsoft sign-in). */
@@ -37,7 +35,7 @@ async function createWindow(): Promise<void> {
   const launcher = await Launcher.create({
     root: defaultDataRoot(),
     cipher,
-    clientJarPath: clientJarPath(),
+    clientBuildDirs: clientBuildDirs(),
     launcherVersion: app.getVersion(),
     defaultMicrosoftClientId: microsoftClientIdFromConfig(),
   });
