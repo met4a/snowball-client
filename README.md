@@ -29,8 +29,8 @@ npm run dist
 
 Output (Windows):
 
-- `launcher/release/SnowballClient-1.1.1-setup.exe` - installer
-- `launcher/release/SnowballClient-1.1.1-portable.exe` - single-file portable build
+- `launcher/release/SnowballClient-1.1.2-setup.exe` - installer
+- `launcher/release/SnowballClient-1.1.2-portable.exe` - single-file portable build
 
 ## Requirements
 

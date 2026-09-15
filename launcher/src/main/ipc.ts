@@ -100,7 +100,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow): void {
       clientMinecraftVersion: SNOWBALL_CLIENT_MC,
       canAddOffline: launcher.auth.canAddOffline(),
       microsoftSignInConfigured: launcher.microsoftSignInConfigured,
-      launcherVersion: process.env.npm_package_version ?? '1.1.1',
+      launcherVersion: process.env.npm_package_version ?? '1.1.2',
     };
   });
 

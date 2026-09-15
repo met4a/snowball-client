@@ -41,9 +41,10 @@ Not an official Minecraft product. Not approved by or associated with Mojang or 
 
 ## What's new in this version
 
+- Tells you when a mod needs another mod to run, with a one-click install
 - Mod browser: search and install Modrinth mods with dependencies, and update them in one click
 - Fabric API is added to new Fabric instances automatically
-- New installer look
+- New dark installer
 
 ## Features (one per line, max 20)
 
