@@ -29,8 +29,8 @@ npm run dist
 
 Output (Windows):
 
-- `launcher/release/SnowballClient-1.1.0-setup.exe` - installer
-- `launcher/release/SnowballClient-1.1.0-portable.exe` - single-file portable build
+- `launcher/release/SnowballClient-1.1.1-setup.exe` - installer
+- `launcher/release/SnowballClient-1.1.1-portable.exe` - single-file portable build
 
 ## Requirements
 
@@ -121,6 +121,9 @@ npm run dist         # client mod + launcher -> launcher/release/*.exe
 Development uses `client/build/libs/snowball-client-1.1.0.jar` directly; packaged builds include it
 as `resources/client/snowball-client.jar`.
 
+Installer artwork (sidebar, header, icon) lives in `launcher/build-resources/installer/` and is
+regenerated with `npx electron scripts/installer-art.cjs`; page text is in `installer.nsh`.
+
 ### Data folder
 
 `%APPDATA%\SnowballClientLauncher` (Windows), `~/Library/Application Support/SnowballClientLauncher`
@@ -148,6 +151,12 @@ settings.json accounts.json
   validation, automatic Mojang runtime download, safe memory recommendations.
 - Mod manager: install, remove, enable/disable (renames the jar, never modifies it), duplicate,
   loader, Minecraft-version and rendering-conflict detection (e.g. Sodium + OptiFine).
+- Mod browser (BROWSE page) on Modrinth's public API: search with sorting and version/loader
+  filters, one-click installs that pick the file for the instance's exact Minecraft version and
+  loader, required dependencies resolved before anything downloads, and updates from the MODS page.
+  Installed mods are recognised by SHA-1, so hand-added and profile-installed mods count too.
+- New Fabric instances get the newest Fabric API for their exact Minecraft version once; if it cannot
+  be installed yet it is retried on launch, and removing it afterwards is respected.
 - Performance profiles (Balanced, FPS Boost, Maximum FPS, Visual Quality) that install compatible
   Sodium-based stacks from Modrinth and only ever remove files they installed.
 - Launching in the background with live log capture, crash detection (exit code, crash reports,

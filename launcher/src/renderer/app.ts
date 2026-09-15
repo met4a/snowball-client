@@ -4,7 +4,7 @@
 (() => {
   const api = window.snowball;
 
-  type View = 'home' | 'instances' | 'mods' | 'java' | 'settings';
+  type View = 'home' | 'instances' | 'mods' | 'browse' | 'java' | 'settings';
 
   const ui = {
     state: null as Snowball.AppState | null,
@@ -14,6 +14,25 @@
     logs: new Map<string, Snowball.GameLog[]>(),
     launcherLogs: [] as Snowball.LauncherLog[],
     busy: new Set<string>(),
+    /** Mod browser state survives re-renders so results and filters are not lost. */
+    browse: {
+      instanceId: null as string | null,
+      query: '',
+      sort: 'relevance',
+      loader: '',
+      version: '',
+      hits: [] as Snowball.ModSearchHit[],
+      total: 0,
+      loading: false,
+      searched: false,
+      error: null as string | null,
+      installed: new Set<string>(),
+      installing: new Set<string>(),
+      versions: [] as string[],
+      seq: 0,
+      paint: () => {},
+    },
+    updates: new Map<string, Map<string, Snowball.ModUpdate>>(),
   };
 
   // ---------- DOM helpers ----------
@@ -43,6 +62,7 @@
     home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
     instances: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
     mods: '<path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M12 22V12M21 7l-9 5-9-5"/>',
+    browse: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
     java: '<path d="M6 8h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17M9 2v3M13 2v3"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   };
@@ -135,6 +155,15 @@
     const m = Math.floor(ms / 60_000) % 60;
     return h ? `${h}h ${m}m` : `${m}m`;
   };
+  const fmtCount = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(n));
+  const fmtAgo = (iso: string) => {
+    const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+    if (!Number.isFinite(days)) return 'unknown';
+    if (days < 1) return 'today';
+    if (days < 30) return `${days} day${days === 1 ? '' : 's'} ago`;
+    if (days < 365) return `${Math.floor(days / 30)} month${days < 60 ? '' : 's'} ago`;
+    return `${Math.floor(days / 365)} year${days < 730 ? '' : 's'} ago`;
+  };
   const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Never');
 
   // ---------- state ----------
@@ -163,6 +192,7 @@
     ['home', 'HOME'],
     ['instances', 'INSTANCES'],
     ['mods', 'MODS'],
+    ['browse', 'BROWSE'],
     ['java', 'JAVA'],
     ['settings', 'SETTINGS'],
   ];
@@ -184,7 +214,7 @@
       content.replaceChildren(h('div', { class: 'empty muted' }, 'Loading...'));
       return;
     }
-    const views: Record<View, () => Node> = { home: homeView, instances: instancesView, mods: modsView, java: javaView, settings: settingsView };
+    const views: Record<View, () => Node> = { home: homeView, instances: instancesView, mods: modsView, browse: browseView, java: javaView, settings: settingsView };
     content.replaceChildren(views[ui.view]());
   }
 
@@ -337,6 +367,26 @@
     const listEl = h('div', { class: 'list' }, h('div', { class: 'muted' }, 'Loading mods...'));
     const issuesEl = h('div', {});
 
+    const updateButton = (m: Snowball.Mod): HTMLElement | null => {
+      const u = ui.updates.get(inst.id)?.get(m.fileName);
+      if (!u) return null;
+      const button = h('button', {
+        class: 'btn small primary',
+        disabled: inst.running,
+        title: `${u.currentVersion} -> ${u.newVersion}`,
+        onClick: async () => {
+          button.disabled = true;
+          button.textContent = 'Updating...';
+          const r = await guard(() => api.updateMod(inst.id, m.fileName));
+          if (r) {
+            ui.updates.get(inst.id)?.delete(m.fileName);
+            toast(`Updated ${m.name} to ${r.version}`);
+          }
+          await load();
+        },
+      }, 'Update');
+      return button;
+    };
     const load = async () => {
       const result = await guard(() => api.listMods(inst.id));
       if (!result) return;
@@ -351,6 +401,7 @@
           h('div', { class: 'grow' },
             h('div', { class: 'truncate' }, m.name, m.version ? h('span', { class: 'muted' }, `  ${m.version}`) : null),
             h('div', { class: 'muted truncate', style: 'font-size:12px' }, `${m.fileName} - ${m.loader}${m.managed ? ' - managed by performance profile' : ''}`, m.error ? h('span', { class: 'danger-text' }, ` - ${m.error}`) : null)),
+          updateButton(m),
           h('button', { class: 'btn small danger', disabled: inst.running, onClick: () => confirmDialog('Remove mod', `Remove ${m.fileName} from ${inst.name}? The file will be deleted.`, 'Remove', async () => { await api.removeMod(inst.id, m.fileName); await load(); }) }, 'Remove'))));
     };
     void load();
@@ -380,6 +431,22 @@
       },
     }, 'Apply');
 
+    const updatesButton = h('button', {
+      class: 'btn small',
+      disabled: inst.loader === 'vanilla',
+      onClick: async () => {
+        updatesButton.disabled = true;
+        updatesButton.textContent = 'Checking...';
+        const list = await guard(() => api.checkModUpdates(inst.id));
+        updatesButton.disabled = false;
+        updatesButton.textContent = 'Check for updates';
+        if (!list) return;
+        ui.updates.set(inst.id, new Map(list.map((u) => [u.fileName, u])));
+        toast(list.length ? `${list.length} update${list.length === 1 ? '' : 's'} available` : 'Your Modrinth mods are up to date');
+        await load();
+      },
+    }, 'Check for updates');
+
     return h('div', { class: 'stack' },
       header('MODS', 'Install, toggle and check compatibility', picker,
         h('button', { class: 'btn', disabled: inst.running || inst.loader === 'vanilla', onClick: async () => { const r = await guard(() => api.addMods(inst.id)); if (r) { if (r.added) toast(`Added ${r.added} mod${r.added === 1 ? '' : 's'}`); r.errors.forEach((e) => toast(e, 'error')); await load(); } } }, '+ Add mods'),
@@ -389,7 +456,162 @@
         h('div', { class: 'row' }, h('div', { style: 'flex:1' }, profileSelect), applyButton),
         profileInfo),
       issuesEl,
-      h('div', { class: 'card' }, h('div', { class: 'section-title' }, 'INSTALLED MODS'), listEl));
+      h('div', { class: 'card' },
+        h('div', { class: 'row', style: 'margin-bottom:12px' }, h('div', { class: 'section-title', style: 'margin:0' }, 'INSTALLED MODS'), h('div', { class: 'spacer' }), updatesButton,
+          h('button', { class: 'btn small primary', disabled: inst.loader === 'vanilla', onClick: () => { ui.view = 'browse'; render(); } }, 'Browse mods')),
+        listEl));
+  }
+
+  const SORTS: Array<[string, string]> = [['relevance', 'Relevance'], ['downloads', 'Downloads'], ['follows', 'Popularity'], ['updated', 'Recently updated'], ['newest', 'Newest'], ['name', 'Name (A-Z)']];
+  const MOD_LOADER_IDS: Snowball.LoaderId[] = ['fabric', 'quilt', 'forge', 'neoforge'];
+
+  function browseView(): Node {
+    const state = ui.state!;
+    const inst = selected();
+    if (!inst) return h('div', {}, header('BROWSE', 'Find and install mods'), emptyState('Create an instance first.'));
+    const b = ui.browse;
+    if (b.instanceId !== inst.id) {
+      // Filters start at the instance's own version and loader so every result can be installed.
+      Object.assign(b, { instanceId: inst.id, version: inst.minecraftVersion, loader: inst.loader === 'vanilla' ? '' : inst.loader, hits: [], total: 0, error: null, searched: false, installed: new Set<string>() });
+    }
+    const compatible = inst.loader === 'quilt' ? ['quilt', 'fabric'] : [inst.loader];
+
+    const picker = h('select', { class: 'input picker', onChange: (e: Event) => select((e.target as HTMLSelectElement).value) },
+      ...state.instances.map((i) => h('option', { value: i.id, selected: i.id === inst.id }, i.name)));
+    const results = h('div', { class: 'list' });
+    const footer = h('div', { style: 'margin-top:12px' });
+
+    const dropdown = (options: Array<[string, string]>, value: string, onChange: (v: string) => void): HTMLSelectElement => {
+      const el = h('select', { class: 'input' }, ...options.map(([v, label]) => h('option', { value: v, selected: v === value }, label))) as HTMLSelectElement;
+      el.addEventListener('change', () => onChange(el.value));
+      return el;
+    };
+    const search = h('input', { class: 'input', placeholder: 'Search Modrinth...', value: b.query, maxlength: '100' }) as HTMLInputElement;
+    let timer = 0;
+    search.addEventListener('input', () => {
+      b.query = search.value;
+      clearTimeout(timer);
+      timer = window.setTimeout(() => void runSearch(false), 300);
+    });
+    const sortSelect = dropdown(SORTS, b.sort, (v) => { b.sort = v; if (v === 'name') paint(); else void runSearch(false); });
+    const loaderSelect = dropdown([['', 'Any loader'], ...MOD_LOADER_IDS.map((l): [string, string] => [l, LOADER_NAMES[l]])], b.loader, (v) => { b.loader = v; void runSearch(false); });
+    const versionOptions = (): Array<[string, string]> => [['', 'Any version'], ...[...new Set([inst.minecraftVersion, ...b.versions])].map((v): [string, string] => [v, v])];
+    const versionSelect = dropdown(versionOptions(), b.version, (v) => { b.version = v; void runSearch(false); });
+    if (!b.versions.length) {
+      void api.listMinecraftVersions(false).then((list) => {
+        b.versions = list.map((v) => v.id);
+        versionSelect.replaceChildren(...versionOptions().map(([v, label]) => h('option', { value: v, selected: v === b.version }, label)));
+      }).catch(() => undefined);
+    }
+
+    const runSearch = async (append: boolean) => {
+      const seq = ++b.seq;
+      b.loading = true;
+      b.error = null;
+      if (!append) {
+        b.hits = [];
+        b.total = 0;
+      }
+      b.paint();
+      try {
+        const r = await api.searchMods({ query: b.query.trim(), sort: (b.sort === 'name' ? 'relevance' : b.sort) as Snowball.ModSort, loader: b.loader || null, gameVersion: b.version || null, offset: append ? b.hits.length : 0 });
+        if (seq !== b.seq) return;
+        b.hits = append ? [...b.hits, ...r.hits] : r.hits;
+        b.total = r.total;
+      } catch (err) {
+        if (seq !== b.seq) return;
+        b.error = errorMessage(err);
+      }
+      b.loading = false;
+      b.searched = true;
+      b.paint();
+    };
+
+    const loadInstalled = async () => {
+      const ids = await api.installedModProjects(inst.id).catch(() => null);
+      if (ids && b.instanceId === inst.id) {
+        b.installed = new Set(ids);
+        b.paint();
+      }
+    };
+
+    const installHit = async (hit: Snowball.ModSearchHit) => {
+      const key = `${inst.id}:${hit.projectId}`;
+      b.installing.add(key);
+      b.paint();
+      const r = await guard(() => api.installMod(inst.id, hit.projectId));
+      b.installing.delete(key);
+      if (r) {
+        const extra = r.installed.filter((t) => t !== hit.title);
+        toast(extra.length ? `Installed ${hit.title} with ${extra.join(', ')}` : `Installed ${hit.title}`);
+      }
+      await loadInstalled();
+      b.paint();
+    };
+
+    const modRow = (hit: Snowball.ModSearchHit): HTMLElement => {
+      const fits = hit.gameVersions.includes(inst.minecraftVersion) && hit.loaders.some((l) => compatible.includes(l));
+      const installed = b.installed.has(hit.projectId);
+      const installing = b.installing.has(`${inst.id}:${hit.projectId}`);
+      const why = inst.loader === 'vanilla' ? 'This instance has no mod loader' : `No ${LOADER_NAMES[inst.loader]} version for Minecraft ${inst.minecraftVersion}`;
+      const button = h('button', {
+        class: `btn small${installed || !fits ? '' : ' primary'}`,
+        disabled: installed || installing || !fits || inst.running,
+        title: fits ? '' : why,
+        onClick: () => void installHit(hit),
+      }, installed ? 'Installed' : installing ? 'Installing...' : fits ? 'Install' : 'Unavailable');
+      const placeholder = h('div', { class: 'mod-icon placeholder' }, hit.title.slice(0, 1).toUpperCase());
+      let iconEl: HTMLElement = placeholder;
+      if (hit.iconUrl) {
+        const img = h('img', { class: 'mod-icon', src: hit.iconUrl, alt: '', loading: 'lazy' });
+        img.addEventListener('error', () => img.replaceWith(placeholder));
+        iconEl = img;
+      }
+      return h('div', { class: 'mod-row' },
+        iconEl,
+        h('div', { class: 'grow' },
+          h('div', { class: 'truncate' }, h('span', { class: 'mod-title' }, hit.title), hit.author ? h('span', { class: 'muted' }, `  by ${hit.author}`) : null),
+          h('div', { class: 'muted mod-desc' }, hit.description),
+          h('div', { class: 'row mod-meta' },
+            ...hit.loaders.map((l) => h('span', { class: `tag${compatible.includes(l) ? ' accent' : ''}` }, LOADER_NAMES[l as Snowball.LoaderId] ?? l)),
+            hit.versionRange ? h('span', { class: 'muted' }, `MC ${hit.versionRange}`) : null)),
+        h('div', { class: 'mod-side' },
+          h('div', { class: 'muted' }, `${fmtCount(hit.downloads)} downloads`),
+          h('div', { class: 'muted' }, `Updated ${fmtAgo(hit.updated)}`),
+          button));
+    };
+
+    const paint = () => {
+      if (b.error) {
+        results.replaceChildren(h('div', { class: 'issue' },
+          h('div', {}, `Could not load mods from Modrinth: ${b.error}`),
+          h('button', { class: 'btn small', style: 'margin-top:8px', onClick: () => void runSearch(false) }, 'Retry')));
+        footer.replaceChildren();
+        return;
+      }
+      const hits = b.sort === 'name' ? [...b.hits].sort((x, y) => x.title.localeCompare(y.title)) : b.hits;
+      if (!hits.length) {
+        results.replaceChildren(h('div', { class: 'muted' }, b.loading || !b.searched ? 'Searching...' : 'No mods match these filters.'));
+        footer.replaceChildren();
+        return;
+      }
+      results.replaceChildren(...hits.map(modRow));
+      footer.replaceChildren(h('div', { class: 'row' },
+        h('span', { class: 'muted' }, `Showing ${hits.length} of ${fmtCount(b.total)}`),
+        h('div', { class: 'spacer' }),
+        hits.length < b.total ? h('button', { class: 'btn', disabled: b.loading, onClick: () => void runSearch(true) }, b.loading ? 'Loading...' : 'Load more') : null));
+    };
+    b.paint = paint;
+    if (!b.searched && !b.loading) void runSearch(false);
+    else paint();
+    void loadInstalled();
+
+    return h('div', { class: 'stack' },
+      header('BROWSE', `Mods from Modrinth for ${inst.minecraftVersion} ${LOADER_NAMES[inst.loader]}`, picker,
+        h('button', { class: 'btn ghost', onClick: () => { ui.view = 'mods'; render(); } }, 'Installed mods')),
+      inst.loader === 'vanilla' ? h('div', { class: 'issue warning' }, 'This instance has no mod loader. Choose Fabric, Quilt, Forge or NeoForge in the instance editor to install mods.') : null,
+      h('div', { class: 'browse-toolbar' }, search, sortSelect, loaderSelect, versionSelect),
+      h('div', { class: 'card' }, results, footer));
   }
 
   function javaView(): Node {

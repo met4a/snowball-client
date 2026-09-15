@@ -12,6 +12,7 @@ launcher/node_modules/
 launcher/dist/
 launcher/release/
 launcher/coverage/
+launcher/build-resources/installer/preview-*.png
 
 # OS / editor
 .DS_Store

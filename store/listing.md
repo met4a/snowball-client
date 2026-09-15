@@ -16,6 +16,9 @@ Snowball Client is a free launcher and client for Minecraft: Java Edition.
 
 LAUNCHER
 - Separate instances, each with its own version, mods, worlds and settings
+- Built-in mod browser: search Modrinth, install in one click with dependencies, update with one click
+- Always picks the mod version that matches the instance's Minecraft version and loader
+- Fabric API added automatically to new Fabric instances
 - Fabric, Quilt, Forge and NeoForge installed for you
 - Java handled automatically
 - Mod manager that catches duplicates and version conflicts
@@ -38,9 +41,9 @@ Not an official Minecraft product. Not approved by or associated with Mojang or 
 
 ## What's new in this version
 
-- New FPS Boost with preset cards
-- PvP HUD, visual tweaks, chat upgrades and camera extras
-- Cleaner menu with descriptions and search
+- Mod browser: search and install Modrinth mods with dependencies, and update them in one click
+- Fabric API is added to new Fabric instances automatically
+- New installer look
 
 ## Features (one per line, max 20)
 

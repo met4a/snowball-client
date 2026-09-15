@@ -11,12 +11,13 @@ import type { VersionJson } from './minecraft/types.js';
 import { VersionManager } from './minecraft/VersionManager.js';
 import { ModLoaderRegistry } from './modloader/ModLoaderRegistry.js';
 import { ModManager } from './mods/ModManager.js';
+import { ModrinthService } from './mods/Modrinth.js';
 import { getProfile, installProfile, PERFORMANCE_PROFILES, resolveProfile } from './performance/PerformanceProfiles.js';
 import { buildLaunchPlan } from './process/LaunchArguments.js';
 import { ProcessManager, type GameExit } from './process/ProcessManager.js';
 import { SettingsStore } from './settings/LauncherSettings.js';
 import { sha1File } from './util/fsutil.js';
-import { createLauncherPaths, safeJoin, sanitizeFileName, type LauncherPaths } from './util/paths.js';
+import { createLauncherPaths, type LauncherPaths } from './util/paths.js';
 
 const log = getLogger('launcher');
 
@@ -62,6 +63,7 @@ export class Launcher extends EventEmitter {
     readonly java: JavaManager,
     readonly instances: InstanceManager,
     readonly mods: ModManager,
+    readonly modrinth: ModrinthService,
     readonly loaders: ModLoaderRegistry,
     readonly auth: AuthManager,
     readonly processes: ProcessManager,
@@ -85,12 +87,13 @@ export class Launcher extends EventEmitter {
     const java = new JavaManager(paths.runtimes, downloads);
     const instances = new InstanceManager(paths.instances);
     const mods = new ModManager();
+    const modrinth = new ModrinthService(downloads, mods);
     const loaders = new ModLoaderRegistry(downloads);
     const auth = new AuthManager(paths.accountsFile, options.cipher, () => settings.get().accounts.microsoftClientId || options.defaultMicrosoftClientId || '');
     await auth.load();
     const processes = new ProcessManager();
 
-    const launcher = new Launcher(paths, settings, downloads, versions, java, instances, mods, loaders, auth, processes, options);
+    const launcher = new Launcher(paths, settings, downloads, versions, java, instances, mods, modrinth, loaders, auth, processes, options);
     processes.on('exit', (exit: GameExit) => {
       instances.markPlayed(exit.instanceId, exit.durationMs).catch((err) => log.warn('Could not record play time', { error: String(err) }));
     });
@@ -115,7 +118,42 @@ export class Launcher extends EventEmitter {
   async createInstance(options: CreateInstanceOptions): Promise<InstanceConfig> {
     const rec = recommendMemory();
     const maxMb = this.settings.get().java.defaultMaxMemoryMb ?? rec.recommendedMaxMb;
-    return this.instances.create({ memory: { minMb: Math.min(1024, maxMb), maxMb }, ...options });
+    const config = await this.instances.create({ memory: { minMb: Math.min(1024, maxMb), maxMb }, ...options });
+    if (!config.pendingFabricApi) return config;
+    await this.installPendingFabricApi(config.id);
+    return this.instances.load(config.id);
+  }
+
+  /**
+   * Adds Fabric API once to a new Fabric instance. When it cannot be installed yet (offline, or no
+   * build for this Minecraft version) it stays pending and is retried on the next launch.
+   */
+  private async installPendingFabricApi(instanceId: string, signal?: AbortSignal): Promise<void> {
+    const config = await this.instances.load(instanceId);
+    if (!config.pendingFabricApi) return;
+    try {
+      await this.modrinth.ensureFabricApi(this.instances.gameDir(instanceId), config.minecraftVersion, signal);
+      await this.instances.update(instanceId, (c) => {
+        c.pendingFabricApi = false;
+      });
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      log.warn('Fabric API could not be installed yet', { instanceId, error: (err as Error).message });
+    }
+  }
+
+  /** Updates a Modrinth mod and keeps the performance profile's file list pointing at the new jar. */
+  async updateMod(instanceId: string, fileName: string, signal?: AbortSignal): Promise<{ oldFile: string; newFile: string; version: string }> {
+    const config = await this.instances.load(instanceId);
+    const result = await this.modrinth.update({ gameDir: this.instances.gameDir(instanceId), minecraftVersion: config.minecraftVersion, loader: config.loader }, fileName, signal);
+    const oldBase = result.oldFile.replace(/\.disabled$/i, '');
+    if (config.managedMods.includes(oldBase)) {
+      const newBase = result.newFile.replace(/\.disabled$/i, '');
+      await this.instances.update(instanceId, (c) => {
+        c.managedMods = c.managedMods.map((m) => (m === oldBase ? newBase : m));
+      });
+    }
+    return result;
   }
 
   /** Installs/validates everything an instance needs and returns what to launch with. */
@@ -173,6 +211,10 @@ export class Launcher extends EventEmitter {
     }
 
     if (config.loader === 'fabric' || config.loader === 'quilt') {
+      if (config.pendingFabricApi) {
+        stage('Installing Fabric API');
+        await this.installPendingFabricApi(instanceId, signal);
+      }
       const requests = await this.mods.applyClientRequests(gameDir);
       // A profile chosen at creation (or in-game) is installed on the first launch that needs it.
       const wanted = requests.performanceProfile ?? (config.performanceProfile !== 'none' && config.managedMods.length === 0 ? config.performanceProfile : null);
@@ -204,17 +246,11 @@ export class Launcher extends EventEmitter {
     const dest = join(modsDir, SNOWBALL_CLIENT_MOD_FILE);
     if (!existsSync(dest) || (await sha1File(dest)) !== (await sha1File(source))) await copyFile(source, dest);
 
-    const installed = await this.mods.list(gameDir);
-    if (installed.some((m) => m.id === 'fabric-api')) return;
-    type ModrinthVersion = { files?: Array<{ url: string; filename: string; primary: boolean; size: number; hashes?: { sha1?: string } }> };
-    const query = `game_versions=${encodeURIComponent(JSON.stringify([config.minecraftVersion]))}&loaders=${encodeURIComponent(JSON.stringify(['fabric']))}`;
-    const versions = await this.downloads.fetchJson<ModrinthVersion[]>(`https://api.modrinth.com/v2/project/fabric-api/version?${query}`, signal);
-    const file = versions?.[0]?.files?.find((f) => f.primary) ?? versions?.[0]?.files?.[0];
-    if (!file || !/^https:\/\/cdn\.modrinth\.com\//.test(file.url) || !/\.jar$/i.test(file.filename)) {
-      throw new Error('Could not find Fabric API (required by Snowball Client) for this Minecraft version.');
+    try {
+      await this.modrinth.ensureFabricApi(gameDir, config.minecraftVersion, signal);
+    } catch (err) {
+      throw new Error(`Could not install Fabric API (required by Snowball Client): ${(err as Error).message}`);
     }
-    const name = sanitizeFileName(file.filename.replace(/\.jar$/i, ''), 'fabric-api') + '.jar';
-    await this.downloads.download({ url: file.url, dest: safeJoin(modsDir, name), sha1: file.hashes?.sha1, size: file.size, label: 'Fabric API' }, signal);
   }
 
   /** Installs (or removes, with 'none') the optimisation stack of a performance profile. */

@@ -38,6 +38,8 @@ export interface InstanceConfig {
   performanceProfile: PerformanceProfileId;
   /** Filenames managed by the launcher (e.g. installed by a performance profile). */
   managedMods: string[];
+  /** True until Fabric API has been added once to a new Fabric instance; removing it afterwards is respected. */
+  pendingFabricApi: boolean;
   timestamps: { created: string; lastPlayed: string | null; totalPlayMs: number };
 }
 
@@ -81,6 +83,7 @@ function defaults(): Omit<InstanceConfig, 'id' | 'name' | 'minecraftVersion'> {
     clientProfile: 'none',
     performanceProfile: 'none',
     managedMods: [],
+    pendingFabricApi: false,
     timestamps: { created: new Date().toISOString(), lastPlayed: null, totalPlayMs: 0 },
   };
 }
@@ -128,6 +131,7 @@ export function normalizeInstanceConfig(raw: unknown, fallbackId: string): Insta
     clientProfile: r.clientProfile === 'snowballclient' ? 'snowballclient' : 'none',
     performanceProfile: PERFORMANCE_PROFILES.includes(r.performanceProfile) ? r.performanceProfile : 'none',
     managedMods: stringArray(r.managedMods),
+    pendingFabricApi: loader === 'fabric' && r.pendingFabricApi === true,
     timestamps: {
       created: typeof r.timestamps?.created === 'string' ? r.timestamps.created : d.timestamps.created,
       lastPlayed: typeof r.timestamps?.lastPlayed === 'string' ? r.timestamps.lastPlayed : null,
@@ -219,6 +223,7 @@ export class InstanceManager {
         memory: options.memory,
         clientProfile: options.clientProfile ?? 'none',
         performanceProfile: options.performanceProfile ?? 'none',
+        pendingFabricApi: options.loader === 'fabric',
       },
       id,
     );

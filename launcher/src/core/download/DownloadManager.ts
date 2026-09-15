@@ -44,7 +44,7 @@ export class DownloadBatchError extends Error {
   }
 }
 
-export type FetchLike = (url: string, init?: { signal?: AbortSignal; headers?: Record<string, string> }) => Promise<Response>;
+export type FetchLike = (url: string, init?: { signal?: AbortSignal; headers?: Record<string, string>; method?: string; body?: string }) => Promise<Response>;
 
 export interface DownloadManagerOptions {
   concurrency?: number;
@@ -80,14 +80,30 @@ export class DownloadManager extends EventEmitter {
     this.userAgent = options.userAgent ?? 'SnowballClientLauncher/1.0';
   }
 
-  async fetchText(url: string, signal?: AbortSignal): Promise<string> {
+  fetchText(url: string, signal?: AbortSignal): Promise<string> {
+    return this.requestText(url, signal);
+  }
+
+  /** POSTs a JSON body and parses the JSON response (used for batch lookups such as Modrinth's version_files). */
+  async postJson<T>(url: string, body: unknown, signal?: AbortSignal): Promise<T> {
+    const text = await this.requestText(url, signal, JSON.stringify(body));
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      throw new Error(`Malformed JSON received from ${url}`);
+    }
+  }
+
+  private async requestText(url: string, signal?: AbortSignal, jsonBody?: string): Promise<string> {
     assertHttps(url);
     let lastError: unknown;
     for (let attempt = 0; attempt <= this.retries; attempt++) {
       const timeout = AbortSignal.timeout(this.timeoutMs);
       const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
       try {
-        const res = await this.fetchImpl(url, { signal: combined, headers: { 'User-Agent': this.userAgent } });
+        const headers: Record<string, string> = { 'User-Agent': this.userAgent };
+        if (jsonBody !== undefined) headers['Content-Type'] = 'application/json';
+        const res = await this.fetchImpl(url, jsonBody === undefined ? { signal: combined, headers } : { signal: combined, headers, method: 'POST', body: jsonBody });
         if (!res.ok) {
           if (res.status >= 400 && res.status < 500 && res.status !== 429) {
             throw new Error(`HTTP ${res.status} for ${url}`);

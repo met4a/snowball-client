@@ -61,6 +61,38 @@ declare namespace Snowball {
     error?: string;
   }
 
+  type ModSort = 'relevance' | 'downloads' | 'follows' | 'updated' | 'newest';
+
+  interface ModSearchOptions {
+    query: string;
+    loader: string | null;
+    gameVersion: string | null;
+    sort: ModSort;
+    offset: number;
+  }
+
+  interface ModSearchHit {
+    projectId: string;
+    slug: string;
+    title: string;
+    author: string;
+    description: string;
+    iconUrl: string | null;
+    downloads: number;
+    follows: number;
+    updated: string;
+    loaders: string[];
+    gameVersions: string[];
+    versionRange: string;
+  }
+
+  interface ModUpdate {
+    fileName: string;
+    projectId: string;
+    currentVersion: string;
+    newVersion: string;
+  }
+
   interface ModIssue {
     severity: 'error' | 'warning';
     message: string;
@@ -173,6 +205,11 @@ declare namespace Snowball {
     setModEnabled(id: string, fileName: string, enabled: boolean): Promise<void>;
     removeMod(id: string, fileName: string): Promise<void>;
     addMods(id: string): Promise<{ added: number; errors: string[] }>;
+    searchMods(options: ModSearchOptions): Promise<{ hits: ModSearchHit[]; total: number; offset: number }>;
+    installMod(id: string, projectId: string): Promise<{ installed: string[] }>;
+    installedModProjects(id: string): Promise<string[]>;
+    checkModUpdates(id: string): Promise<ModUpdate[]>;
+    updateMod(id: string, fileName: string): Promise<{ oldFile: string; newFile: string; version: string }>;
     applyPerformanceProfile(id: string, profile: PerformanceProfileId): Promise<{ installed: string[]; unavailable: string[] }>;
     detectJava(): Promise<Java[]>;
     validateJava(path: string, requiredMajor: number | null): Promise<{ ok: boolean; message?: string; java?: Java }>;

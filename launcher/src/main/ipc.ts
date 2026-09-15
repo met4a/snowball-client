@@ -4,12 +4,14 @@ import { LOADER_IDS, PERFORMANCE_PROFILES as PROFILE_IDS, type InstanceConfig, t
 import { recommendMemory } from '../core/java/JavaManager.js';
 import { SNOWBALL_CLIENT_MC, type Launcher } from '../core/Launcher.js';
 import { getLogger, logSink } from '../core/logging/Logger.js';
+import { SEARCH_SORTS } from '../core/mods/Modrinth.js';
 import { PERFORMANCE_PROFILES } from '../core/performance/PerformanceProfiles.js';
 import { splitArgs } from '../core/process/LaunchArguments.js';
 import { safeJoin } from '../core/util/paths.js';
 import { openMicrosoftLogin } from './microsoftLogin.js';
 
 const log = getLogger('ipc');
+const MOD_LOADERS = ['fabric', 'quilt', 'forge', 'neoforge'];
 const FOLDERS = new Set(['root', 'mods', 'config', 'resourcepacks', 'shaderpacks', 'saves', 'screenshots', 'logs', 'crash-reports']);
 
 function str(value: unknown, name: string, max = 256): string {
@@ -98,7 +100,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow): void {
       clientMinecraftVersion: SNOWBALL_CLIENT_MC,
       canAddOffline: launcher.auth.canAddOffline(),
       microsoftSignInConfigured: launcher.microsoftSignInConfigured,
-      launcherVersion: process.env.npm_package_version ?? '1.1.0',
+      launcherVersion: process.env.npm_package_version ?? '1.1.1',
     };
   });
 
@@ -136,6 +138,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow): void {
       if (patch.loader && LOADER_IDS.includes(patch.loader) && patch.loader !== c.loader) {
         c.loader = patch.loader;
         c.loaderVersion = null;
+        c.pendingFabricApi = patch.loader === 'fabric';
       }
       if (patch.loaderVersion !== undefined) c.loaderVersion = patch.loaderVersion ? str(patch.loaderVersion, 'loader version', 64) : null;
       if (patch.javaExecutable !== undefined) c.java.executable = patch.javaExecutable ? str(patch.javaExecutable, 'Java path', 1024) : null;
@@ -210,6 +213,42 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow): void {
       }
     }
     return { added, errors };
+  });
+
+  const modTarget = async (iid: string) => {
+    const config = await launcher.instances.load(iid);
+    return { gameDir: launcher.instances.gameDir(iid), minecraftVersion: config.minecraftVersion, loader: config.loader };
+  };
+
+  handle('browse:search', async (raw: Snowball.ModSearchOptions) => {
+    const offset = Number.isInteger(raw?.offset) ? Math.min(Math.max(raw.offset, 0), 10_000) : 0;
+    return launcher.modrinth.search({
+      query: typeof raw?.query === 'string' ? str(raw.query, 'search text', 200) : '',
+      loader: typeof raw?.loader === 'string' && MOD_LOADERS.includes(raw.loader) ? raw.loader : null,
+      gameVersion: raw?.gameVersion ? str(raw.gameVersion, 'Minecraft version', 64) : null,
+      sort: SEARCH_SORTS.includes(raw?.sort) ? raw.sort : 'relevance',
+      offset,
+      limit: 20,
+    });
+  });
+
+  handle('browse:install', async (id: unknown, projectId: unknown) => {
+    const iid = await instanceId(id);
+    if (launcher.processes.isRunning(iid)) throw new Error('Stop the game before installing mods.');
+    const project = str(projectId, 'project id', 64);
+    if (!/^[A-Za-z0-9_.-]+$/.test(project)) throw new Error('Invalid project id');
+    return launcher.modrinth.install(await modTarget(iid), project);
+  });
+
+  handle('mods:installed-projects', async (id: unknown) =>
+    (await launcher.modrinth.installedProjects(launcher.instances.gameDir(await instanceId(id)))).map((p) => p.projectId));
+
+  handle('mods:check-updates', async (id: unknown) => launcher.modrinth.checkUpdates(await modTarget(await instanceId(id))));
+
+  handle('mods:update', async (id: unknown, fileName: unknown) => {
+    const iid = await instanceId(id);
+    if (launcher.processes.isRunning(iid)) throw new Error('Stop the game before updating mods.');
+    return launcher.updateMod(iid, str(fileName, 'file name'));
   });
 
   handle('perf:apply', async (id: unknown, profile: unknown) => {
