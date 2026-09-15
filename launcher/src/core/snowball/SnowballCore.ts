@@ -1,13 +1,14 @@
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readdir, rename, rm } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import type { LoaderId } from '../instance/InstanceManager.js';
 import type { ActivityLevel } from '../logging/Activity.js';
 import { getLogger } from '../logging/Logger.js';
 import { compareVersions, matchesFabricPredicate } from '../mods/versionRange.js';
-import { sha1File } from '../util/fsutil.js';
+import { sha1File, writeJsonAtomic } from '../util/fsutil.js';
+import { sanitizeFileName } from '../util/paths.js';
 import { ZipReader } from '../util/zip.js';
-import { FABRIC_API_ID, SNOWBALL_MOD_FILE, SNOWBALL_MOD_ID } from './protection.js';
+import { FABRIC_API_ID, SNOWBALL_MARKER, SNOWBALL_MOD_FILE, SNOWBALL_MOD_ID } from './protection.js';
 
 const log = getLogger('snowball');
 
@@ -36,7 +37,7 @@ async function readIdentity(path: string): Promise<JarIdentity | null> {
     const j = JSON.parse(text.replace(/^﻿/, '')) as Record<string, any>;
     return { id: typeof j.id === 'string' ? j.id : null, version: typeof j.version === 'string' ? j.version : null, minecraft: j.depends?.minecraft };
   } catch {
-    // Corrupt or non-jar files are reported as damaged by the caller instead of throwing here.
+    // Corrupt or non-jar files simply aren't client builds or client copies.
     return null;
   }
 }
@@ -77,14 +78,16 @@ export class ClientBuildRegistry {
   }
 }
 
-export type ClientState = 'unsupported' | 'ok' | 'missing' | 'damaged' | 'outdated' | 'disabled' | 'duplicate';
+export type ClientState = 'unsupported' | 'ok' | 'missing' | 'damaged';
 
 export interface CoreReport {
   supported: boolean;
   build: { version: string; minecraft: string } | null;
   client: ClientState;
+  /** The verified jar the launcher loads into the game, when the client is ok. */
+  clientJar: string | null;
   fabricApi: 'ok' | 'missing' | 'disabled' | 'not-needed';
-  /** Each problem in plain language, most important first. */
+  /** Each problem in plain language, most important first. Empty when everything is in order. */
   problems: string[];
 }
 
@@ -107,19 +110,26 @@ interface ModFile {
   fileName: string;
   enabled: boolean;
   id: string | null;
-  version: string | null;
-  core: boolean;
+  client: boolean;
 }
 
 /**
- * Keeps Snowball Client and the Fabric API it needs present, valid and unique in each instance.
- * inspect() only reads; ensure() repairs and then verifies, so an instance never silently stays broken.
+ * Snowball Client is not a mod in the instance: the launcher keeps a verified copy of each build in its
+ * own folder and loads it into the game at launch (Fabric Loader's fabric.addMods). This class keeps that
+ * copy valid, keeps copies out of mods folders (they would load twice) and makes sure the Fabric API the
+ * client needs is present. inspect() only reads; ensure() repairs and then verifies.
  */
 export class SnowballCore {
   constructor(
     readonly registry: ClientBuildRegistry,
     private readonly fabricApi: { ensure(gameDir: string, minecraftVersion: string, signal?: AbortSignal): Promise<boolean> },
+    private readonly storeDir: string,
   ) {}
+
+  /** Where the launcher keeps its verified copy of a build. Keyed by content, so builds never overwrite each other. */
+  storePath(build: ClientBuild): string {
+    return join(this.storeDir, `${sanitizeFileName(build.version, 'build')}-${build.sha1.slice(0, 12)}`, SNOWBALL_MOD_FILE);
+  }
 
   async inspect(target: CoreTarget): Promise<CoreReport> {
     return this.check(target, await this.scan(modsDirOf(target)));
@@ -130,39 +140,35 @@ export class SnowballCore {
     const files = await this.scan(dir);
     const before = await this.check(target, files);
     const build = this.registry.find(target.minecraftVersion, target.loader);
+    const strays = files.filter((f) => f.client);
 
     if (!build) {
       // A client built for another version would stop the game from starting, so it is set aside.
-      const stray = files.filter((f) => f.core);
-      for (const f of stray) await rename(join(dir, f.fileName), freePath(dir, `${stripDisabled(f.fileName)}.unsupported`));
-      if (stray.length) report('warn', `Snowball Client isn't available for Minecraft ${target.minecraftVersion} yet, so it was set aside for this instance`);
+      for (const f of strays) await rename(join(dir, f.fileName), freePath(dir, `${stripDisabled(f.fileName)}.unsupported`));
+      if (strays.length) report('warn', `Snowball Client isn't available for Minecraft ${target.minecraftVersion} yet, so the copy in the mods folder was set aside`);
+      await rm(join(target.gameDir, SNOWBALL_MARKER), { force: true });
       return this.inspect(target);
     }
 
     report('info', 'Checking core files...');
-    await mkdir(dir, { recursive: true });
-    const main = files.find((f) => f.fileName.toLowerCase() === SNOWBALL_MOD_FILE);
-    const extras = files.filter((f) => f.core && f !== main);
-    // Extra copies are renamed rather than deleted, so nothing a player put there is lost.
-    for (const f of extras) await rename(join(dir, f.fileName), freePath(dir, `${stripDisabled(f.fileName)}.duplicate`));
-    const copies = extras.filter((f) => !(before.client === 'disabled' && f.fileName.toLowerCase() === `${SNOWBALL_MOD_FILE}.disabled`)).length;
-    if (copies) report('warn', `Set aside ${copies} extra cop${copies === 1 ? 'y' : 'ies'} of Snowball Client`);
+    // Copies in the mods folder would load a second time next to the launcher's copy. They are renamed, not deleted.
+    for (const f of strays) await rename(join(dir, f.fileName), freePath(dir, `${stripDisabled(f.fileName)}.duplicate`));
+    if (strays.length) {
+      report('warn', `Moved ${strays.length === 1 ? 'an old copy' : `${strays.length} old copies`} of Snowball Client out of the mods folder; it now loads from the launcher`);
+    }
 
-    if (before.client === 'ok' || before.client === 'duplicate') {
+    if (before.client === 'ok') {
       report('info', `Snowball Client ${build.version} detected`);
-    } else if (before.client === 'outdated') {
-      report('info', before.problems[0]);
-      report('info', `Updating Snowball Client to ${build.version}...`);
-      await this.installBuild(build, dir);
-      report('success', `Snowball Client updated to ${build.version}`);
     } else {
       report('warn', before.problems[0]);
       report('info', 'Repairing Snowball Client...');
-      await this.installBuild(build, dir);
+      await this.installBuild(build);
       report('success', 'Snowball Client restored');
     }
+    await writeJsonAtomic(join(target.gameDir, SNOWBALL_MARKER), { schemaVersion: 1, client: build.version, minecraft: build.label });
 
     if (before.fabricApi === 'disabled') {
+      await mkdir(dir, { recursive: true });
       const off = files.find((f) => f.id === FABRIC_API_ID && !f.enabled)!;
       await rename(join(dir, off.fileName), freePath(dir, stripDisabled(off.fileName)));
       report('warn', 'Fabric API was turned off; it was turned back on because Snowball Client needs it');
@@ -180,7 +186,7 @@ export class SnowballCore {
     }
 
     const after = await this.inspect(target);
-    if (after.client !== 'ok' || after.fabricApi !== 'ok') {
+    if (after.problems.length) {
       const message = `Snowball Client could not be verified: ${after.problems.join('; ')}`;
       report('error', message);
       throw new CoreRepairError(message);
@@ -191,38 +197,33 @@ export class SnowballCore {
 
   private async check(target: CoreTarget, files: ModFile[]): Promise<CoreReport> {
     const build = this.registry.find(target.minecraftVersion, target.loader);
+    const strays = files.filter((f) => f.client).length;
     if (!build) {
-      const stray = files.some((f) => f.core);
-      return { supported: false, build: null, client: 'unsupported', fabricApi: 'not-needed', problems: stray ? [`Snowball Client isn't available for Minecraft ${target.minecraftVersion} yet, but a copy is in the mods folder`] : [] };
+      return {
+        supported: false,
+        build: null,
+        client: 'unsupported',
+        clientJar: null,
+        fabricApi: 'not-needed',
+        problems: strays ? [`Snowball Client isn't available for Minecraft ${target.minecraftVersion} yet, but a copy is in the mods folder`] : [],
+      };
     }
-    const dir = modsDirOf(target);
     const problems: string[] = [];
-    const main = files.find((f) => f.fileName.toLowerCase() === SNOWBALL_MOD_FILE);
-    const extras = files.filter((f) => f.core && f !== main);
+    const jar = this.storePath(build);
     let client: ClientState = 'ok';
-    if (!main) {
-      const disabled = extras.some((f) => f.fileName.toLowerCase() === `${SNOWBALL_MOD_FILE}.disabled`);
-      client = disabled ? 'disabled' : 'missing';
-      problems.push(disabled ? 'Snowball Client was turned off outside the launcher' : 'Snowball Client is missing');
-    } else if ((await sha1File(join(dir, main.fileName))) !== build.sha1) {
-      if (main.id === SNOWBALL_MOD_ID && main.version && main.version !== build.version) {
-        client = 'outdated';
-        problems.push(`Snowball Client ${main.version} is out of date`);
-      } else {
-        client = 'damaged';
-        problems.push('Snowball Client is damaged');
-      }
+    if (!existsSync(jar)) {
+      client = 'missing';
+      problems.push('Snowball Client is missing');
+    } else if ((await sha1File(jar)) !== build.sha1) {
+      client = 'damaged';
+      problems.push('Snowball Client is damaged');
     }
-    const copies = extras.filter((f) => !(client === 'disabled' && f.fileName.toLowerCase() === `${SNOWBALL_MOD_FILE}.disabled`)).length;
-    if (copies) {
-      if (client === 'ok') client = 'duplicate';
-      problems.push(`${copies} extra cop${copies === 1 ? 'y' : 'ies'} of Snowball Client found`);
-    }
+    if (strays) problems.push(`${strays === 1 ? 'An old copy' : `${strays} old copies`} of Snowball Client ${strays === 1 ? 'is' : 'are'} in the mods folder`);
     const apis = files.filter((f) => f.id === FABRIC_API_ID);
     const fabricApi = apis.some((f) => f.enabled) ? 'ok' : apis.length ? 'disabled' : 'missing';
     if (fabricApi === 'disabled') problems.push('Fabric API is turned off');
     if (fabricApi === 'missing') problems.push('Fabric API is missing');
-    return { supported: true, build: { version: build.version, minecraft: build.label }, client, fabricApi, problems };
+    return { supported: true, build: { version: build.version, minecraft: build.label }, client, clientJar: client === 'ok' ? jar : null, fabricApi, problems };
   }
 
   private async scan(dir: string): Promise<ModFile[]> {
@@ -234,16 +235,17 @@ export class SnowballCore {
       const enabled = lower.endsWith('.jar');
       if (!enabled && !lower.endsWith('.jar.disabled')) continue;
       const identity = await readIdentity(join(dir, entry.name));
-      const core = identity?.id === SNOWBALL_MOD_ID || stripDisabled(lower) === SNOWBALL_MOD_FILE;
-      files.push({ fileName: entry.name, enabled, id: identity?.id ?? null, version: identity?.version ?? null, core });
+      const client = identity?.id === SNOWBALL_MOD_ID || stripDisabled(lower) === SNOWBALL_MOD_FILE;
+      files.push({ fileName: entry.name, enabled, id: identity?.id ?? null, client });
     }
     return files;
   }
 
-  /** Copies the bundled jar next to the target, verifies it, then swaps it in. */
-  private async installBuild(build: ClientBuild, dir: string): Promise<void> {
-    const dest = join(dir, SNOWBALL_MOD_FILE);
+  /** Copies the bundled jar into the launcher's store, verifies it, then swaps it in. */
+  private async installBuild(build: ClientBuild): Promise<void> {
+    const dest = this.storePath(build);
     const part = `${dest}.part`;
+    await mkdir(dirname(dest), { recursive: true });
     await copyFile(build.path, part);
     if ((await sha1File(part)) !== build.sha1) {
       await rm(part, { force: true });
@@ -251,7 +253,7 @@ export class SnowballCore {
     }
     await rm(dest, { force: true });
     await rename(part, dest);
-    log.info(`Installed Snowball Client ${build.version}`, { dir });
+    log.info(`Installed Snowball Client ${build.version}`, { path: dest });
   }
 }
 

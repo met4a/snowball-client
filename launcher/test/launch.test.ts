@@ -34,9 +34,11 @@ describe('launch arguments', () => {
     const root = tempDir();
     const paths = createLauncherPaths(root);
     const instance = normalizeInstanceConfig({ id: 'Test', name: 'Test', minecraftVersion: '26.2', loader: 'fabric', memory: { minMb: 1024, maxMb: 4096 }, jvmArgs: ['-XX:+UseZGC'], window: { width: 1600, height: 900 } }, 'Test');
-    const plan = buildLaunchPlan({ instance, gameDir: join(root, 'game'), version: modernVersion, paths, account: { name: 'Steve', uuid: '0123-4567', accessToken: 'secret-token', type: 'msa' }, nativesDir: join(root, 'natives'), launcherName: 'snowball', launcherVersion: '1.0.0', ruleContext: ctx });
+    const plan = buildLaunchPlan({ instance, gameDir: join(root, 'game'), version: modernVersion, paths, account: { name: 'Steve', uuid: '0123-4567', accessToken: 'secret-token', type: 'msa' }, nativesDir: join(root, 'natives'), launcherName: 'snowball', launcherVersion: '1.0.0', extraJvmArgs: ['-Dfabric.addMods=C:\\Snowball\\client\\snowball-client.jar'], ruleContext: ctx });
 
     expect(plan.args.slice(0, 2)).toEqual(['-Xms1024M', '-Xmx4096M']);
+    // Launcher arguments come before the player's own, so a player's -D setting still wins.
+    expect(plan.jvmArgs.indexOf('-Dfabric.addMods=C:\\Snowball\\client\\snowball-client.jar')).toBe(plan.jvmArgs.indexOf('-XX:+UseZGC') - 1);
     expect(plan.classpath.some((p) => p.includes('natives-windows'))).toBe(true);
     expect(plan.classpath.some((p) => p.includes('natives-linux'))).toBe(false);
     expect(plan.classpath.at(-1)).toContain(join('versions', '26.2', '26.2.jar'));

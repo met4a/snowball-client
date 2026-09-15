@@ -85,6 +85,8 @@ export interface LauncherPaths {
   runtimes: string;
   cache: string;
   logs: string;
+  /** Verified Snowball Client jars the launcher loads into instances (never copied into mods folders). */
+  client: string;
   settingsFile: string;
   accountsFile: string;
 }
@@ -99,6 +101,7 @@ export function createLauncherPaths(root: string): LauncherPaths {
     runtimes: join(root, 'runtimes'),
     cache: join(root, 'cache'),
     logs: join(root, 'logs'),
+    client: join(root, 'client'),
     settingsFile: join(root, 'settings.json'),
     accountsFile: join(root, 'accounts.json'),
   };

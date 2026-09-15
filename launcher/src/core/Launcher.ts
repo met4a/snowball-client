@@ -80,7 +80,7 @@ export class Launcher extends EventEmitter {
 
   static async create(options: LauncherOptions): Promise<Launcher> {
     const paths = createLauncherPaths(options.root);
-    for (const dir of [paths.root, paths.instances, paths.versions, paths.libraries, paths.assets, paths.runtimes, paths.cache, paths.logs]) {
+    for (const dir of [paths.root, paths.instances, paths.versions, paths.libraries, paths.assets, paths.runtimes, paths.cache, paths.logs, paths.client]) {
       await mkdir(dir, { recursive: true });
     }
     logSink.configure({ directory: paths.logs, console: options.consoleLogs ?? true });
@@ -94,9 +94,11 @@ export class Launcher extends EventEmitter {
     const instances = new InstanceManager(paths.instances);
     const mods = new ModManager();
     const modrinth = new ModrinthService(downloads, mods);
-    const core = new SnowballCore(await ClientBuildRegistry.discover(options.clientBuildDirs), {
-      ensure: (gameDir, minecraftVersion, signal) => modrinth.ensureFabricApi(gameDir, minecraftVersion, signal),
-    });
+    const core = new SnowballCore(
+      await ClientBuildRegistry.discover(options.clientBuildDirs),
+      { ensure: (gameDir, minecraftVersion, signal) => modrinth.ensureFabricApi(gameDir, minecraftVersion, signal) },
+      paths.client,
+    );
     const loaders = new ModLoaderRegistry(downloads);
     const auth = new AuthManager(paths.accountsFile, options.cipher, () => settings.get().accounts.microsoftClientId || options.defaultMicrosoftClientId || '');
     await auth.load();
@@ -226,7 +228,7 @@ export class Launcher extends EventEmitter {
   }
 
   /** Installs/validates everything an instance needs and returns what to launch with. */
-  async prepare(instanceId: string, signal?: AbortSignal): Promise<{ config: InstanceConfig; version: VersionJson; javaPath: string }> {
+  async prepare(instanceId: string, signal?: AbortSignal): Promise<{ config: InstanceConfig; version: VersionJson; javaPath: string; clientJar: string | null }> {
     let config = await this.instances.load(instanceId);
     await this.instances.ensureLayout(instanceId);
     const gameDir = this.instances.gameDir(instanceId);
@@ -291,11 +293,11 @@ export class Launcher extends EventEmitter {
     // Snowball Client is verified and repaired before every launch; on versions without a build, a
     // stray copy is set aside so it cannot stop the game from starting.
     if (this.core.registry.find(mc, config.loader)) stage('Checking core files');
-    await this.core.ensure(this.coreTarget(instanceId, config), this.activity.reporter(instanceId), signal);
+    const core = await this.core.ensure(this.coreTarget(instanceId, config), this.activity.reporter(instanceId), signal);
 
     const issues = this.mods.analyze(await this.mods.list(gameDir), mc, config.loader).filter((i) => i.severity === 'error');
     if (issues.length) throw new LaunchBlockedError(issues.map((i) => i.message));
-    return { config: await this.instances.load(instanceId), version, javaPath };
+    return { config: await this.instances.load(instanceId), version, javaPath, clientJar: core.clientJar };
   }
 
   /** Installs (or removes, with 'none') the optimisation stack of a performance profile. */
@@ -354,6 +356,8 @@ export class Launcher extends EventEmitter {
         nativesDir,
         launcherName: 'snowball-client-launcher',
         launcherVersion: this.options.launcherVersion,
+        // Snowball Client is loaded straight from the launcher's folder, so it is never a file in the instance.
+        extraJvmArgs: prep.clientJar ? [`-Dfabric.addMods=${prep.clientJar}`] : [],
       });
       say('info', 'Starting Minecraft...');
       this.interpreters.set(instanceId, new GameActivityInterpreter({ minecraftVersion: prep.config.minecraftVersion, loader: prep.config.loader }));

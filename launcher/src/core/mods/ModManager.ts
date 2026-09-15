@@ -4,7 +4,7 @@ import { basename, extname, join } from 'node:path';
 import type { LoaderId } from '../instance/InstanceManager.js';
 import { getLogger } from '../logging/Logger.js';
 import { CONFLICT_RULES } from '../performance/PerformanceProfiles.js';
-import { assertModChangeAllowed, ProtectedModError, protectionFor, SNOWBALL_MOD_ID, type Protection } from '../snowball/protection.js';
+import { assertModChangeAllowed, isSnowballInstance, ProtectedModError, protectionFor, SNOWBALL_MOD_ID, type Protection } from '../snowball/protection.js';
 import { readJson, writeJsonAtomic } from '../util/fsutil.js';
 import { safeJoin, sanitizeFileName } from '../util/paths.js';
 import { ZipReader } from '../util/zip.js';
@@ -27,7 +27,7 @@ export interface ModInfo {
   depends?: string[];
   /** Mod ids this jar makes available: its own, declared "provides" and bundled jar-in-jar mods. */
   provides?: string[];
-  /** Set for Snowball Client ("core") and the Fabric API it needs ("required"); these can't be removed or turned off. */
+  /** Set for the Fabric API a Snowball instance needs ("required"); it can be updated but not removed or turned off. */
   protection?: Protection;
   error?: string;
 }
@@ -211,7 +211,7 @@ export class ModManager {
       const meta = await readModMetadata(path);
       out.push({ fileName: entry.name, enabled, size: (await stat(path)).size, ...meta });
     }
-    const protection = protectionFor(out);
+    const protection = protectionFor(out, isSnowballInstance(gameDir));
     for (const mod of out) {
       const p = protection.get(mod.fileName);
       if (p) mod.protection = p;
@@ -224,7 +224,7 @@ export class ModManager {
     if (extname(sourcePath).toLowerCase() !== '.jar') throw new Error('Only .jar mod files can be installed.');
     const meta = await readModMetadata(sourcePath);
     if (meta.error && meta.loader === 'unknown' && meta.error.startsWith('Not a valid jar')) throw new Error(meta.error);
-    if (meta.id === SNOWBALL_MOD_ID) throw new ProtectedModError("Snowball Client is built into the launcher and installed automatically, so it can't be added as a mod file.");
+    if (meta.id === SNOWBALL_MOD_ID) throw new ProtectedModError("Snowball Client is built into the launcher and loaded automatically, so it can't be added as a mod file.");
     const fileName = sanitizeFileName(basename(sourcePath, '.jar'), 'mod') + '.jar';
     const dir = this.modsDir(gameDir);
     await mkdir(dir, { recursive: true });

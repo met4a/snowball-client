@@ -456,7 +456,7 @@
         coreEl.replaceChildren(h('div', { class: 'issue warning' }, `Snowball Client isn't available for ${LOADER_NAMES[inst.loader]} ${inst.minecraftVersion} yet${available ? ` (it runs on Fabric ${available})` : ''}. This instance works without it.`));
         return;
       }
-      const healthy = report.client === 'ok' && report.fabricApi === 'ok';
+      const healthy = report.problems.length === 0;
       const repair = h('button', {
         class: `btn small${healthy ? '' : ' primary'}`,
         disabled: inst.running,
@@ -473,7 +473,7 @@
         h('img', { class: 'core-logo', src: 'assets/logo.png', alt: '' }),
         h('div', { class: 'grow-1' },
           h('div', { class: 'core-title' }, `SNOWBALL CLIENT ${report.build?.version ?? ''}`),
-          h('div', { class: 'muted' }, healthy ? `Built in for Minecraft ${report.build?.minecraft}. Checked before every launch.` : `${report.problems.join('. ')}. It is repaired automatically when you press Play.`)),
+          h('div', { class: 'muted' }, healthy ? `Loaded by the launcher for Minecraft ${report.build?.minecraft}, not a mod file. Checked before every launch.` : `${report.problems.join('. ')}. It is repaired automatically when you press Play.`)),
         h('span', { class: `tag${healthy ? ' accent' : ' warn'}` }, healthy ? 'VERIFIED' : 'NEEDS REPAIR'),
         repair));
     };
@@ -485,20 +485,20 @@
         listEl.replaceChildren(h('div', { class: 'muted' }, inst.loader === 'vanilla' ? 'This instance has no mod loader. Choose Fabric, Quilt, Forge or NeoForge in the instance editor.' : 'No mods installed yet.'));
         return;
       }
-      const rank = (m: Snowball.Mod) => (m.protection === 'core' ? 0 : m.protection === 'required' ? 1 : 2);
+      const rank = (m: Snowball.Mod) => (m.protection === 'required' ? 0 : 1);
       listEl.replaceChildren(...[...result.mods].sort((a, b) => rank(a) - rank(b)).map((m) => {
-        const locked = m.protection !== null;
-        const note = m.protection === 'core' ? ' - built in, repaired automatically' : m.protection === 'required' ? ' - needed by Snowball Client' : m.managed ? ' - managed by performance profile' : '';
-        return h('div', { class: `list-row${m.protection === 'core' ? ' core-row' : ''}` },
+        const locked = m.protection === 'required';
+        const note = locked ? ' - needed by Snowball Client' : m.managed ? ' - managed by performance profile' : '';
+        return h('div', { class: 'list-row' },
           locked
-            ? h('span', { class: 'lock', title: m.protection === 'core' ? 'Snowball Client is built in' : 'Required by Snowball Client' }, icon('lock'))
+            ? h('span', { class: 'lock', title: 'Required by Snowball Client' }, icon('lock'))
             : toggle(m.enabled, async (value) => { await guard(() => api.setModEnabled(inst.id, m.fileName, value)); await load(); }, inst.running),
           h('div', { class: 'grow' },
             h('div', { class: 'truncate' }, m.name, m.version ? h('span', { class: 'muted' }, `  ${m.version}`) : null),
             h('div', { class: 'muted truncate', style: 'font-size:12px' }, `${m.fileName} - ${m.loader}${note}`, m.error ? h('span', { class: 'danger-text' }, ` - ${m.error}`) : null)),
           updateButton(m),
           locked
-            ? h('span', { class: 'tag accent' }, m.protection === 'core' ? 'BUILT IN' : 'REQUIRED')
+            ? h('span', { class: 'tag accent' }, 'REQUIRED')
             : h('button', { class: 'btn small danger', disabled: inst.running, onClick: () => confirmDialog('Remove mod', `Remove ${m.fileName} from ${inst.name}? The file will be deleted.`, 'Remove', async () => { await api.removeMod(inst.id, m.fileName); await load(); }) }, 'Remove'));
       }));
     };

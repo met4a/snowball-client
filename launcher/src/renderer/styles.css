@@ -722,9 +722,6 @@ input[type='range'] {
   width: 16px;
   height: 16px;
 }
-.list-row.core-row {
-  border-color: rgba(127, 203, 255, 0.28);
-}
 .core-note {
   grid-column: 1 / -1;
 }

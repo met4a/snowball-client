@@ -57,15 +57,16 @@ declare namespace Snowball {
     loader: string;
     size: number;
     managed: boolean;
-    /** Snowball Client ("core") and the Fabric API it needs ("required") can't be removed or turned off. */
-    protection: 'core' | 'required' | null;
+    /** The Fabric API a Snowball instance needs ("required") can be updated but not removed or turned off. */
+    protection: 'required' | null;
     error?: string;
   }
 
   interface CoreReport {
     supported: boolean;
     build: { version: string; minecraft: string } | null;
-    client: 'unsupported' | 'ok' | 'missing' | 'damaged' | 'outdated' | 'disabled' | 'duplicate';
+    client: 'unsupported' | 'ok' | 'missing' | 'damaged';
+    clientJar: string | null;
     fabricApi: 'ok' | 'missing' | 'disabled' | 'not-needed';
     problems: string[];
   }

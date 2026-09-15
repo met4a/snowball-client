@@ -1,15 +1,17 @@
 import { existsSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { ZipReader } from '../util/zip.js';
 
-/** Mod id of Snowball Client and the file name it always has inside an instance's mods folder. */
+/** Mod id of Snowball Client. The launcher loads it from its own folder; it never belongs in a mods folder. */
 export const SNOWBALL_MOD_ID = 'snowballclient';
 export const SNOWBALL_MOD_FILE = 'snowball-client.jar';
 export const FABRIC_API_ID = 'fabric-api';
+/** Written into an instance's game folder when Snowball Client is set up for it. */
+export const SNOWBALL_MARKER = join('.snowball', 'core.json');
 
-/** "core": Snowball Client itself. "required": a mod Snowball Client cannot run without (Fabric API). */
-export type Protection = 'core' | 'required';
+/** "required": a mod Snowball Client cannot run without (Fabric API). */
+export type Protection = 'required';
 
 export class ProtectedModError extends Error {
   constructor(message: string) {
@@ -18,20 +20,15 @@ export class ProtectedModError extends Error {
   }
 }
 
-const withoutDisabled = (fileName: string) => fileName.replace(/\.disabled$/i, '');
+export function isSnowballInstance(gameDir: string): boolean {
+  return existsSync(join(gameDir, SNOWBALL_MARKER));
+}
 
-/**
- * The single rule set for protected mods, applied from mod ids and file names so every caller agrees:
- * Snowball Client is core wherever it is present, and Fabric API is required whenever Snowball Client is.
- */
-export function protectionFor(files: Array<{ fileName: string; id: string | null }>): Map<string, Protection> {
-  const isCore = (f: { fileName: string; id: string | null }) => f.id === SNOWBALL_MOD_ID || withoutDisabled(f.fileName).toLowerCase() === SNOWBALL_MOD_FILE;
-  const hasCore = files.some(isCore);
+/** The single rule set for protected mods: in a Snowball instance, Fabric API is required. */
+export function protectionFor(files: Array<{ fileName: string; id: string | null }>, snowballInstance: boolean): Map<string, Protection> {
   const result = new Map<string, Protection>();
-  for (const f of files) {
-    if (isCore(f)) result.set(f.fileName, 'core');
-    else if (hasCore && f.id === FABRIC_API_ID) result.set(f.fileName, 'required');
-  }
+  if (!snowballInstance) return result;
+  for (const f of files) if (f.id === FABRIC_API_ID) result.set(f.fileName, 'required');
   return result;
 }
 
@@ -51,12 +48,12 @@ export async function readModId(path: string): Promise<string | null> {
     }
     return null;
   } catch {
-    // A corrupt or non-jar file has no readable id; the file-name rule still protects snowball-client.jar.
+    // A corrupt or non-jar file has no readable id, so it can't be a protected mod.
     return null;
   }
 }
 
-/** Protection of every mod file in a mods folder. */
+/** Protection of every mod file in a mods folder (the folder's parent is the instance game folder). */
 export async function folderProtection(modsDir: string): Promise<Map<string, Protection>> {
   if (!existsSync(modsDir)) return new Map();
   const files: Array<{ fileName: string; id: string | null }> = [];
@@ -64,20 +61,16 @@ export async function folderProtection(modsDir: string): Promise<Map<string, Pro
     if (!entry.isFile() || !/\.jar(\.disabled)?$/i.test(entry.name)) continue;
     files.push({ fileName: entry.name, id: await readModId(join(modsDir, entry.name)) });
   }
-  return protectionFor(files);
+  return protectionFor(files, isSnowballInstance(dirname(modsDir)));
 }
 
 /**
- * Guards every normal mod-management change. Snowball Client can't be removed, turned off or replaced;
- * Fabric API can be updated (replaced) but not removed or turned off while Snowball Client needs it.
+ * Guards every normal mod-management change. In a Snowball instance Fabric API can be updated
+ * (replaced) but not removed or turned off, because Snowball Client needs it.
  */
 export async function assertModChangeAllowed(modsDir: string, fileName: string, action: 'remove' | 'disable' | 'replace'): Promise<void> {
-  const protection = (await folderProtection(modsDir)).get(fileName);
-  const verb = { remove: 'removed', disable: 'turned off', replace: 'replaced' }[action];
-  if (protection === 'core') {
-    throw new ProtectedModError(`Snowball Client is built into this instance and can't be ${verb}. If it is broken, use Repair on the MODS page.`);
-  }
-  if (protection === 'required' && action !== 'replace') {
-    throw new ProtectedModError(`Fabric API is required by Snowball Client, so it can't be ${verb} in this instance.`);
+  if (action === 'replace') return;
+  if ((await folderProtection(modsDir)).get(fileName) === 'required') {
+    throw new ProtectedModError(`Fabric API is required by Snowball Client, so it can't be ${action === 'remove' ? 'removed' : 'turned off'} in this instance.`);
   }
 }

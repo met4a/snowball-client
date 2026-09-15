@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ModManager } from '../src/core/mods/ModManager.js';
 import { installProfile } from '../src/core/performance/PerformanceProfiles.js';
-import { ProtectedModError } from '../src/core/snowball/protection.js';
+import { assertModChangeAllowed, ProtectedModError } from '../src/core/snowball/protection.js';
 import { ClientBuildRegistry, CoreRepairError, SnowballCore } from '../src/core/snowball/SnowballCore.js';
 import { makeZip, tempDir } from './helpers.js';
 
@@ -18,19 +18,22 @@ async function setup(fabricApi?: (gameDir: string) => void) {
   writeFileSync(join(builds, 'snowball-client-1.1.0-sources.jar'), makeZip({ 'fabric.mod.json': JSON.stringify({ id: 'snowballclient', version: '${version}', depends: { minecraft: '~26.2' } }) }));
   const registry = await ClientBuildRegistry.discover([builds, join(builds, 'not-there')]);
   const installs: string[] = [];
+  const store = tempDir();
   const core = new SnowballCore(registry, {
     ensure: async (gameDir) => {
       installs.push(gameDir);
       (fabricApi ?? ((dir) => writeFileSync(join(dir, 'mods', 'fabric-api-0.160.0.jar'), modJar('fabric-api'))))(gameDir);
       return true;
     },
-  });
-  const gameDir = tempDir();
-  const mods = join(gameDir, 'mods');
-  mkdirSync(mods, { recursive: true });
+  }, store);
+  const newInstance = () => {
+    const gameDir = tempDir();
+    mkdirSync(join(gameDir, 'mods'), { recursive: true });
+    return { gameDir, mods: join(gameDir, 'mods'), target: { gameDir, minecraftVersion: '26.2', loader: 'fabric' as const } };
+  };
   const messages: string[] = [];
   const report = (_level: string, message: string) => void messages.push(message);
-  return { registry, core, mods, installs, messages, report, target: { gameDir, minecraftVersion: '26.2', loader: 'fabric' as const } };
+  return { registry, core, installs, messages, report, newInstance, ...newInstance() };
 }
 
 describe('Snowball Client builds', () => {
@@ -44,53 +47,54 @@ describe('Snowball Client builds', () => {
   });
 });
 
-describe('Snowball core repair', () => {
-  it('installs everything a new instance needs, then only verifies', async () => {
-    const { core, mods, installs, messages, report, target } = await setup();
-    await core.ensure(target, report);
+describe('Snowball core', () => {
+  it('keeps the client in the launcher folder, not the mods folder, and only verifies once set up', async () => {
+    const { core, registry, gameDir, mods, installs, messages, report, target, newInstance } = await setup();
+    const first = await core.ensure(target, report);
     expect(messages).toEqual(['Checking core files...', 'Snowball Client is missing', 'Repairing Snowball Client...', 'Snowball Client restored', 'Installing Fabric API...', 'Fabric API installed', 'Core files verified']);
-    expect(readdirSync(mods).sort()).toEqual(['fabric-api-0.160.0.jar', 'snowball-client.jar']);
+    expect(readdirSync(mods)).toEqual(['fabric-api-0.160.0.jar']);
+    expect(first.clientJar).toBe(core.storePath(registry.builds[0]));
+    expect(readFileSync(first.clientJar!)).toEqual(readFileSync(registry.builds[0].path));
+    expect(existsSync(join(gameDir, '.snowball', 'core.json'))).toBe(true);
 
     messages.length = 0;
-    const second = await core.ensure(target, report);
+    expect(await core.ensure(target, report)).toMatchObject({ client: 'ok', fabricApi: 'ok', problems: [] });
     expect(messages).toEqual(['Checking core files...', 'Snowball Client 1.1.0 detected', 'Core files verified']);
-    expect(second).toMatchObject({ supported: true, client: 'ok', fabricApi: 'ok', problems: [] });
-    expect(installs).toHaveLength(1);
+
+    // The launcher's copy is shared, so another instance only needs its Fabric API.
+    messages.length = 0;
+    await core.ensure(newInstance().target, report);
+    expect(messages).toEqual(['Checking core files...', 'Snowball Client 1.1.0 detected', 'Installing Fabric API...', 'Fabric API installed', 'Core files verified']);
+    expect(installs).toHaveLength(2);
   });
 
-  it('replaces a damaged or outdated client with the bundled build', async () => {
+  it('restores a deleted or damaged launcher copy', async () => {
     const { core, registry, mods, messages, report, target } = await setup();
     writeFileSync(join(mods, 'fabric-api.jar'), modJar('fabric-api'));
-    writeFileSync(join(mods, 'snowball-client.jar'), 'not a jar');
-    expect((await core.inspect(target)).client).toBe('damaged');
-    await core.ensure(target, report);
-    expect(readFileSync(join(mods, 'snowball-client.jar'))).toEqual(readFileSync(registry.builds[0].path));
+    const jar = (await core.ensure(target)).clientJar!;
 
-    writeFileSync(join(mods, 'snowball-client.jar'), clientJar('1.0.0'));
-    expect((await core.inspect(target)).problems).toEqual(['Snowball Client 1.0.0 is out of date']);
-    messages.length = 0;
+    writeFileSync(jar, 'corrupted');
+    expect(await core.inspect(target)).toMatchObject({ client: 'damaged', clientJar: null, problems: ['Snowball Client is damaged'] });
     await core.ensure(target, report);
-    expect(messages).toContain('Snowball Client updated to 1.1.0');
+    expect(readFileSync(jar)).toEqual(readFileSync(registry.builds[0].path));
+    expect(messages).toEqual(['Checking core files...', 'Snowball Client is damaged', 'Repairing Snowball Client...', 'Snowball Client restored', 'Core files verified']);
   });
 
-  it('sets aside duplicate and turned-off copies instead of deleting them', async () => {
+  it('moves old copies out of the mods folder so the client never loads twice', async () => {
     const { core, mods, messages, report, target } = await setup();
     writeFileSync(join(mods, 'fabric-api.jar'), modJar('fabric-api'));
-    writeFileSync(join(mods, 'snowball-client.jar.disabled'), clientJar());
-    writeFileSync(join(mods, 'my-copy.jar'), clientJar('1.0.0'));
-    const before = await core.inspect(target);
-    expect(before.client).toBe('disabled');
-    expect(before.problems).toEqual(['Snowball Client was turned off outside the launcher', '1 extra copy of Snowball Client found']);
+    writeFileSync(join(mods, 'snowball-client.jar'), clientJar());
+    writeFileSync(join(mods, 'my-copy.jar.disabled'), clientJar('1.0.0'));
+    expect((await core.inspect(target)).problems).toEqual(['Snowball Client is missing', '2 old copies of Snowball Client are in the mods folder']);
 
     await core.ensure(target, report);
-    expect(readdirSync(mods).sort()).toEqual(['fabric-api.jar', 'my-copy.jar.duplicate', 'snowball-client.jar', 'snowball-client.jar.duplicate']);
-    expect(messages).toContain('Set aside 1 extra copy of Snowball Client');
-    expect((await core.inspect(target)).client).toBe('ok');
+    expect(readdirSync(mods).sort()).toEqual(['fabric-api.jar', 'my-copy.jar.duplicate', 'snowball-client.jar.duplicate']);
+    expect(messages[1]).toBe('Moved 2 old copies of Snowball Client out of the mods folder; it now loads from the launcher');
+    expect((await core.inspect(target)).problems).toEqual([]);
   });
 
   it('turns Fabric API back on and explains when it cannot be installed', async () => {
     const turnedOff = await setup();
-    writeFileSync(join(turnedOff.mods, 'snowball-client.jar'), clientJar());
     writeFileSync(join(turnedOff.mods, 'fabric-api.jar.disabled'), modJar('fabric-api'));
     await turnedOff.core.ensure(turnedOff.target, turnedOff.report);
     expect(existsSync(join(turnedOff.mods, 'fabric-api.jar'))).toBe(true);
@@ -103,43 +107,42 @@ describe('Snowball core repair', () => {
     expect(offline.messages.at(-1)).toBe('Snowball Client needs Fabric API, which could not be installed: fetch failed');
   });
 
-  it('sets aside a client copy in an instance whose version has no build', async () => {
-    const { core, mods, messages, report, target } = await setup();
+  it('sets aside a client copy and drops the Snowball marker when the version has no build', async () => {
+    const { core, gameDir, mods, messages, report, target } = await setup();
+    writeFileSync(join(mods, 'fabric-api.jar'), modJar('fabric-api'));
+    await core.ensure(target);
     writeFileSync(join(mods, 'snowball-client.jar'), clientJar());
+
     const result = await core.ensure({ ...target, minecraftVersion: '1.21.11' }, report);
-    expect(result.supported).toBe(false);
-    expect(readdirSync(mods)).toEqual(['snowball-client.jar.unsupported']);
-    expect(messages).toEqual(["Snowball Client isn't available for Minecraft 1.21.11 yet, so it was set aside for this instance"]);
+    expect(result).toMatchObject({ supported: false, clientJar: null, problems: [] });
+    expect(readdirSync(mods).sort()).toEqual(['fabric-api.jar', 'snowball-client.jar.unsupported']);
+    expect(existsSync(join(gameDir, '.snowball', 'core.json'))).toBe(false);
+    expect(messages).toEqual(["Snowball Client isn't available for Minecraft 1.21.11 yet, so the copy in the mods folder was set aside"]);
   });
 });
 
 describe('protected Snowball components', () => {
-  it('refuses to remove or turn off Snowball Client and its Fabric API through mod management', async () => {
-    const game = tempDir();
-    const mods = join(game, 'mods');
-    mkdirSync(mods, { recursive: true });
-    writeFileSync(join(mods, 'snowball-client.jar'), clientJar());
+  it('keeps the Fabric API of a Snowball instance from being removed or turned off, but allows updates', async () => {
+    const { core, gameDir, mods, target } = await setup();
     writeFileSync(join(mods, 'fabric-api-0.160.0.jar'), modJar('fabric-api'));
     writeFileSync(join(mods, 'sodium.jar'), modJar('sodium'));
     const manager = new ModManager();
+    expect((await manager.list(gameDir)).map((m) => m.protection ?? null)).toEqual([null, null]);
 
-    const list = await manager.list(game);
-    expect(Object.fromEntries(list.map((m) => [m.fileName, m.protection ?? null]))).toEqual({ 'fabric-api-0.160.0.jar': 'required', 'snowball-client.jar': 'core', 'sodium.jar': null });
-    await expect(manager.remove(game, 'snowball-client.jar')).rejects.toBeInstanceOf(ProtectedModError);
-    await expect(manager.setEnabled(game, 'snowball-client.jar', false)).rejects.toThrow(/can't be turned off/);
-    await expect(manager.remove(game, 'fabric-api-0.160.0.jar')).rejects.toThrow(/required by Snowball Client/);
-    await expect(manager.setEnabled(game, 'fabric-api-0.160.0.jar', false)).rejects.toBeInstanceOf(ProtectedModError);
+    await core.ensure(target);
+    const list = await manager.list(gameDir);
+    expect(Object.fromEntries(list.map((m) => [m.fileName, m.protection ?? null]))).toEqual({ 'fabric-api-0.160.0.jar': 'required', 'sodium.jar': null });
+    await expect(manager.remove(gameDir, 'fabric-api-0.160.0.jar')).rejects.toThrow(/required by Snowball Client/);
+    await expect(manager.setEnabled(gameDir, 'fabric-api-0.160.0.jar', false)).rejects.toBeInstanceOf(ProtectedModError);
+    await expect(assertModChangeAllowed(mods, 'fabric-api-0.160.0.jar', 'replace')).resolves.toBeUndefined();
 
-    await manager.setEnabled(game, 'sodium.jar', false);
-    await manager.remove(game, 'sodium.jar.disabled');
-    expect(readdirSync(mods).sort()).toEqual(['fabric-api-0.160.0.jar', 'snowball-client.jar']);
+    await manager.setEnabled(gameDir, 'sodium.jar', false);
+    await manager.remove(gameDir, 'sodium.jar.disabled');
+    expect(readdirSync(mods)).toEqual(['fabric-api-0.160.0.jar']);
 
-    // A renamed copy is still recognised by its mod id, and the client can't be added as a user mod.
-    writeFileSync(join(mods, 'renamed.jar'), clientJar());
-    await expect(manager.remove(game, 'renamed.jar')).rejects.toBeInstanceOf(ProtectedModError);
     const source = tempDir();
     writeFileSync(join(source, 'snowball-copy.jar'), clientJar());
-    await expect(manager.install(tempDir(), join(source, 'snowball-copy.jar'))).rejects.toThrow(/built into the launcher/);
+    await expect(manager.install(gameDir, join(source, 'snowball-copy.jar'))).rejects.toThrow(/built into the launcher/);
   });
 
   it('keeps Fabric API removable in instances without Snowball Client', async () => {
@@ -147,18 +150,16 @@ describe('protected Snowball components', () => {
     mkdirSync(join(game, 'mods'), { recursive: true });
     writeFileSync(join(game, 'mods', 'fabric-api.jar'), modJar('fabric-api'));
     const manager = new ModManager();
-    expect((await manager.list(game))[0].protection).toBeUndefined();
     await manager.remove(game, 'fabric-api.jar');
     expect(readdirSync(join(game, 'mods'))).toEqual([]);
   });
 
-  it('never lets a performance profile change delete Snowball Client', async () => {
-    const game = tempDir();
-    const mods = join(game, 'mods');
-    mkdirSync(mods, { recursive: true });
-    writeFileSync(join(mods, 'snowball-client.jar'), clientJar());
+  it('never lets a performance profile change delete the Fabric API Snowball Client needs', async () => {
+    const { core, mods, target } = await setup();
+    writeFileSync(join(mods, 'fabric-api.jar'), modJar('fabric-api'));
     writeFileSync(join(mods, 'sodium.jar'), modJar('sodium'));
-    await installProfile(game, ['snowball-client.jar', 'sodium.jar'], [], { downloadAll: async () => undefined } as never);
-    expect(readdirSync(mods)).toEqual(['snowball-client.jar']);
+    await core.ensure(target);
+    await installProfile(target.gameDir, ['fabric-api.jar', 'sodium.jar'], [], { downloadAll: async () => undefined } as never);
+    expect(readdirSync(mods)).toEqual(['fabric-api.jar']);
   });
 });

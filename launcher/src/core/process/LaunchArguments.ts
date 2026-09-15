@@ -22,6 +22,8 @@ export interface LaunchInput {
   nativesDir: string;
   launcherName: string;
   launcherVersion: string;
+  /** Launcher-controlled JVM arguments (e.g. loading Snowball Client), placed before the player's own. */
+  extraJvmArgs?: string[];
   ruleContext?: RuleContext;
 }
 
@@ -111,7 +113,7 @@ export function buildLaunchPlan(input: LaunchInput): LaunchPlan {
     const configPath = join(paths.assets, 'log_configs', version.logging.client.file.id);
     jvmArgs.push(version.logging.client.argument.replace('${path}', configPath));
   }
-  jvmArgs.push(...instance.jvmArgs);
+  jvmArgs.push(...(input.extraJvmArgs ?? []), ...instance.jvmArgs);
 
   let gameArgs: string[];
   if (version.arguments?.game) gameArgs = expand(version.arguments.game, ctx).map((a) => substitute(a, vars));
