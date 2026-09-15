@@ -41,10 +41,9 @@ Not an official Minecraft product. Not approved by or associated with Mojang or 
 
 ## What's new in this version
 
-- Tells you when a mod needs another mod to run, with a one-click install
-- Mod browser: search and install Modrinth mods with dependencies, and update them in one click
-- Fabric API is added to new Fabric instances automatically
-- New dark installer
+- Snowball Client now works on Minecraft 1.21.11 as well as 26.2
+- Snowball Client is built into the launcher: it is loaded automatically, never a mod file, and checked and repaired before every launch
+- New Activity log that shows each step in plain language, with the full game log one click away
 
 ## Features (one per line, max 20)
 

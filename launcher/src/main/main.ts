@@ -18,7 +18,7 @@ const cipher: SecretCipher = {
 
 function clientBuildDirs(): string[] {
   // Packaged builds ship the client jars as extra resources; development uses the Gradle output.
-  return app.isPackaged ? [join(process.resourcesPath, 'client')] : [join(app.getAppPath(), '..', 'client', 'build', 'libs')];
+  return app.isPackaged ? [join(process.resourcesPath, 'client')] : [join(app.getAppPath(), '..', 'client', 'build', 'libs', 'launcher')];
 }
 
 /** Build-time configuration shipped inside the app (e.g. the Azure client ID for Microsoft sign-in). */

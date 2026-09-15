@@ -1,6 +1,8 @@
 # Gradle / Fabric client
 client/.gradle/
 client/build/
+client/versions/*/build/
+client/versions/*/logs/
 client/run/
 client/logs/
 client/out/

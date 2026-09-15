@@ -100,7 +100,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow): void {
       snowballBuilds: launcher.core.registry.builds.map((b) => ({ version: b.version, minecraft: b.label })),
       canAddOffline: launcher.auth.canAddOffline(),
       microsoftSignInConfigured: launcher.microsoftSignInConfigured,
-      launcherVersion: process.env.npm_package_version ?? '1.1.2',
+      launcherVersion: process.env.npm_package_version ?? '1.2.0',
     };
   });
 

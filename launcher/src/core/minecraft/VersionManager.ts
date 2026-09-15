@@ -203,11 +203,11 @@ export class VersionManager {
       const f = version.logging.client.file;
       tasks.push({ url: f.url, dest: safeJoin(this.paths.assets, 'log_configs', f.id), sha1: f.sha1, size: f.size, label: f.id });
     }
-    onProgress?.('libraries');
-    await this.downloads.downloadAll(tasks, signal, (p) => onProgress?.('libraries', p));
+    onProgress?.('Downloading libraries');
+    await this.downloads.downloadAll(tasks, signal, (p) => onProgress?.('Downloading libraries', p));
 
     if (version.assetIndex) {
-      onProgress?.('assets');
+      onProgress?.('Downloading game assets');
       const idx = version.assetIndex;
       const indexPath = safeJoin(this.paths.assets, 'indexes', `${idx.id}.json`);
       await this.downloads.download({ url: idx.url, dest: indexPath, sha1: idx.sha1, size: idx.size, label: `asset index ${idx.id}` }, signal);
@@ -218,7 +218,7 @@ export class VersionManager {
         const sub = `${o.hash.slice(0, 2)}/${o.hash}`;
         return { url: `${RESOURCES_URL}/${sub}`, dest: safeJoin(this.paths.assets, 'objects', sub), sha1: o.hash, size: o.size, label: `asset ${o.hash.slice(0, 8)}` };
       });
-      await this.downloads.downloadAll(assetTasks, signal, (p) => onProgress?.('assets', p));
+      await this.downloads.downloadAll(assetTasks, signal, (p) => onProgress?.('Downloading game assets', p));
       if (index.value.virtual || index.value.map_to_resources) await this.materializeLegacyAssets(idx.id, index.value);
     }
   }

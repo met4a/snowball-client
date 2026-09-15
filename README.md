@@ -10,7 +10,7 @@ bypasses.
 
 ```
 wow client/
-├── client/      Fabric client mod (Java 25, Minecraft 26.2, Fabric Loader 0.19.5, Fabric API 0.160.0)
+├── client/      Snowball Client (Fabric, one source tree built for Minecraft 26.2 and 1.21.11 with Stonecutter)
 ├── launcher/    Electron + TypeScript launcher (builds the Windows .exe)
 ├── Snowball.png Source artwork for the logo
 └── README.md
@@ -44,13 +44,16 @@ Output (Windows):
 
 ```bash
 cd client
-./gradlew build              # compile + unit tests + jar
-./gradlew test               # unit tests only
-./gradlew runClient          # start Minecraft with the mod (development)
-./gradlew runClientGameTest  # automated in-game UI test (opens a game window)
+./gradlew build buildAndCollect      # every Minecraft version: compile + unit tests + jars in build/libs/launcher/
+./gradlew :26.2:test                 # unit tests for one version
+./gradlew :1.21.11:runClient         # start Minecraft 1.21.11 with the client (development)
+./gradlew :26.2:runClientGameTest    # automated in-game UI test (opens a game window)
 ```
 
-- Mod jar: `client/build/libs/snowball-client-1.1.0.jar`
+- Jars: `client/build/libs/launcher/snowball-client-<version>+<minecraft>.jar`, one per Minecraft version
+- Versions are listed in `settings.gradle.kts` with per-version dependencies in `stonecutter.properties.toml`.
+  `src/` is 26.2 code (keep 26.2 as the active version). Differences for older versions are either plain
+  renames in `stonecutter.gradle.kts` or `//? if >=26.1 { ... //?} else { /*...*/ //?}` blocks in the code.
 - In-game test screenshots: `client/build/run/clientGameTest/screenshots/`
 
 The in-game test creates a world, opens the menu at 1280x720, 1920x1080, 2560x1440 and 3840x2160,
@@ -118,8 +121,8 @@ npm run build:client # build the client mod jar that gets bundled
 npm run dist         # client mod + launcher -> launcher/release/*.exe
 ```
 
-Development uses `client/build/libs/snowball-client-1.1.0.jar` directly; packaged builds include it
-as `resources/client/snowball-client.jar`.
+Development reads the client jars from `client/build/libs/launcher/`; packaged builds include them in
+`resources/client/`. The launcher picks the build whose Minecraft range matches each instance.
 
 Installer artwork (sidebar, header, icon) lives in `launcher/build-resources/installer/` and is
 regenerated with `npx electron scripts/installer-art.cjs`; page text is in `installer.nsh`.

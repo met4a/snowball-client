@@ -83,7 +83,12 @@ public final class Waypoints extends Module implements CustomSettingsScreen {
 		Vec3 pos = camera.position();
 		float yaw = camera.yRot();
 		float pitch = camera.xRot();
+		//? if >=26.1 {
 		float fov = camera.getFov();
+		//?} else {
+		/*// 1.21.x keeps the live field of view private; the FOV setting is close enough for markers.
+		float fov = mc.options.fov().get();
+		*///?}
 		int w = g.guiWidth();
 		int h = g.guiHeight();
 		double max = maxDistance.get();
