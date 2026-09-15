@@ -477,6 +477,9 @@ textarea {
   background: rgba(255, 107, 107, 0.06);
   margin-bottom: 6px;
 }
+.issue .issue-text {
+  flex: 1;
+}
 .issue.warning {
   border-color: rgba(255, 209, 102, 0.3);
   background: rgba(255, 209, 102, 0.05);

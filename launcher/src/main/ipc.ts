@@ -180,7 +180,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow): void {
     const managed = new Set(config.managedMods);
     return {
       mods: mods.map((m) => ({ fileName: m.fileName, enabled: m.enabled, name: m.name, id: m.id, version: m.version, loader: m.loader, size: m.size, managed: managed.has(m.fileName.replace(/\.disabled$/, '')), error: m.error })),
-      issues: launcher.mods.analyze(mods, config.minecraftVersion, config.loader).map((i) => ({ severity: i.severity, message: i.message, files: i.files })),
+      issues: launcher.mods.analyze(mods, config.minecraftVersion, config.loader).map((i) => ({ severity: i.severity, message: i.message, files: i.files, dependency: i.dependency })),
     };
   });
 

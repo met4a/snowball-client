@@ -44,7 +44,7 @@
     "nsis": {
       "artifactName": "SnowballClient-${version}-setup.exe",
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "allowToChangeInstallationDirectory": false,
       "installerIcon": "build-resources/installer/icon.ico",
       "uninstallerIcon": "build-resources/installer/icon.ico",
       "installerHeaderIcon": "build-resources/installer/icon.ico",

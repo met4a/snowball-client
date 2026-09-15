@@ -22,14 +22,54 @@ export interface ModInfo {
   version: string | null;
   loader: ModLoaderKind;
   minecraft?: unknown;
+  /** Mod ids this mod requires (loader and game ids excluded). */
+  depends?: string[];
+  /** Mod ids this jar makes available: its own, declared "provides" and bundled jar-in-jar mods. */
+  provides?: string[];
   error?: string;
+}
+
+export interface MissingDependency {
+  id: string;
+  name: string;
+  /** Modrinth project slug when the dependency is a well-known mod, so it can be installed directly. */
+  slug: string | null;
 }
 
 export interface ModIssue {
   severity: 'error' | 'warning';
-  code: 'duplicate' | 'wrong-loader' | 'minecraft-version' | 'conflict' | 'unreadable' | 'vanilla';
+  code: 'duplicate' | 'wrong-loader' | 'minecraft-version' | 'conflict' | 'unreadable' | 'vanilla' | 'missing-dependency';
   message: string;
   files: string[];
+  dependency?: MissingDependency;
+}
+
+/** Ids of the game, Java and mod loaders; these are never separate mod files. */
+const BUILTIN_DEPENDENCIES = new Set(['minecraft', 'java', 'fabricloader', 'fabric-loader', 'quilt_loader', 'forge', 'neoforge', 'javafml', 'lowcodefml']);
+
+const KNOWN_DEPENDENCIES: Record<string, { name: string; slug: string }> = {
+  sodium: { name: 'Sodium', slug: 'sodium' },
+  iris: { name: 'Iris Shaders', slug: 'iris' },
+  'cloth-config': { name: 'Cloth Config API', slug: 'cloth-config' },
+  'cloth-config2': { name: 'Cloth Config API', slug: 'cloth-config' },
+  cloth_config: { name: 'Cloth Config API', slug: 'cloth-config' },
+  'fabric-language-kotlin': { name: 'Fabric Language Kotlin', slug: 'fabric-language-kotlin' },
+  architectury: { name: 'Architectury API', slug: 'architectury-api' },
+  geckolib: { name: 'GeckoLib', slug: 'geckolib' },
+  yet_another_config_lib_v3: { name: 'YetAnotherConfigLib', slug: 'yacl' },
+  modmenu: { name: 'Mod Menu', slug: 'modmenu' },
+  owo: { name: 'owo-lib', slug: 'owo-lib' },
+  forgeconfigapiport: { name: 'Forge Config API Port', slug: 'forge-config-api-port' },
+  kotlinforforge: { name: 'Kotlin for Forge', slug: 'kotlin-for-forge' },
+  balm: { name: 'Balm', slug: 'balm' },
+  'placeholder-api': { name: 'Text Placeholder API', slug: 'placeholder-api' },
+};
+
+/** Turns a dependency id into something a player recognises. Fabric API's module ids all map to Fabric API. */
+export function describeDependency(id: string): MissingDependency {
+  if (id === 'fabric' || id === 'fabric-api' || id === 'fabric-api-base' || /^fabric-[a-z0-9-]+-v\d+$/.test(id)) return { id: 'fabric-api', name: 'Fabric API', slug: 'fabric-api' };
+  const known = KNOWN_DEPENDENCIES[id];
+  return known ? { id, ...known } : { id, name: id, slug: null };
 }
 
 const DISABLED_SUFFIX = '.disabled';
@@ -72,13 +112,16 @@ export async function readModMetadata(path: string): Promise<Omit<ModInfo, 'file
     const fabric = zip.readText('fabric.mod.json');
     if (fabric) {
       const j = JSON.parse(fabric.replace(/^﻿/, '')) as Record<string, any>;
-      return { id: str(j.id), name: str(j.name) ?? str(j.id) ?? fallbackName, version: str(j.version), loader: 'fabric', minecraft: j.depends?.minecraft };
+      const depends = j.depends && typeof j.depends === 'object' && !Array.isArray(j.depends) ? requiredIds(Object.keys(j.depends)) : [];
+      return { id: str(j.id), name: str(j.name) ?? str(j.id) ?? fallbackName, version: str(j.version), loader: 'fabric', minecraft: j.depends?.minecraft, depends, provides: jarProvides(zip) };
     }
     const quilt = zip.readText('quilt.mod.json');
     if (quilt) {
       const q = (JSON.parse(quilt) as Record<string, any>).quilt_loader ?? {};
       const mcDep = Array.isArray(q.depends) ? q.depends.find((d: any) => d === 'minecraft' || d?.id === 'minecraft') : undefined;
-      return { id: str(q.id), name: str(q.metadata?.name) ?? str(q.id) ?? fallbackName, version: str(q.version), loader: 'quilt', minecraft: typeof mcDep === 'object' ? mcDep.versions : undefined };
+      // Quilt dependencies are ids or { id, optional }; nested arrays mean "any of" and are not checked.
+      const depends = requiredIds(asArray(q.depends).flatMap((d: any) => (typeof d === 'string' ? [d] : d && typeof d.id === 'string' && d.optional !== true ? [d.id] : [])));
+      return { id: str(q.id), name: str(q.metadata?.name) ?? str(q.id) ?? fallbackName, version: str(q.version), loader: 'quilt', minecraft: typeof mcDep === 'object' ? mcDep.versions : undefined, depends, provides: jarProvides(zip) };
     }
     for (const [entry, loader] of [['META-INF/neoforge.mods.toml', 'neoforge'], ['META-INF/mods.toml', 'forge']] as const) {
       const toml = zip.readText(entry);
@@ -87,7 +130,13 @@ export async function readModMetadata(path: string): Promise<Omit<ModInfo, 'file
       const mod = parsed.mods[0] ?? {};
       const id = mod.modId ?? null;
       const mc = id ? parsed.dependencies[id]?.find((d) => d.modId === 'minecraft')?.versionRange : undefined;
-      return { id, name: mod.displayName ?? id ?? fallbackName, version: mod.version ?? null, loader, minecraft: mc };
+      // Forge marks required dependencies with mandatory=true, NeoForge with type="required". Server-only ones do not matter here.
+      const ownIds = new Set(parsed.mods.map((m) => m.modId));
+      const depends = requiredIds(parsed.mods.flatMap((m) => (parsed.dependencies[m.modId] ?? [])
+        .filter((d) => (String(d.mandatory).toLowerCase() === 'true' || String(d.type).toLowerCase() === 'required') && String(d.side).toUpperCase() !== 'SERVER')
+        .map((d) => d.modId)
+        .filter((dep) => !ownIds.has(dep))));
+      return { id, name: mod.displayName ?? id ?? fallbackName, version: mod.version ?? null, loader, minecraft: mc, depends, provides: jarProvides(zip) };
     }
     return { id: null, name: fallbackName, version: null, loader: 'unknown', error: 'No Fabric, Quilt or Forge metadata found' };
   } catch (err) {
@@ -97,6 +146,48 @@ export async function readModMetadata(path: string): Promise<Omit<ModInfo, 'file
 
 function str(v: unknown): string | null {
   return typeof v === 'string' && v.length <= 200 ? v : null;
+}
+
+const asArray = (v: unknown): any[] => (Array.isArray(v) ? v : []);
+
+function requiredIds(ids: unknown[]): string[] {
+  return [...new Set(ids.filter((id): id is string => typeof id === 'string' && id.length > 0 && id.length <= 100 && !BUILTIN_DEPENDENCIES.has(id)))];
+}
+
+/** Every mod id a jar makes available: its own ids, declared "provides" and bundled jar-in-jar mods. */
+function jarProvides(zip: ZipReader, depth = 0): string[] {
+  const ids: unknown[] = [];
+  const nested: unknown[] = [];
+  const fabricText = zip.readText('fabric.mod.json');
+  if (fabricText) {
+    const j = JSON.parse(fabricText.replace(/^﻿/, '')) as Record<string, any>;
+    ids.push(j.id, ...asArray(j.provides));
+    nested.push(...asArray(j.jars).map((x) => x?.file));
+  }
+  const quiltText = zip.readText('quilt.mod.json');
+  if (quiltText) {
+    const q = (JSON.parse(quiltText) as Record<string, any>).quilt_loader ?? {};
+    ids.push(q.id, ...asArray(q.provides).map((p) => (typeof p === 'string' ? p : p?.id)));
+    nested.push(...asArray(q.jars));
+  }
+  for (const entry of ['META-INF/neoforge.mods.toml', 'META-INF/mods.toml']) {
+    const toml = zip.readText(entry);
+    if (toml) ids.push(...parseModsToml(toml).mods.map((m) => m.modId));
+  }
+  const jarjar = zip.readText('META-INF/jarjar/metadata.json');
+  if (jarjar) nested.push(...asArray((JSON.parse(jarjar) as Record<string, any>).jars).map((x) => x?.path));
+  if (depth < 2) {
+    for (const path of nested.slice(0, 300)) {
+      const entry = typeof path === 'string' ? zip.getEntry(path) : undefined;
+      if (!entry) continue;
+      try {
+        ids.push(...jarProvides(ZipReader.fromBuffer(zip.read(entry)), depth + 1));
+      } catch {
+        // A bundled library that is not a readable mod jar provides no mod id, so skipping it is correct.
+      }
+    }
+  }
+  return [...new Set(ids.filter((id): id is string => typeof id === 'string' && id.length > 0 && id.length <= 100))];
 }
 
 export class ModManager {
@@ -176,6 +267,29 @@ export class ModManager {
         }
       }
     }
+    if (loader !== 'vanilla') {
+      const available = new Set<string>();
+      for (const m of enabled) for (const id of [m.id, ...(m.provides ?? [])]) if (id) available.add(id);
+      const disabledProviders = new Map<string, ModInfo>();
+      for (const m of mods) {
+        if (m.enabled) continue;
+        for (const id of [m.id, ...(m.provides ?? [])]) if (id && !disabledProviders.has(id)) disabledProviders.set(id, m);
+      }
+      for (const m of enabled) {
+        const reported = new Set<string>();
+        for (const dep of m.depends ?? []) {
+          if (available.has(dep)) continue;
+          const off = disabledProviders.get(dep);
+          const info = describeDependency(dep);
+          const key = off ? off.fileName : info.name;
+          if (reported.has(key)) continue;
+          reported.add(key);
+          issues.push(off
+            ? { severity: 'warning', code: 'missing-dependency', message: `${m.name} needs ${off.name} to run. Turn ${off.name} on.`, files: [m.fileName, off.fileName] }
+            : { severity: 'warning', code: 'missing-dependency', message: `${m.name} needs ${info.name} to run.`, files: [m.fileName], dependency: info });
+        }
+      }
+    }
     for (const [id, list] of byId) {
       if (list.length > 1) issues.push({ severity: 'error', code: 'duplicate', message: `Mod "${id}" is installed ${list.length} times.`, files: list.map((m) => m.fileName) });
     }
@@ -186,7 +300,10 @@ export class ModManager {
         const b = byId.get(rule.modB);
         if (b) issues.push({ severity: 'error', code: 'conflict', message: rule.message, files: [...a, ...b].map((m) => m.fileName) });
       } else if (!byId.has(rule.modB)) {
-        issues.push({ severity: 'error', code: 'conflict', message: rule.message, files: a.map((m) => m.fileName) });
+        // When the jar declares the dependency itself, the "needs X to run" message already covers it; make it block launching.
+        const declared = issues.find((i) => i.code === 'missing-dependency' && i.dependency?.id === rule.modB && a.some((m) => i.files.includes(m.fileName)));
+        if (declared) declared.severity = 'error';
+        else issues.push({ severity: 'error', code: 'conflict', message: rule.message, files: a.map((m) => m.fileName) });
       }
     }
     return issues;

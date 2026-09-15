@@ -1,11 +1,54 @@
-; Snowball Client installer look: dark welcome, header and finish pages to match the launcher.
+; Snowball Client installer look: dark title bar, pages and button bar to match the launcher.
+; This file is included before electron-builder's template, so functions are added through macros
+; that the template inserts after MUI2 and LogicLib are loaded.
 !define MUI_BGCOLOR "05070A"
 !define MUI_TEXTCOLOR "F2F6FA"
+
+!include "${__FILEDIR__}\dark.nsh"
+
+!ifdef BUILD_UNINSTALLER
+  !define MUI_CUSTOMFUNCTION_UNGUIINIT un.SnowballDarkOuter
+!else
+  !define MUI_CUSTOMFUNCTION_GUIINIT SnowballDarkOuter
+!endif
+
+!macro customHeader
+  !ifdef BUILD_UNINSTALLER
+    !insertmacro SNOWBALL_DARK_FUNCTIONS "un."
+  !else
+    !insertmacro SNOWBALL_DARK_FUNCTIONS ""
+
+    ; The folder page is added in customPageAfterChangeDir (so it can be styled). Defining this keeps
+    ; the template's shortcut handling for installs into a changed folder.
+    !define allowToChangeInstallationDirectory
+    !include StrContains.nsh
+
+    ; Same as the template: always install into a "Snowball Client Launcher" sub-folder.
+    Function SnowballInstFilesPre
+      ${StrContains} $0 "${APP_FILENAME}" $INSTDIR
+      ${If} $0 == ""
+        StrCpy $INSTDIR "$INSTDIR\${APP_FILENAME}"
+      ${EndIf}
+    FunctionEnd
+  !endif
+!macroend
 
 !macro customWelcomePage
   !define MUI_WELCOMEPAGE_TITLE "Welcome to Snowball Client"
   !define MUI_WELCOMEPAGE_TEXT "Setup will install Snowball Client, a free launcher and client for Minecraft: Java Edition.$\r$\n$\r$\n-  Separate instances for every version and modpack$\r$\n-  Browse and install mods from Modrinth in one click$\r$\n-  FPS Boost, PvP HUD and a radial in-game menu$\r$\n$\r$\nNo cheats, no ads. Click Next to continue."
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW SnowballHideLines
   !insertmacro MUI_PAGE_WELCOME
+  ; Applies to the next page: "Choose Installation Options".
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW SnowballDarkPage
+!macroend
+
+!macro customPageAfterChangeDir
+  !insertmacro skipPageIfUpdated
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW SnowballDarkPage
+  !insertmacro MUI_PAGE_DIRECTORY
+  ; Applies to the template's install progress page, which follows.
+  !define MUI_PAGE_CUSTOMFUNCTION_PRE SnowballInstFilesPre
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW SnowballDarkPage
 !macroend
 
 !macro customFinishPage
@@ -32,6 +75,7 @@
     StrCpy $0 $mui.FinishPage.Run
     System::Call 'uxtheme::SetWindowTheme(p r0, w " ", w " ")'
     SetCtlColors $mui.FinishPage.Run "F2F6FA" "05070A"
+    Call SnowballHideLines
   FunctionEnd
 !macroend
 
@@ -40,5 +84,14 @@
   !define MUI_WELCOMEPAGE_TEXT "This removes the Snowball Client launcher from this PC.$\r$\n$\r$\nYour instances, worlds, screenshots and settings in %APPDATA%\SnowballClientLauncher are kept, so everything is still there if you install it again.$\r$\n$\r$\nClick Next to continue."
   !define MUI_FINISHPAGE_TITLE "Snowball Client was removed"
   !define MUI_FINISHPAGE_TEXT "Thanks for playing. Your game data was kept."
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.SnowballHideLines
   !insertmacro MUI_UNPAGE_WELCOME
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.SnowballDarkPage
+!macroend
+
+; The uninstall progress page has no show hook in the template, so it is styled when removal starts.
+!macro customUnInstall
+  ${IfNot} ${Silent}
+    Call un.SnowballDarkPage
+  ${EndIf}
 !macroend

@@ -95,6 +95,52 @@ describe('ModManager', () => {
     expect(issues.some((i) => i.message.includes('Iris requires Sodium'))).toBe(true);
   });
 
+  it('says which mod a mod needs, counting bundled and provided mods', async () => {
+    const game = tempDir();
+    const mods = join(game, 'mods');
+    mkdirSync(mods, { recursive: true });
+    const jar = (meta: object, extra: Record<string, Buffer> = {}) => makeZip({ 'fabric.mod.json': JSON.stringify(meta), ...extra });
+    writeFileSync(join(mods, 'iris.jar'), jar({ id: 'iris', name: 'Iris Shaders', depends: { minecraft: '1.21.1', fabricloader: '*', sodium: '0.8.x' } }));
+    writeFileSync(join(mods, 'modmenu.jar'), jar(
+      { id: 'modmenu', name: 'Mod Menu', depends: { 'fabric-screen-api-v1': '*', 'fabric-key-binding-api-v1': '*', 'fabric-lifecycle-events-v1': '*' }, jars: [{ file: 'META-INF/jars/screen.jar' }] },
+      { 'META-INF/jars/screen.jar': makeZip({ 'fabric.mod.json': JSON.stringify({ id: 'fabric-screen-api-v1' }) }) },
+    ));
+    const manager = new ModManager();
+    let issues = manager.analyze(await manager.list(game), '1.21.1', 'fabric').filter((i) => i.code === 'missing-dependency');
+    expect(issues.map((i) => i.message).sort()).toEqual(['Iris Shaders needs Sodium to run.', 'Mod Menu needs Fabric API to run.']);
+    expect(issues.find((i) => i.message.startsWith('Iris'))?.dependency).toEqual({ id: 'sodium', name: 'Sodium', slug: 'sodium' });
+    // The built-in "Iris requires Sodium" rule is merged into the same message and still blocks launching.
+    const all = manager.analyze(await manager.list(game), '1.21.1', 'fabric');
+    expect(all.filter((i) => /Iris/.test(i.message)).map((i) => [i.severity, i.message])).toEqual([['error', 'Iris Shaders needs Sodium to run.']]);
+
+    writeFileSync(join(mods, 'fabric-api.jar'), jar({ id: 'fabric-api', provides: ['fabric'], jars: [{ file: 'META-INF/jars/keys.jar' }, { file: 'META-INF/jars/life.jar' }] }, {
+      'META-INF/jars/keys.jar': makeZip({ 'fabric.mod.json': JSON.stringify({ id: 'fabric-key-binding-api-v1' }) }),
+      'META-INF/jars/life.jar': makeZip({ 'fabric.mod.json': JSON.stringify({ id: 'fabric-lifecycle-events-v1' }) }),
+    }));
+    writeFileSync(join(mods, 'sodium.jar.disabled'), jar({ id: 'sodium', name: 'Sodium' }));
+    issues = manager.analyze(await manager.list(game), '1.21.1', 'fabric').filter((i) => i.code === 'missing-dependency');
+    expect(issues.map((i) => i.message)).toEqual(['Iris Shaders needs Sodium to run. Turn Sodium on.']);
+  });
+
+  it('reads required dependencies from NeoForge and Forge metadata', async () => {
+    const game = tempDir();
+    const mods = join(game, 'mods');
+    mkdirSync(mods, { recursive: true });
+    const jeiToml = '[[mods]]\nmodId="jei"\ndisplayName="Just Enough Items"\n[[dependencies.jei]]\nmodId="mezz_config"\ntype="required"\n[[dependencies.jei]]\nmodId="neoforge"\ntype="required"\n[[dependencies.jei]]\nmodId="emi"\ntype="optional"';
+    writeFileSync(join(mods, 'jei.jar'), makeZip({ 'META-INF/neoforge.mods.toml': jeiToml }));
+    writeFileSync(join(mods, 'forgemod.jar'), makeZip({ 'META-INF/mods.toml': '[[mods]]\nmodId="forgemod"\ndisplayName="Forge Mod"\n[[dependencies.forgemod]]\nmodId="geckolib"\nmandatory=true\nside="BOTH"' }));
+    const manager = new ModManager();
+    const messages = manager.analyze(await manager.list(game), '1.21.1', 'neoforge').filter((i) => i.code === 'missing-dependency').map((i) => [i.message, i.dependency?.slug]);
+    expect(messages).toEqual([['Forge Mod needs GeckoLib to run.', 'geckolib'], ['Just Enough Items needs mezz_config to run.', null]]);
+
+    writeFileSync(join(mods, 'jei.jar'), makeZip({
+      'META-INF/neoforge.mods.toml': jeiToml,
+      'META-INF/jarjar/metadata.json': JSON.stringify({ jars: [{ path: 'META-INF/jarjar/mezz.jar' }] }),
+      'META-INF/jarjar/mezz.jar': makeZip({ 'META-INF/neoforge.mods.toml': '[[mods]]\nmodId="mezz_config"' }),
+    }));
+    expect(manager.analyze(await manager.list(game), '1.21.1', 'neoforge').filter((i) => i.message.startsWith('Just Enough'))).toEqual([]);
+  });
+
   it('rejects unsafe installs and applies in-game mod requests', async () => {
     const game = tempDir();
     const src = tempDir();

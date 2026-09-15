@@ -151,6 +151,9 @@ settings.json accounts.json
   validation, automatic Mojang runtime download, safe memory recommendations.
 - Mod manager: install, remove, enable/disable (renames the jar, never modifies it), duplicate,
   loader, Minecraft-version and rendering-conflict detection (e.g. Sodium + OptiFine).
+- Missing dependencies: required mods from `fabric.mod.json`, `quilt.mod.json` and `mods.toml` are
+  checked against installed mods, their `provides` and bundled jar-in-jar mods, and shown as
+  "Iris Shaders needs Sodium to run." with a one-click install for well-known mods.
 - Mod browser (BROWSE page) on Modrinth's public API: search with sorting and version/loader
   filters, one-click installs that pick the file for the instance's exact Minecraft version and
   loader, required dependencies resolved before anything downloads, and updates from the MODS page.

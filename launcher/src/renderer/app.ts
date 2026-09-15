@@ -387,10 +387,42 @@
       }, 'Update');
       return button;
     };
+    const openBrowse = (query: string) => {
+      ui.browse.query = query;
+      ui.browse.searched = false;
+      ui.view = 'browse';
+      render();
+    };
+    // "X needs Y to run": well-known mods install in one click, anything else opens a search for it.
+    const issueRow = (i: Snowball.ModIssue): HTMLElement => {
+      const dep = i.dependency;
+      const action = dep && inst.loader !== 'vanilla'
+        ? h('button', {
+          class: 'btn small',
+          style: 'margin-left:12px',
+          disabled: inst.running,
+          onClick: async (e: MouseEvent) => {
+            if (!dep.slug) return openBrowse(dep.name);
+            const button = e.currentTarget as HTMLButtonElement;
+            button.disabled = true;
+            button.textContent = 'Installing...';
+            try {
+              const r = await api.installMod(inst.id, dep.slug);
+              toast(`Installed ${r.installed.join(', ') || dep.name}`);
+              await load();
+            } catch (err) {
+              toast(`${errorMessage(err)}\nSearching Modrinth for ${dep.name} instead.`, 'error');
+              openBrowse(dep.name);
+            }
+          },
+        }, dep.slug ? `Install ${dep.name}` : `Find ${dep.name}`)
+        : null;
+      return h('div', { class: `issue row${i.severity === 'warning' ? ' warning' : ''}` }, h('span', { class: 'issue-text' }, i.message), action);
+    };
     const load = async () => {
       const result = await guard(() => api.listMods(inst.id));
       if (!result) return;
-      issuesEl.replaceChildren(...result.issues.map((i) => h('div', { class: `issue${i.severity === 'warning' ? ' warning' : ''}` }, i.message)));
+      issuesEl.replaceChildren(...result.issues.map(issueRow));
       if (result.mods.length === 0) {
         listEl.replaceChildren(h('div', { class: 'muted' }, inst.loader === 'vanilla' ? 'This instance has no mod loader. Choose Fabric, Quilt, Forge or NeoForge in the instance editor.' : 'No mods installed yet.'));
         return;
@@ -543,7 +575,8 @@
       b.installing.delete(key);
       if (r) {
         const extra = r.installed.filter((t) => t !== hit.title);
-        toast(extra.length ? `Installed ${hit.title} with ${extra.join(', ')}` : `Installed ${hit.title}`);
+        const names = extra.length > 1 ? `${extra.slice(0, -1).join(', ')} and ${extra[extra.length - 1]}` : extra[0];
+        toast(extra.length ? `Installed ${hit.title}.\n${hit.title} needs ${names} to run, so ${extra.length === 1 ? 'it was' : 'they were'} installed too.` : `Installed ${hit.title}`);
       }
       await loadInstalled();
       b.paint();

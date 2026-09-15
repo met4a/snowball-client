@@ -97,6 +97,8 @@ declare namespace Snowball {
     severity: 'error' | 'warning';
     message: string;
     files: string[];
+    /** Set when a mod needs another mod; slug is present when it can be installed straight from Modrinth. */
+    dependency?: { id: string; name: string; slug: string | null };
   }
 
   interface Java {
