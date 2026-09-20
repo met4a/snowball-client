@@ -62,18 +62,26 @@ export class ChatRoom {
     this.announcement = null;
     this.mutes = new Map();
     this.tiers = new Map();
+    this.people = new Map();
+    this.bugs = [];
+    this.flags = {};
     this.nonces = new Map();
     this.ready = state.blockConcurrencyWhile(async () => {
       this.history = (await state.storage.get('history')) ?? [];
       this.announcement = (await state.storage.get('announcement')) ?? null;
       this.mutes = new Map((await state.storage.get('mutes')) ?? []);
       this.tiers = new Map((await state.storage.get('tiers')) ?? []);
+      this.people = new Map((await state.storage.get('people')) ?? []);
+      this.bugs = (await state.storage.get('bugs')) ?? [];
+      this.flags = (await state.storage.get('flags')) ?? {};
     });
   }
 
   async fetch(request) {
     await this.ready;
     const url = new URL(request.url);
+    if (url.pathname.endsWith('/stats')) return Response.json(this.stats(), { headers: { 'cache-control': 'no-store' } });
+    if (url.pathname.endsWith('/flags')) return Response.json(this.flags, { headers: { 'cache-control': 'no-store' } });
     if (url.pathname.endsWith('/nonce')) {
       const serverId = crypto.randomUUID().replace(/-/g, '');
       this.nonces.set(serverId, Date.now());
@@ -99,8 +107,9 @@ export class ChatRoom {
     const tier = admin ? 'plus' : this.tiers.get(uuid) ?? 'snowball';
     const member = { name: profile.name, uuid, admin, tier, times: [] };
     this.sockets.set(server, member);
+    this.see(member);
 
-    server.send(JSON.stringify({ type: 'you', tier: member.tier, owner: admin }));
+    server.send(JSON.stringify({ type: 'you', tier: member.tier, owner: admin, flags: this.flags }));
     server.send(JSON.stringify({ type: 'history', messages: this.history }));
     server.send(JSON.stringify({ type: 'announce', text: this.announcement }));
     this.broadcastPresence();
@@ -146,8 +155,9 @@ export class ChatRoom {
       return;
     }
     if (payload.type === 'msg') return this.onChat(socket, member, payload);
+    if (payload.type === 'bug') return this.onBug(socket, member, payload);
     if (payload.type === 'announce' && member.admin) return this.onAnnounce(payload);
-    if (payload.type === 'admin' && member.admin) return this.onAdmin(payload);
+    if (payload.type === 'admin' && member.admin) return this.onAdmin(payload, socket);
     socket.send(JSON.stringify({ type: 'error', message: 'Only the Snowball account can do that.' }));
   }
 
@@ -174,13 +184,94 @@ export class ChatRoom {
     this.broadcast(message);
   }
 
+  /** Keeps a light record of each account: enough to count players and to list them for the owner. */
+  see(member) {
+    const known = this.people.get(member.uuid) ?? { first: Date.now() };
+    known.name = member.name;
+    known.last = Date.now();
+    known.tier = member.tier;
+    this.people.set(member.uuid, known);
+    void this.state.storage.put('people', [...this.people]);
+  }
+
+  stats() {
+    const now = Date.now();
+    const day = 24 * 60 * 60_000;
+    let today = 0;
+    let week = 0;
+    for (const person of this.people.values()) {
+      if (now - person.last < day) today++;
+      if (now - person.last < 7 * day) week++;
+    }
+    return { online: this.sockets.size, today, week, total: this.people.size };
+  }
+
+  /** A bug report from a player. The account is taken from the connection, never from the message. */
+  async onBug(socket, member, payload) {
+    const bug = {
+      id: crypto.randomUUID(),
+      title: String(payload.title ?? '').trim().slice(0, 120),
+      detail: String(payload.detail ?? '').trim().slice(0, 4000),
+      steps: String(payload.steps ?? '').trim().slice(0, 1000),
+      minecraft: String(payload.minecraft ?? '').trim().slice(0, 40),
+      snowball: String(payload.snowball ?? '').trim().slice(0, 40),
+      loader: String(payload.loader ?? '').trim().slice(0, 40),
+      logs: String(payload.logs ?? '').trim().slice(0, 20000),
+      by: member.name,
+      uuid: member.uuid,
+      at: new Date().toISOString(),
+      status: 'open',
+    };
+    if (!bug.title || !bug.detail) {
+      return socket.send(JSON.stringify({ type: 'error', message: 'A bug report needs a title and a description.' }));
+    }
+    const mine = this.bugs.filter((b) => b.uuid === member.uuid && Date.now() - Date.parse(b.at) < 60 * 60_000);
+    if (mine.length >= 5) {
+      return socket.send(JSON.stringify({ type: 'error', message: 'That is five reports in an hour; give it a rest.' }));
+    }
+    this.bugs.unshift(bug);
+    if (this.bugs.length > 500) this.bugs.length = 500;
+    await this.state.storage.put('bugs', this.bugs);
+    socket.send(JSON.stringify({ type: 'bug-filed', id: bug.id }));
+    // The owner sees it arrive without asking.
+    for (const [other, person] of this.sockets) {
+      if (person.admin) other.send(JSON.stringify({ type: 'bugs', bugs: this.bugs.slice(0, 50) }));
+    }
+  }
+
   async onAnnounce(payload) {
     this.announcement = typeof payload.text === 'string' && payload.text.trim() ? payload.text.trim().slice(0, 300) : null;
     await this.state.storage.put('announcement', this.announcement);
     this.broadcast({ type: 'announce', text: this.announcement });
   }
 
-  async onAdmin(payload) {
+  async onAdmin(payload, socket) {
+    if (payload.action === 'people') {
+      const people = [...this.people].map(([uuid, person]) => ({ uuid, ...person, muted: (this.mutes.get(uuid) ?? 0) > Date.now() }));
+      people.sort((a, b) => b.last - a.last);
+      return socket.send(JSON.stringify({ type: 'people', people: people.slice(0, 200), stats: this.stats() }));
+    }
+    if (payload.action === 'bugs') {
+      return socket.send(JSON.stringify({ type: 'bugs', bugs: this.bugs.slice(0, 50) }));
+    }
+    if (payload.action === 'bug-status') {
+      const bug = this.bugs.find((b) => b.id === payload.id);
+      const allowed = ['open', 'investigating', 'fixed', 'duplicate', 'invalid'];
+      if (bug && allowed.includes(payload.status)) {
+        bug.status = payload.status;
+        await this.state.storage.put('bugs', this.bugs);
+      }
+      return socket.send(JSON.stringify({ type: 'bugs', bugs: this.bugs.slice(0, 50) }));
+    }
+    if (payload.action === 'flag') {
+      const key = String(payload.key ?? '').trim().slice(0, 40);
+      if (!key) return;
+      if (payload.value === null) delete this.flags[key];
+      else this.flags[key] = payload.value === true || payload.value === 'on';
+      await this.state.storage.put('flags', this.flags);
+      // Everyone hears about a feature being switched on or off straight away.
+      return this.broadcast({ type: 'flags', flags: this.flags });
+    }
     if (payload.action === 'clear') {
       this.history = [];
       await this.state.storage.put('history', this.history);

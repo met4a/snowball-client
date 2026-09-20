@@ -16,6 +16,7 @@ public abstract class HudModule extends Module {
 	public final NumberSetting posY;
 	public final NumberSetting scale;
 	public final NumberSetting rotation;
+	public final BooleanSetting locked;
 	public final BooleanSetting background;
 	public final NumberSetting backgroundOpacity;
 
@@ -29,6 +30,7 @@ public abstract class HudModule extends Module {
 		posY = setting(new NumberSetting("y", "Position Y", "Vertical position", defaultY, 0, 1, 0.005));
 		scale = setting(new NumberSetting("scale", "Scale", "Element size", 1.0, 0.5, 3.0, 0.05));
 		rotation = setting(new NumberSetting("rotation", "Rotation", "Turn the element, in degrees", 0, -180, 180, 5));
+		locked = setting(new BooleanSetting("locked", "Lock position", "Keep the HUD editor from moving this one", false));
 		background = setting(new BooleanSetting("background", "Background", "Draw a translucent panel behind the element", defaultBackground));
 		backgroundOpacity = setting(new NumberSetting("background_opacity", "Background opacity", "", 0.45, 0.05, 1, 0.05));
 	}

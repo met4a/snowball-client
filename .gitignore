@@ -29,3 +29,6 @@ website/downloads/
 
 # Local editor/assistant settings
 .claude/
+
+# Wrangler keeps its login cache and build temp files here.
+server/chat-worker/.wrangler/

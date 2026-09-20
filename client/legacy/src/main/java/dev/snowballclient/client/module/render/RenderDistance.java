@@ -12,7 +12,7 @@ public final class RenderDistance extends Module {
 	private final NumberSetting original = setting(new NumberSetting("original", "", "", -1, -1, 32, 1));
 
 	public RenderDistance() {
-		super("render_distance", "Render Distance", "Change view distance fast", ModuleCategory.RENDER);
+		super("render_distance", "Render Distance", "Change view distance fast", ModuleCategory.WORLD);
 		original.hide();
 	}
 

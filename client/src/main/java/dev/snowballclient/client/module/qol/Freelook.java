@@ -25,7 +25,7 @@ public final class Freelook extends Module implements HoldableModule {
 	private CameraType previousCamera;
 
 	public Freelook() {
-		super("freelook", "Freelook", "Look around without turning", ModuleCategory.QOL);
+		super("freelook", "Freelook", "Look around without turning", ModuleCategory.VISUALS);
 		setKeybind(KEY_LEFT_ALT);
 		alsoIn(ModuleCategory.RENDER);
 	}

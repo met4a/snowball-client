@@ -38,6 +38,10 @@
     update: null as Snowball.UpdateState | null,
     chat: null as Snowball.ChatState | null,
     chatMessages: [] as Snowball.ChatMessage[],
+    stats: null as Snowball.SnowballStats | null,
+    people: [] as Snowball.SnowballPerson[],
+    bugs: [] as Snowball.BugReport[],
+    adminTab: 'chat' as 'chat' | 'people' | 'bugs' | 'flags',
   };
 
   // ---------- DOM helpers ----------
@@ -170,6 +174,14 @@
     if (days < 30) return `${days} day${days === 1 ? '' : 's'} ago`;
     if (days < 365) return `${Math.floor(days / 30)} month${days < 60 ? '' : 's'} ago`;
     return `${Math.floor(days / 365)} year${days < 730 ? '' : 's'} ago`;
+  };
+  /** "3 min ago" for anything recent, a date for anything older. */
+  const fmtWhen = (at: number): string => {
+    const ms = Date.now() - at;
+    if (ms < 60_000) return 'just now';
+    if (ms < 3_600_000) return `${Math.round(ms / 60_000)} min ago`;
+    if (ms < 86_400_000) return `${Math.round(ms / 3_600_000)} h ago`;
+    return new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
   };
   const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Never');
 
@@ -384,6 +396,7 @@
 
     return h('div', {},
       header('HOME', 'Selected instance', picker),
+      playerCount(),
       inst.error ? h('div', { class: 'issue' }, `This instance could not be loaded: ${inst.error}`) : null,
       h('div', { class: 'hero' },
         h('div', { class: 'card hero-main' },
@@ -408,6 +421,34 @@
         h('div', { class: 'card output-card' },
           h('div', { class: 'row log-head' }, h('div', { class: 'section-title' }, 'OUTPUT'), h('div', { class: 'spacer' }), logTabs),
           logView)));
+  }
+
+  /**
+   * How many people are on Snowball, counted by the Snowball server itself. It is hidden when this
+   * build has no server set, and when the server cannot be reached, rather than showing a zero.
+   */
+  function playerCount(): HTMLElement | null {
+    const stats = ui.stats;
+    if (!stats || (!stats.online && !stats.week && !stats.total)) return null;
+    const number = (value: number, label: string) => h('div', { class: 'count-item' },
+      h('div', { class: 'count-value' }, value.toLocaleString()), h('div', { class: 'count-label' }, label));
+    return h('div', { class: 'card count-card' },
+      h('div', { class: 'count-dot' }),
+      h('div', { class: 'grow' },
+        h('div', { class: 'section-title' }, 'SNOWBALL PLAYERS'),
+        h('div', { class: 'muted', style: 'font-size:12px' }, stats.online === 1 ? 'One person is playing right now' : `${stats.online.toLocaleString()} people are playing right now`)),
+      number(stats.today, 'TODAY'),
+      number(stats.week, 'THIS WEEK'),
+      number(stats.total, 'ALL TIME'));
+  }
+
+  function refreshStats(): void {
+    void api.snowballStats().then((stats) => {
+      if (!stats) return;
+      const changed = JSON.stringify(stats) !== JSON.stringify(ui.stats);
+      ui.stats = stats;
+      if (changed && ui.view === 'home') render();
+    }).catch(() => undefined);
   }
 
   function activityRow(e: Snowball.ActivityEvent): HTMLElement {
@@ -825,7 +866,42 @@
       h('div', { class: 'card chat-card' },
         messages,
         h('div', { class: 'row chat-input' }, input, h('button', { class: 'btn primary', disabled: state.status !== 'online', onClick: () => void send() }, 'Send')),
-        h('p', { class: 'muted', style: 'font-size:12px;margin:8px 0 0' }, 'No links, no images and no abuse. Everyone here signed in with Microsoft, so names are real.')));
+        h('p', { class: 'muted', style: 'font-size:12px;margin:8px 0 0' }, 'No links, no images and no abuse. Everyone here signed in with Microsoft, so names are real.')),
+      bugReportCard());
+  }
+
+  /** Anyone signed in can report a bug; it is filed under their account, not a name they type. */
+  function bugReportCard(): HTMLElement {
+    const title = h('input', { class: 'input', placeholder: 'What went wrong, in a few words', maxlength: '120' }) as HTMLInputElement;
+    const detail = h('textarea', { class: 'input', rows: '3', placeholder: 'What happened, and what you expected instead', maxlength: '4000' }) as HTMLTextAreaElement;
+    const steps = h('input', { class: 'input', placeholder: 'How to make it happen again (optional)', maxlength: '1000' }) as HTMLInputElement;
+    const inst = selected();
+    const send = async () => {
+      const result = await guard(() => api.reportBug({
+        title: title.value,
+        detail: detail.value,
+        steps: steps.value,
+        minecraft: inst?.minecraftVersion ?? '',
+        snowball: inst?.snowball.version ?? '',
+        loader: inst?.loaderName ?? '',
+      }));
+      if (!result) return;
+      if (!result.ok) {
+        toast(result.reason ?? 'That report was not sent.', 'error');
+        return;
+      }
+      title.value = '';
+      detail.value = '';
+      steps.value = '';
+      toast('Thank you - the report went straight to the Snowball team.');
+    };
+    return h('div', { class: 'card' },
+      h('div', { class: 'section-title' }, 'REPORT A BUG'),
+      h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 10px' }, 'Your Minecraft version, Snowball version and loader are attached automatically.'),
+      h('div', { class: 'stack' }, title, detail, steps),
+      h('div', { class: 'row', style: 'margin-top:10px' },
+        h('div', { class: 'spacer' }),
+        h('button', { class: 'btn primary', onClick: () => void send() }, 'Send report')));
   }
 
   /** Only the Snowball account sees this, and the server checks that again for every action. */
@@ -839,8 +915,24 @@
       if (result && !result.ok) toast(result.reason ?? 'That did not work.', 'error');
       else if (result) toast('Done');
     };
+    const tab = (id: 'chat' | 'people' | 'bugs' | 'flags', label: string) =>
+      h('button', { class: `log-tab${ui.adminTab === id ? ' active' : ''}`, onClick: () => {
+        ui.adminTab = id;
+        if (id === 'people') void api.chatAdmin('people');
+        if (id === 'bugs') void api.chatAdmin('bugs');
+        render();
+      } }, label);
+
+    if (ui.adminTab !== 'chat') {
+      return h('div', { class: 'card' },
+        h('div', { class: 'row' }, h('div', { class: 'section-title' }, 'ADMIN'), h('div', { class: 'spacer' }),
+          h('div', { class: 'log-tabs' }, tab('chat', 'CHAT'), tab('people', 'PEOPLE'), tab('bugs', 'BUGS'), tab('flags', 'FEATURES'))),
+        ui.adminTab === 'people' ? peopleList() : ui.adminTab === 'bugs' ? bugList() : flagList());
+    }
+
     return h('div', { class: 'card' },
-      h('div', { class: 'section-title' }, 'ADMIN'),
+      h('div', { class: 'row' }, h('div', { class: 'section-title' }, 'ADMIN'), h('div', { class: 'spacer' }),
+        h('div', { class: 'log-tabs' }, tab('chat', 'CHAT'), tab('people', 'PEOPLE'), tab('bugs', 'BUGS'), tab('flags', 'FEATURES'))),
       h('div', { class: 'list' },
         h('div', { class: 'list-row' },
           h('div', { class: 'grow' }, announcement),
@@ -858,6 +950,60 @@
         h('div', { class: 'list-row' },
           h('div', { class: 'grow' }, h('div', {}, 'Clear the chat for everyone'), h('div', { class: 'muted', style: 'font-size:12px' }, 'Wipes the recent messages the server keeps.')),
           h('button', { class: 'btn small danger', onClick: () => void run(() => api.moderateChat('clear')) }, 'Clear chat'))));
+  }
+
+  /** Everyone the Snowball server has seen, newest first. */
+  function peopleList(): HTMLElement {
+    if (!ui.people.length) return h('p', { class: 'muted' }, 'Nobody has joined yet, or the list is still coming.');
+    return h('div', { class: 'list' }, ...ui.people.slice(0, 60).map((person) =>
+      h('div', { class: 'list-row' },
+        h('div', { class: 'grow' },
+          h('div', {}, person.name, person.tier === 'plus' ? h('span', { class: 'chat-role plus', style: 'margin-left:8px' }, 'Snowball+') : null),
+          h('div', { class: 'muted', style: 'font-size:11px' }, `last seen ${fmtWhen(person.last)}${person.muted ? ' - muted' : ''}`)),
+        h('button', { class: 'btn small', onClick: () => void api.setSnowballPlus(person.uuid, person.tier !== 'plus').then(() => setTimeout(() => void api.chatAdmin('people'), 400)) },
+          person.tier === 'plus' ? 'Remove Snowball+' : 'Give Snowball+'),
+        h('button', { class: 'btn small', onClick: () => void api.moderateChat(person.muted ? 'unmute' : 'mute', person.uuid, 10).then(() => setTimeout(() => void api.chatAdmin('people'), 400)) },
+          person.muted ? 'Unmute' : 'Mute 10m'))));
+  }
+
+  /** Bug reports, with the states the owner can move them through. */
+  function bugList(): HTMLElement {
+    if (!ui.bugs.length) return h('p', { class: 'muted' }, 'No bug reports yet.');
+    const states: Snowball.BugReport['status'][] = ['open', 'investigating', 'fixed', 'duplicate', 'invalid'];
+    return h('div', { class: 'list' }, ...ui.bugs.map((bug) =>
+      h('div', { class: 'list-row bug-row' },
+        h('div', { class: 'grow' },
+          h('div', {}, h('span', { class: `bug-state ${bug.status}` }, bug.status.toUpperCase()), ' ', bug.title),
+          h('div', { class: 'muted', style: 'font-size:12px' }, bug.detail),
+          h('div', { class: 'muted', style: 'font-size:11px' },
+            `${bug.by} - ${fmtWhen(Date.parse(bug.at))}${bug.minecraft ? ` - Minecraft ${bug.minecraft}` : ''}${bug.loader ? ` - ${bug.loader}` : ''}${bug.snowball ? ` - Snowball ${bug.snowball}` : ''}`),
+          bug.steps ? h('div', { class: 'muted', style: 'font-size:11px' }, `Steps: ${bug.steps}`) : null),
+        h('select', { class: 'input', style: 'max-width:150px', onChange: (e: Event) => void api.chatAdmin('bug-status', { id: bug.id, status: (e.target as HTMLSelectElement).value }) },
+          ...states.map((state) => h('option', { value: state, selected: state === bug.status }, state))))));
+  }
+
+  /** Feature switches: the launcher and the client ask the server what is on. */
+  function flagList(): HTMLElement {
+    const known: [string, string][] = [
+      ['chat', 'Global chat'],
+      ['bug_reports', 'Bug reporting'],
+      ['snowball_plus', 'Snowball+ features'],
+      ['beta', 'Beta builds'],
+    ];
+    const flags = ui.chat?.flags ?? {};
+    const custom = h('input', { class: 'input', placeholder: 'Another feature key' }) as HTMLInputElement;
+    const row = (key: string, label: string) => {
+      const on = flags[key] !== false;
+      return h('div', { class: 'list-row' },
+        h('div', { class: 'grow' }, h('div', {}, label), h('div', { class: 'muted', style: 'font-size:11px' }, key)),
+        h('button', { class: `btn small${on ? '' : ' primary'}`, onClick: () => void api.chatAdmin('flag', { key, value: !on }) }, on ? 'Turn off' : 'Turn on'));
+    };
+    return h('div', { class: 'list' },
+      ...known.map(([key, label]) => row(key, label)),
+      ...Object.keys(flags).filter((key) => !known.some(([k]) => k === key)).map((key) => row(key, key)),
+      h('div', { class: 'list-row' },
+        h('div', { class: 'grow' }, custom),
+        h('button', { class: 'btn small', onClick: () => void api.chatAdmin('flag', { key: custom.value.trim(), value: false }) }, 'Add, switched off')));
   }
 
   function paintChat(view: HTMLElement): void {
@@ -1343,6 +1489,14 @@
     ui.chat = state;
     if (ui.view === 'chat' || wasAnnouncement !== state.announcement) render();
   });
+  api.on('chat-people', (people: Snowball.SnowballPerson[]) => {
+    ui.people = people;
+    if (ui.view === 'chat' && ui.adminTab === 'people') render();
+  });
+  api.on('chat-bugs', (bugs: Snowball.BugReport[]) => {
+    ui.bugs = bugs;
+    if (ui.view === 'chat' && ui.adminTab === 'bugs') render();
+  });
   api.on('chat-history', (messages: Snowball.ChatMessage[]) => {
     ui.chatMessages = messages.slice(-200);
     const view = document.getElementById('chat-log');
@@ -1362,6 +1516,8 @@
     ui.update = state;
     render();
   });
+  refreshStats();
+  setInterval(refreshStats, 60_000);
   void api.chatState().then((state) => {
     ui.chat = state;
     if (state.configured) render();

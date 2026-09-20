@@ -14,7 +14,7 @@ public final class ToggleSprint extends TextHudModule {
 	public final BooleanSetting showLabel = setting(new BooleanSetting("show_label", "Show status label", "", true));
 
 	public ToggleSprint() {
-		super("toggle_sprint", "Toggle Sprint", "Sprint without holding", ModuleCategory.QOL, 0.0, 0.96);
+		super("toggle_sprint", "Toggle Sprint", "Sprint without holding", ModuleCategory.MOVEMENT, 0.0, 0.96);
 		setKeybind(KEY_G);
 	}
 

@@ -63,6 +63,9 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
   });
   chat?.on('message', (message) => toRenderer('chat-message', message));
   chat?.on('history', (messages) => toRenderer('chat-history', messages));
+  chat?.on('people', (people) => toRenderer('chat-people', people));
+  chat?.on('bugs', (bugs) => toRenderer('chat-bugs', bugs));
+  chat?.on('bug-filed', (id) => toRenderer('chat-bug-filed', id));
   ipcMain.handle('chat:state', () => chat?.current() ?? { configured: false, status: 'offline', online: 0, announcement: null, admin: false });
   ipcMain.handle('chat:connect', async () => {
     if (!chat) throw new Error('Global chat is not available in this build.');
@@ -78,6 +81,23 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
   ipcMain.handle('chat:disconnect', () => chat?.disconnect());
   ipcMain.handle('chat:send', (_e, text: unknown) => chat?.send(str(text, 'message', 400)) ?? { ok: false, reason: 'Chat is not available.' });
   ipcMain.handle('chat:announce', (_e, text: unknown) => chat?.announce(text === null ? null : str(text, 'announcement', 300)) ?? { ok: false, reason: 'Chat is not available.' });
+  ipcMain.handle('chat:stats', () => chat?.stats() ?? null);
+  ipcMain.handle('chat:report-bug', (_e, report: unknown) => {
+    if (!chat) return { ok: false, reason: 'Chat is not available.' };
+    const r = (report ?? {}) as Record<string, unknown>;
+    const field = (key: string, max: number) => (typeof r[key] === 'string' ? String(r[key]).slice(0, max) : '');
+    return chat.reportBug({
+      title: field('title', 120),
+      detail: field('detail', 4000),
+      steps: field('steps', 1000),
+      minecraft: field('minecraft', 40),
+      snowball: field('snowball', 40),
+      loader: field('loader', 40),
+      logs: field('logs', 20000),
+    });
+  });
+  ipcMain.handle('chat:admin', (_e, action: unknown, extra: unknown) =>
+    chat?.admin(str(action, 'action', 20), (extra ?? {}) as Record<string, unknown>) ?? { ok: false, reason: 'Chat is not available.' });
   ipcMain.handle('chat:set-plus', (_e, uuid: unknown, on: unknown) => chat?.setPlus(str(uuid, 'uuid', 40), on !== false) ?? { ok: false, reason: 'Chat is not available.' });
   ipcMain.handle('chat:moderate', (_e, action: unknown, uuid: unknown, minutes: unknown) =>
     chat?.moderateChat(str(action, 'action', 16) as 'mute' | 'unmute' | 'clear', uuid === undefined || uuid === null ? undefined : str(uuid, 'uuid', 40), typeof minutes === 'number' ? minutes : undefined)
@@ -155,7 +175,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
       snowballBuilds: launcher.core.registry.builds.map((b) => ({ version: b.version, minecraft: b.label })),
       canAddOffline: launcher.auth.canAddOffline(),
       microsoftSignInConfigured: launcher.microsoftSignInConfigured,
-      launcherVersion: process.env.npm_package_version ?? '1.4.0',
+      launcherVersion: process.env.npm_package_version ?? '1.5.0',
     };
   });
 

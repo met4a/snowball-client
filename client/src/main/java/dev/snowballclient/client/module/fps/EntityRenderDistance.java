@@ -11,7 +11,7 @@ public final class EntityRenderDistance extends Module {
 	public final BooleanSetting keepPlayers = setting(new BooleanSetting("keep_players", "Always draw players", "", true));
 
 	public EntityRenderDistance() {
-		super("entity_distance", "Entity Distance", "Hide far-away entities", ModuleCategory.RENDER);
+		super("entity_distance", "Entity Distance", "Hide far-away entities", ModuleCategory.WORLD);
 	}
 
 	/** @return true when an entity at this squared distance should be culled */

@@ -1078,3 +1078,57 @@ body.reduce-motion .boot-bar > div {
   background: linear-gradient(135deg, #cfeaff, #58a8e8);
   color: #04121d;
 }
+
+/* ---------- how many people are on Snowball ---------- */
+.count-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 16px;
+  padding: 14px 18px;
+}
+.count-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 14px var(--accent);
+  animation: count-pulse 2.6s ease-in-out infinite;
+}
+@keyframes count-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.count-item {
+  text-align: right;
+  min-width: 74px;
+}
+.count-value {
+  font-size: 19px;
+  letter-spacing: 1px;
+}
+.count-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--muted);
+}
+
+/* ---------- bug reports ---------- */
+.bug-row {
+  align-items: flex-start;
+}
+.bug-state {
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--border-strong);
+  color: var(--muted);
+}
+.bug-state.open { color: #ffd166; border-color: rgba(255, 209, 102, 0.5); }
+.bug-state.investigating { color: var(--accent); border-color: rgba(127, 203, 255, 0.5); }
+.bug-state.fixed { color: #7ce38b; border-color: rgba(124, 227, 139, 0.5); }
+textarea.input {
+  resize: vertical;
+  font: inherit;
+}

@@ -22,7 +22,7 @@ public final class Snaplook extends Module implements HoldableModule {
 	private int previous = -1;
 
 	public Snaplook() {
-		super("snaplook", "Snaplook", "Hold to see yourself", ModuleCategory.QOL);
+		super("snaplook", "Snaplook", "Hold to see yourself", ModuleCategory.VISUALS);
 		setKeybind(KEY_V);
 	}
 

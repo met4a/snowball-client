@@ -5,6 +5,10 @@ public enum ModuleCategory {
 	CLIENT("client", "CLIENT"),
 	FPS_BOOST("fps_boost", "FPS BOOST"),
 	RENDER("render", "RENDER"),
+	PVP("pvp", "PVP"),
+	MOVEMENT("movement", "MOVE"),
+	VISUALS("visuals", "VISUALS"),
+	WORLD("world", "WORLD"),
 	MISC("misc", "MISC"),
 	QOL("qol", "QOL"),
 	STORAGE("storage", "STORAGE");

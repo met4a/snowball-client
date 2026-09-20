@@ -36,7 +36,7 @@ public final class Waypoints extends Module implements CustomSettingsScreen {
 	private boolean wasDead;
 
 	public Waypoints(WaypointStore store) {
-		super("waypoints", "Waypoints", "Mark places on screen", ModuleCategory.QOL, true);
+		super("waypoints", "Waypoints", "Mark places on screen", ModuleCategory.WORLD, true);
 		this.store = store;
 	}
 

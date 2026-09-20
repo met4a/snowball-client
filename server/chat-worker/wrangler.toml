@@ -4,7 +4,7 @@ compatibility_date = "2026-09-01"
 
 # The account that may post announcements and moderate, as a Minecraft UUID without dashes.
 [vars]
-ADMIN_UUID = "PUT-YOUR-MINECRAFT-UUID-HERE"
+ADMIN_UUID = "85c4ac3a0c284c20be4bee8a346ba51e"  # Met4a, the Snowball owner account
 
 [[durable_objects.bindings]]
 name = "CHAT_ROOM"

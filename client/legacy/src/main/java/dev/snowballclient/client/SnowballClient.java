@@ -9,6 +9,7 @@ import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.hud.HudRenderer;
 import dev.snowballclient.client.keybind.KeybindTracker;
 import dev.snowballclient.client.module.ModuleManager;
+import dev.snowballclient.client.module.ModuleCategory;
 import dev.snowballclient.client.module.ModuleRegistry;
 import dev.snowballclient.client.social.SnowballPlayers;
 import dev.snowballclient.client.perf.ModRequests;
@@ -49,7 +50,7 @@ public final class SnowballClient implements ClientModInitializer {
 	private final Theme theme = new Theme();
 	private final WaypointStore waypoints = new WaypointStore();
 	private final WheelTextures wheelTextures = new WheelTextures();
-	private final RadialLayout radialLayout = RadialLayout.sixWay();
+	private final RadialLayout radialLayout = RadialLayout.forSegments(ModuleCategory.values().length);
 	private final LegacyCanvas hudCanvas = new LegacyCanvas();
 	private ConfigManager config;
 	private ModRequests modRequests;

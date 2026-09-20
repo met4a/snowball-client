@@ -13,7 +13,7 @@ public final class CpsCounter extends TextHudModule {
 	private String cached;
 
 	public CpsCounter() {
-		super("cps_counter", "CPS Counter", "Shows clicks per second", ModuleCategory.QOL, 0.0, 0.21);
+		super("cps_counter", "CPS Counter", "Shows clicks per second", ModuleCategory.PVP, 0.0, 0.21);
 	}
 
 	@Override

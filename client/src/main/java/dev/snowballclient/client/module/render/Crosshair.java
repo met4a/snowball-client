@@ -22,7 +22,7 @@ public final class Crosshair extends Module {
 	public final BooleanSetting outline = setting(new BooleanSetting("outline", "Black outline", "Keeps the crosshair visible on bright backgrounds", true));
 
 	public Crosshair() {
-		super("crosshair", "Custom Crosshair", "Your own crosshair style", ModuleCategory.CLIENT);
+		super("crosshair", "Custom Crosshair", "Your own crosshair style", ModuleCategory.PVP);
 	}
 
 	/** @return true when the custom crosshair should be drawn instead of vanilla's */

@@ -14,14 +14,24 @@ class RadialTest {
 	private final RadialLayout layout = RadialLayout.sixWay();
 
 	@Test
-	void categoriesMapClockwiseFromTopLeft() {
-		// Offsets point at each segment centre at radius 100.
-		assertEquals(ModuleCategory.CLIENT.ordinal(), layout.hitTest(-50, -87, 40, 120));
-		assertEquals(ModuleCategory.FPS_BOOST.ordinal(), layout.hitTest(50, -87, 40, 120));
-		assertEquals(ModuleCategory.RENDER.ordinal(), layout.hitTest(100, 0, 40, 120));
-		assertEquals(ModuleCategory.MISC.ordinal(), layout.hitTest(50, 87, 40, 120));
-		assertEquals(ModuleCategory.QOL.ordinal(), layout.hitTest(-50, 87, 40, 120));
-		assertEquals(ModuleCategory.STORAGE.ordinal(), layout.hitTest(-100, 0, 40, 120));
+	void segmentsRunClockwiseFromTopLeft() {
+		// Offsets point at each segment centre at radius 100, going clockwise.
+		assertEquals(0, layout.hitTest(-50, -87, 40, 120));
+		assertEquals(1, layout.hitTest(50, -87, 40, 120));
+		assertEquals(2, layout.hitTest(100, 0, 40, 120));
+		assertEquals(3, layout.hitTest(50, 87, 40, 120));
+		assertEquals(4, layout.hitTest(-50, 87, 40, 120));
+		assertEquals(5, layout.hitTest(-100, 0, 40, 120));
+	}
+
+	@Test
+	void everyCategoryOwnsOneSegmentOfTheRealWheel() {
+		// The menu builds its wheel from however many categories there are; each must get its own.
+		RadialLayout wheel = RadialLayout.forSegments(ModuleCategory.values().length);
+		for (ModuleCategory category : ModuleCategory.values()) {
+			int index = category.ordinal();
+			assertEquals(index, wheel.segmentAtAngle(wheel.centerAngle(index)), category.displayName());
+		}
 	}
 
 	@Test

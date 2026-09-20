@@ -20,7 +20,7 @@ public final class HitColor extends Module {
 	public final NumberSetting strength = setting(new NumberSetting("strength", "Strength", "How strong the flash is", 0.7, 0.1, 1.0, 0.05));
 
 	public HitColor() {
-		super("hit_color", "Hit Colour", "Colour of the hit flash", ModuleCategory.RENDER);
+		super("hit_color", "Hit Colour", "Colour of the hit flash", ModuleCategory.VISUALS);
 		color.onChange(c -> refresh());
 		strength.onChange(s -> refresh());
 	}

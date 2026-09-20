@@ -12,7 +12,7 @@ public final class Fullbright extends Module {
 	public final NumberSetting strength = setting(new NumberSetting("strength", "Strength", "Lightmap brightness (vanilla max is 1)", 8, 1, 15, 0.5));
 
 	public Fullbright() {
-		super("fullbright", "Fullbright", "See clearly in the dark", ModuleCategory.RENDER);
+		super("fullbright", "Fullbright", "See clearly in the dark", ModuleCategory.VISUALS);
 	}
 
 	public float apply(float vanillaBrightness) {

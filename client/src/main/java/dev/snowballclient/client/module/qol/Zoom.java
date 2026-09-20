@@ -24,7 +24,7 @@ public final class Zoom extends Module implements HoldableModule {
 	private double scrollMultiplier = 1.0;
 
 	public Zoom() {
-		super("zoom", "Zoom", "Hold a key to zoom in", ModuleCategory.QOL, true);
+		super("zoom", "Zoom", "Hold a key to zoom in", ModuleCategory.VISUALS, true);
 		setKeybind(KEY_C);
 		alsoIn(ModuleCategory.RENDER);
 	}

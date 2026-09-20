@@ -15,7 +15,7 @@ public final class Fullbright extends Module {
 	private final NumberSetting original = setting(new NumberSetting("original", "", "", -1, -1, 100, 0.01));
 
 	public Fullbright() {
-		super("fullbright", "Fullbright", "See in the dark", ModuleCategory.RENDER);
+		super("fullbright", "Fullbright", "See in the dark", ModuleCategory.VISUALS);
 		original.hide();
 	}
 

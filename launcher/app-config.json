@@ -1,6 +1,6 @@
 {
   "microsoftClientId": "02d2d854-5423-43b6-b9b0-e896b8954d3f",
-  "chatUrl": "",
-  "adminUuid": "",
+  "chatUrl": "https://snowball-chat.snowball-mc.workers.dev",
+  "adminUuid": "85c4ac3a0c284c20be4bee8a346ba51e",
   "discordAppId": ""
 }

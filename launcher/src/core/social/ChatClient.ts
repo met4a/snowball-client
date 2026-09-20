@@ -19,6 +19,36 @@ export interface ChatMessage {
 
 export type SnowballTier = 'snowball' | 'plus';
 
+export interface SnowballStats {
+  online: number;
+  today: number;
+  week: number;
+  total: number;
+}
+
+export interface BugReport {
+  id: string;
+  title: string;
+  detail: string;
+  steps?: string;
+  minecraft?: string;
+  snowball?: string;
+  loader?: string;
+  by: string;
+  uuid: string;
+  at: string;
+  status: 'open' | 'investigating' | 'fixed' | 'duplicate' | 'invalid';
+}
+
+export interface SnowballPerson {
+  uuid: string;
+  name: string;
+  tier: 'snowball' | 'plus';
+  first: number;
+  last: number;
+  muted: boolean;
+}
+
 export interface ChatState {
   /** Off when no chat server is configured in this build. */
   configured: boolean;
@@ -28,6 +58,8 @@ export interface ChatState {
   admin: boolean;
   /** The edition the backend says this account has. Never decided here. */
   tier: SnowballTier;
+  /** Features the owner has switched on or off for everyone. */
+  flags: Record<string, boolean>;
   message?: string;
 }
 
@@ -52,7 +84,7 @@ export class ChatClient extends EventEmitter {
 
   constructor(private readonly baseUrl: string, private readonly adminUuid: string) {
     super();
-    this.state = { configured: Boolean(baseUrl), status: 'offline', online: 0, announcement: null, admin: false, tier: 'snowball' };
+    this.state = { configured: Boolean(baseUrl), status: 'offline', online: 0, announcement: null, admin: false, tier: 'snowball', flags: {} };
   }
 
   current(): ChatState {
@@ -105,6 +137,43 @@ export class ChatClient extends EventEmitter {
     if (!this.socket || this.state.status !== 'online') return { ok: false, reason: 'You are not connected to chat.' };
     if (!this.state.admin) return { ok: false, reason: 'Only the Snowball account can post announcements.' };
     this.socket.send(JSON.stringify({ type: 'announce', text: text && text.trim() ? text.trim().slice(0, 300) : null }));
+    return { ok: true };
+  }
+
+  /**
+   * How many people are using Snowball. Public, so the launcher can show it before anyone signs in;
+   * the numbers come from the server's own record of who connected, never from this computer.
+   */
+  async stats(): Promise<SnowballStats | null> {
+    if (!this.state.configured) return null;
+    try {
+      const response = await fetch(`${this.baseUrl.replace(/\/$/, '')}/stats`);
+      if (!response.ok) return null;
+      const body = (await response.json()) as Partial<SnowballStats>;
+      return {
+        online: Number(body.online) || 0,
+        today: Number(body.today) || 0,
+        week: Number(body.week) || 0,
+        total: Number(body.total) || 0,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /** Files a bug report under the signed-in account; the server ignores any name sent with it. */
+  reportBug(report: Record<string, string>): { ok: boolean; reason?: string } {
+    if (!this.socket || this.state.status !== 'online') return { ok: false, reason: 'Join chat first so the report can be signed with your account.' };
+    if (!report.title?.trim() || !report.detail?.trim()) return { ok: false, reason: 'A title and a description are needed.' };
+    this.socket.send(JSON.stringify({ type: 'bug', ...report }));
+    return { ok: true };
+  }
+
+  /** Admin only: ask for the people list, the bug list, or change a bug's state or a feature flag. */
+  admin(action: string, extra: Record<string, unknown> = {}): { ok: boolean; reason?: string } {
+    if (!this.socket || this.state.status !== 'online') return { ok: false, reason: 'You are not connected to chat.' };
+    if (!this.state.admin) return { ok: false, reason: 'Only the Snowball owner can do that.' };
+    this.socket.send(JSON.stringify({ type: 'admin', action, ...extra }));
     return { ok: true };
   }
 
@@ -186,8 +255,20 @@ export class ChatClient extends EventEmitter {
         if (Array.isArray(payload.messages)) this.emit('history', payload.messages as ChatMessage[]);
         break;
       case 'you':
-        this.set({ tier: payload.tier === 'plus' ? 'plus' : 'snowball', admin: Boolean(payload.owner) });
+        this.set({ tier: payload.tier === 'plus' ? 'plus' : 'snowball', admin: Boolean(payload.owner), flags: payload.flags ?? {} });
         this.emit('tier', this.state.tier);
+        break;
+      case 'flags':
+        this.set({ flags: payload.flags ?? {} });
+        break;
+      case 'people':
+        this.emit('people', payload.people ?? []);
+        break;
+      case 'bugs':
+        this.emit('bugs', payload.bugs ?? []);
+        break;
+      case 'bug-filed':
+        this.emit('bug-filed', String(payload.id ?? ''));
         break;
       case 'presence':
         this.set({ online: Number(payload.online ?? 0) });

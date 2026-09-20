@@ -81,7 +81,7 @@ public final class PvpHudModules {
 		private boolean hasLast;
 
 		public SpeedDisplay() {
-			super("speed_display", "Speed", "Shows how fast you move", ModuleCategory.CLIENT, 0.0, 0.28);
+			super("speed_display", "Speed", "Shows how fast you move", ModuleCategory.MOVEMENT, 0.0, 0.28);
 		}
 
 		@Override
@@ -117,7 +117,7 @@ public final class PvpHudModules {
 		private final CombatTracker tracker;
 
 		public ComboCounter(CombatTracker tracker) {
-			super("combo_counter", "Combo Counter", "Hits in a row without damage", ModuleCategory.CLIENT, 0.5, 0.58);
+			super("combo_counter", "Combo Counter", "Hits in a row without damage", ModuleCategory.PVP, 0.5, 0.58);
 			this.tracker = tracker;
 		}
 
@@ -135,7 +135,7 @@ public final class PvpHudModules {
 		private final CombatTracker tracker;
 
 		public ReachDisplay(CombatTracker tracker) {
-			super("reach_display", "Reach Display", "Distance of your last hit", ModuleCategory.CLIENT, 0.5, 0.66);
+			super("reach_display", "Reach Display", "Distance of your last hit", ModuleCategory.PVP, 0.5, 0.66);
 			this.tracker = tracker;
 		}
 

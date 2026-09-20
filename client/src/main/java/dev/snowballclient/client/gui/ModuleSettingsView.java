@@ -11,6 +11,7 @@ import dev.snowballclient.client.module.setting.ChoiceSetting;
 import dev.snowballclient.client.module.setting.ColorSetting;
 import dev.snowballclient.client.module.setting.NumberSetting;
 import dev.snowballclient.client.module.setting.Setting;
+import dev.snowballclient.client.module.setting.StringSetting;
 import dev.snowballclient.client.ui.Canvas;
 import dev.snowballclient.client.ui.Keys;
 import dev.snowballclient.client.ui.View;
@@ -43,6 +44,9 @@ public final class ModuleSettingsView extends View {
 	private int hovered = -1;
 	private int dragging = -1;
 	private boolean capturingKey;
+	/** The row whose text is being written, and the box it is written in. */
+	private int editing = -1;
+	private TextField editor;
 
 	public ModuleSettingsView(Module module, SnowballClient client) {
 		super(module.name() + " settings");
@@ -148,6 +152,15 @@ public final class ModuleSettingsView extends View {
 				UiText.drawRight(c, value, UiText.UI_SMALL, right, cy - 4, muted);
 			}
 			case ChoiceSetting choice -> pill(c, "< " + choice.get().replace('_', ' ').toUpperCase(Locale.ROOT) + " >", right, y + (h - 16) / 2, false, a);
+			case StringSetting written -> {
+				if (editing == row && editor != null) {
+					editor.setBounds(controlX, y + (h - 14) / 2, CONTROL_W, 14);
+					editor.render(c, theme, a);
+				} else {
+					String shown = written.get().isEmpty() ? "Click to write" : written.get();
+					pill(c, UiText.fit(c, shown, UiText.UI_SMALL, CONTROL_W - 14), right, y + (h - 16) / 2, false, a);
+				}
+			}
 			case ColorSetting color -> {
 				int sy = y + (h - 12) / 2;
 				GuiDraw.roundedRect(c, right - 18, sy, 18, 12, 3, scaleAlpha(color.argb() | 0xFF000000, a));
@@ -198,6 +211,7 @@ public final class ModuleSettingsView extends View {
 		int row = rowAt(mouseX, mouseY);
 		if (row < 0) return false;
 		capturingKey = false;
+		commitText();
 		if (row == 0) {
 			capturingKey = true;
 		} else if (row == rowCount() - 1) {
@@ -210,6 +224,12 @@ public final class ModuleSettingsView extends View {
 					setFromMouse(n, mouseX);
 				}
 				case ChoiceSetting choice -> choice.cycle(button == 1 ? -1 : 1);
+				case StringSetting written -> {
+					editing = row;
+					editor = new TextField(written.maxLength(), "Text");
+					editor.setValue(written.get());
+					editor.setFocused(true);
+				}
 				case ColorSetting color -> color.set(nextPreset(color.argb(), button == 1 ? -1 : 1));
 				default -> {
 				}
@@ -252,8 +272,35 @@ public final class ModuleSettingsView extends View {
 		return false;
 	}
 
+	/** Keeps whatever was written and closes the box. */
+	private void commitText() {
+		if (editing < 0 || editor == null) return;
+		if (editing - 1 >= 0 && editing - 1 < settings.size() && settings.get(editing - 1) instanceof StringSetting text) {
+			text.set(editor.value());
+		}
+		editing = -1;
+		editor = null;
+	}
+
+	@Override
+	public boolean charTyped(String text) {
+		return editor != null && editor.charTyped(text);
+	}
+
 	@Override
 	public boolean keyPressed(int key) {
+		if (editor != null) {
+			if (key == Keys.ENTER || key == Keys.KP_ENTER) {
+				commitText();
+				return true;
+			}
+			if (key == Keys.ESCAPE) {
+				editing = -1;
+				editor = null;
+				return true;
+			}
+			if (editor.keyPressed(key, host)) return true;
+		}
 		if (capturingKey) {
 			if (key == Keys.BACKSPACE || key == Keys.DELETE) module.setKeybind(Module.UNBOUND);
 			else if (key != Keys.ESCAPE) module.setKeybind(key); // escape cancels
@@ -265,6 +312,7 @@ public final class ModuleSettingsView extends View {
 
 	@Override
 	public void removed() {
+		commitText();
 		client.saveIfDirty();
 	}
 }

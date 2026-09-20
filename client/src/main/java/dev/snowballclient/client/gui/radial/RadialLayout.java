@@ -20,7 +20,12 @@ public final class RadialLayout {
 
 	/** Six segments with the first one at the top-left, matching the menu design. */
 	public static RadialLayout sixWay() {
-		return new RadialLayout(6, -30f);
+		return forSegments(6);
+	}
+
+	/** The wheel for however many categories there are, with the first segment at the top-left. */
+	public static RadialLayout forSegments(int segments) {
+		return new RadialLayout(segments, -(360f / segments) / 2f);
 	}
 
 	public int segments() {

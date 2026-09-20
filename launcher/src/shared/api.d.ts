@@ -269,6 +269,36 @@ declare namespace Snowball {
     tier?: 'snowball' | 'plus';
   }
 
+  interface SnowballStats {
+    online: number;
+    today: number;
+    week: number;
+    total: number;
+  }
+
+  interface BugReport {
+    id: string;
+    title: string;
+    detail: string;
+    steps?: string;
+    minecraft?: string;
+    snowball?: string;
+    loader?: string;
+    by: string;
+    uuid: string;
+    at: string;
+    status: 'open' | 'investigating' | 'fixed' | 'duplicate' | 'invalid';
+  }
+
+  interface SnowballPerson {
+    uuid: string;
+    name: string;
+    tier: 'snowball' | 'plus';
+    first: number;
+    last: number;
+    muted: boolean;
+  }
+
   interface ChatState {
     configured: boolean;
     status: 'offline' | 'connecting' | 'online' | 'error';
@@ -276,6 +306,7 @@ declare namespace Snowball {
     announcement: string | null;
     admin: boolean;
     tier: 'snowball' | 'plus';
+    flags: Record<string, boolean>;
     message?: string;
   }
 
@@ -288,7 +319,7 @@ declare namespace Snowball {
     | { status: 'unsupported'; version: string; reason: string }
     | { status: 'error'; version: string; message: string };
 
-  type EventName = 'progress' | 'game-log' | 'game-exit' | 'launch-error' | 'launcher-log' | 'state' | 'activity' | 'update' | 'chat-state' | 'chat-message' | 'chat-history';
+  type EventName = 'progress' | 'game-log' | 'game-exit' | 'launch-error' | 'launcher-log' | 'state' | 'activity' | 'update' | 'chat-state' | 'chat-message' | 'chat-history' | 'chat-people' | 'chat-bugs' | 'chat-bug-filed';
 
   interface Api {
     getState(): Promise<AppState>;
@@ -337,6 +368,9 @@ declare namespace Snowball {
     announce(text: string | null): Promise<{ ok: boolean; reason?: string }>;
     moderateChat(action: 'mute' | 'unmute' | 'clear', uuid?: string, minutes?: number): Promise<{ ok: boolean; reason?: string }>;
     setSnowballPlus(uuid: string, on: boolean): Promise<{ ok: boolean; reason?: string }>;
+    snowballStats(): Promise<SnowballStats | null>;
+    reportBug(report: Record<string, string>): Promise<{ ok: boolean; reason?: string }>;
+    chatAdmin(action: string, extra?: Record<string, unknown>): Promise<{ ok: boolean; reason?: string }>;
     updateState(): Promise<UpdateState>;
     checkForUpdates(): Promise<UpdateState | null>;
     installUpdate(): Promise<void>;

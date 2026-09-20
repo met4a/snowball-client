@@ -86,7 +86,7 @@ async function captureViews(win: BrowserWindow, dir: string): Promise<void> {
   win.show();
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
   await wait(1500);
-  const pages = ['home', 'instances', 'mods', 'browse', 'java', 'settings'];
+  const pages = ['home', 'instances', 'mods', 'browse', 'chat', 'java', 'settings'];
   for (let i = 0; i < pages.length; i++) {
     await win.webContents.executeJavaScript(`document.querySelectorAll('.nav-item')[${i}].click()`);
     await wait(1500);

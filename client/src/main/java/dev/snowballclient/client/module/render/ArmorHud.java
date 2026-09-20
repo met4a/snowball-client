@@ -21,7 +21,7 @@ public final class ArmorHud extends HudModule {
 	public final BooleanSetting showHeld = setting(new BooleanSetting("show_held", "Include held item", "", true));
 
 	public ArmorHud() {
-		super("armor_hud", "Armor HUD", "Shows armour and durability", ModuleCategory.CLIENT, 1.0, 0.62);
+		super("armor_hud", "Armor HUD", "Shows armour and durability", ModuleCategory.PVP, 1.0, 0.62);
 	}
 
 	private int visibleRows(Minecraft mc) {

@@ -64,8 +64,8 @@ public final class RadialMenuView extends View {
 	private final FrameClock clock = new FrameClock();
 	private final Smoothed open = new Smoothed(0f);
 	private final Smoothed panel = new Smoothed(0f);
-	private final Smoothed[] segmentHover = new Smoothed[6];
-	private final Smoothed[] segmentSelect = new Smoothed[6];
+	private final Smoothed[] segmentHover = new Smoothed[ModuleCategory.values().length];
+	private final Smoothed[] segmentSelect = new Smoothed[ModuleCategory.values().length];
 	private final Map<Module, Smoothed> toggleAnim = new IdentityHashMap<>();
 	private final Map<Module, FittedRow> fitted = new IdentityHashMap<>();
 	private final String[] cardBlurbs = new String[CARDS.length];
@@ -96,7 +96,7 @@ public final class RadialMenuView extends View {
 		this.client = client;
 		this.theme = client.theme();
 		this.layout = client.radialLayout();
-		for (int i = 0; i < 6; i++) {
+		for (int i = 0; i < segmentHover.length; i++) {
 			segmentHover[i] = new Smoothed(0f);
 			segmentSelect[i] = new Smoothed(0f);
 		}
@@ -231,7 +231,7 @@ public final class RadialMenuView extends View {
 		}
 		float p = panel.update(dt, speed);
 		if (!closing) updateHover(mouseX, mouseY);
-		for (int i = 0; i < 6; i++) {
+		for (int i = 0; i < segmentHover.length; i++) {
 			segmentHover[i].setTarget(i == hoveredSegment ? 1f : 0f);
 			segmentHover[i].update(dt, speed * 1.3f);
 			segmentSelect[i].setTarget(i == selected ? 1f : 0f);
@@ -262,7 +262,7 @@ public final class RadialMenuView extends View {
 			c.drawTexture(wheel.base(), -r, -r, d, d, Theme.withAlpha(0xFFFFFFFF, o));
 			float pulse = 0.5f + 0.5f * (float) Math.sin(time * 2.4f);
 			c.drawTexture(wheel.centerGlow(), -r, -r, d, d, Theme.withAlpha(0xFFFFFFFF, o * (0.55f + 0.45f * pulse)));
-			for (int i = 0; i < 6; i++) {
+			for (int i = 0; i < segmentHover.length; i++) {
 				float sel = segmentSelect[i].get();
 				float hov = segmentHover[i].get();
 				float intensity = Math.max(sel, hov * 0.3f);
@@ -277,15 +277,19 @@ public final class RadialMenuView extends View {
 		}
 
 		if (o > 0.04f) {
-			for (int i = 0; i < 6; i++) {
+			for (int i = 0; i < segmentHover.length; i++) {
 				double[] dir = layout.direction(i);
 				int lx = (int) Math.round(dir[0] * WheelGeometry.LABEL_R);
 				int ly = (int) Math.round(dir[1] * WheelGeometry.LABEL_R);
 				float emphasis = Math.max(segmentSelect[i].get(), segmentHover[i].get() * 0.7f);
 				int color = scaleAlpha(Theme.lerpColor(LABEL_IDLE, 0xFFFFFFFF, emphasis), o);
-				CategoryIcons.draw(c, categories[i], lx - CategoryIcons.SIZE / 2, ly - 14, color);
-				// A 60 degree segment is about 58 units wide at the label radius; keep labels inside it.
-				UiText.drawCenteredFitted(c, categories[i].displayName(), UiText.TITLE_SMALL, lx, ly - 1, 50, color);
+				boolean named = emphasis > 0.35f;
+				CategoryIcons.draw(c, categories[i], lx - CategoryIcons.SIZE / 2, ly - (named ? 14 : CategoryIcons.SIZE / 2), color);
+				// Only the segment being pointed at is named, so narrow wedges never write over each other.
+				if (named) {
+					int room = (int) (WheelGeometry.LABEL_R * 2 * Math.PI / segmentHover.length) + 14;
+					UiText.drawCenteredFitted(c, categories[i].displayName(), UiText.TITLE_SMALL, lx, ly - 1, room, color);
+				}
 			}
 		}
 
