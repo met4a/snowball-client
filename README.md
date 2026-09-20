@@ -10,7 +10,8 @@ bypasses.
 
 ```
 wow client/
-├── client/      Snowball Client (Fabric, one source tree built for Minecraft 26.2 and 1.21.11 with Stonecutter)
+├── client/      Snowball Client (Fabric; one source tree built for Minecraft 26.2 and 1.21.11 with Stonecutter,
+│               and client/legacy for Minecraft 1.8.9 on Legacy Fabric, sharing the same menus and settings)
 ├── launcher/    Electron + TypeScript launcher (builds the Windows .exe)
 ├── Snowball.png Source artwork for the logo
 └── README.md

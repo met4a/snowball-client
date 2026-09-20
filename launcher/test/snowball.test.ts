@@ -7,8 +7,8 @@ import { assertModChangeAllowed, ProtectedModError } from '../src/core/snowball/
 import { ClientBuildRegistry, CoreRepairError, SnowballCore } from '../src/core/snowball/SnowballCore.js';
 import { makeZip, tempDir } from './helpers.js';
 
-const clientJar = (version = '1.1.0', minecraft = '~26.2') =>
-  makeZip({ 'fabric.mod.json': JSON.stringify({ id: 'snowballclient', version, depends: { minecraft, 'fabric-api': '*' } }), 'dev/Client.class': `build ${version}` });
+const clientJar = (version = '1.1.0', minecraft = '~26.2', java?: string) =>
+  makeZip({ 'fabric.mod.json': JSON.stringify({ id: 'snowballclient', version, depends: { minecraft, 'fabric-api': '*', ...(java ? { java } : {}) } }), 'dev/Client.class': `build ${version}` });
 const modJar = (id: string) => makeZip({ 'fabric.mod.json': JSON.stringify({ id, version: '1.0.0' }) });
 
 async function setup(fabricApi?: (gameDir: string) => void) {
@@ -44,6 +44,33 @@ describe('Snowball Client builds', () => {
     expect(registry.find('26.2.1', 'fabric')?.label).toBe('26.2');
     expect(registry.find('1.21.11', 'fabric')).toBeNull();
     expect(registry.find('26.2', 'neoforge')).toBeNull();
+  });
+});
+
+describe('Snowball Client on Legacy Fabric', () => {
+  it('sets up and protects Legacy Fabric API for a Minecraft 1.8.9 build', async () => {
+    const builds = tempDir();
+    writeFileSync(join(builds, 'snowball-client-1.3.0+1.8.9.jar'), clientJar('1.3.0', '1.8.9', '>=21'));
+    const registry = await ClientBuildRegistry.discover([builds]);
+    expect(registry.find('1.8.9', 'fabric')?.version).toBe('1.3.0');
+    expect(registry.find('1.8.9', 'fabric')?.javaMajor).toBe(21);
+    expect(registry.find('1.8.8', 'fabric')).toBeNull();
+    const core = new SnowballCore(registry, {
+      ensure: async (gameDir, minecraftVersion) => {
+        writeFileSync(join(gameDir, 'mods', 'legacy-fabric-api-1.13.5.jar'), modJar('legacy-fabric-api'));
+        return minecraftVersion === '1.8.9';
+      },
+    }, tempDir());
+    const gameDir = tempDir();
+    const mods = join(gameDir, 'mods');
+    mkdirSync(mods);
+    const messages: string[] = [];
+    const report = await core.ensure({ gameDir, minecraftVersion: '1.8.9', loader: 'fabric' }, (_level, message) => void messages.push(message));
+    expect(messages).toContain('Installing Legacy Fabric API...');
+    expect(report.problems).toEqual([]);
+    expect(report.fabricApi).toBe('ok');
+    await expect(assertModChangeAllowed(mods, 'legacy-fabric-api-1.13.5.jar', 'remove')).rejects.toThrow("Legacy Fabric API is required by Snowball Client, so it can't be removed in this instance.");
+    await expect(assertModChangeAllowed(mods, 'legacy-fabric-api-1.13.5.jar', 'replace')).resolves.toBeUndefined();
   });
 });
 

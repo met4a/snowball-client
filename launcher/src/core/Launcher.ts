@@ -3,10 +3,12 @@ import { mkdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { AuthManager, type SecretCipher } from './auth/AuthManager.js';
 import { DownloadManager, type DownloadProgress } from './download/DownloadManager.js';
+import { VerifiedFiles } from './download/VerifiedFiles.js';
 import { InstanceManager, type CreateInstanceOptions, type InstanceConfig, type LoaderId, type PerformanceProfileId } from './instance/InstanceManager.js';
 import { JavaManager, recommendMemory } from './java/JavaManager.js';
 import { ActivityLog } from './logging/Activity.js';
 import { getLogger, logSink, LogLevel } from './logging/Logger.js';
+import { fabricApiFor, usesLegacyFabric } from './minecraft/fabricFamily.js';
 import type { VersionJson } from './minecraft/types.js';
 import { VersionManager } from './minecraft/VersionManager.js';
 import { ModLoaderRegistry } from './modloader/ModLoaderRegistry.js';
@@ -88,7 +90,11 @@ export class Launcher extends EventEmitter {
     const s = await settings.load();
     logSink.configure({ minLevel: s.logs.debug ? LogLevel.DEBUG : LogLevel.INFO, retainFiles: s.logs.retainDays });
 
-    const downloads = new DownloadManager({ concurrency: s.downloads.concurrency, retries: s.downloads.retries, userAgent: `SnowballClientLauncher/${options.launcherVersion}` });
+    // Game files are hashed once and then trusted while they stay untouched, so pressing Play does not
+    // re-checksum thousands of assets every time.
+    const verified = new VerifiedFiles(join(paths.cache, 'verified-files.json'));
+    await verified.load();
+    const downloads = new DownloadManager({ concurrency: s.downloads.concurrency, retries: s.downloads.retries, userAgent: `SnowballClientLauncher/${options.launcherVersion}`, verified });
     const versions = new VersionManager(paths, downloads);
     const java = new JavaManager(paths.runtimes, downloads);
     const instances = new InstanceManager(paths.instances);
@@ -131,10 +137,14 @@ export class Launcher extends EventEmitter {
     return /^[0-9a-f-]{36}$/i.test(this.settings.get().accounts.microsoftClientId || this.options.defaultMicrosoftClientId || '');
   }
 
-  /** Whether this launcher has a Snowball Client build for a Minecraft version and loader. */
-  snowballSupport(minecraftVersion: string, loader: LoaderId): { supported: boolean; version: string | null } {
+  /**
+   * Whether this launcher has a Snowball Client build for a Minecraft version and loader, the API set up with
+   * it, and whether performance profiles apply (their optimisation mods exist for Fabric and Quilt on 1.14+).
+   */
+  snowballSupport(minecraftVersion: string, loader: LoaderId): { supported: boolean; version: string | null; fabricApi: string; performanceProfiles: boolean } {
     const build = this.core.registry.find(minecraftVersion, loader);
-    return { supported: build !== null, version: build?.version ?? null };
+    const fabricFamily = loader === 'fabric' || loader === 'quilt';
+    return { supported: build !== null, version: build?.version ?? null, fabricApi: fabricApiFor(minecraftVersion).name, performanceProfiles: fabricFamily && !usesLegacyFabric(minecraftVersion) };
   }
 
   private coreTarget(instanceId: string, config: InstanceConfig): CoreTarget {
@@ -147,6 +157,19 @@ export class Launcher extends EventEmitter {
 
   async repairCore(instanceId: string, signal?: AbortSignal): Promise<CoreReport> {
     return this.core.ensure(this.coreTarget(instanceId, await this.instances.load(instanceId)), this.activity.reporter(instanceId), signal);
+  }
+
+  /**
+   * Checksums every Minecraft file of an instance again and downloads whatever is missing or damaged.
+   * Launching trusts files it has already checked, so this is how a broken install is repaired.
+   */
+  async verifyGameFiles(instanceId: string, signal?: AbortSignal): Promise<{ verified: true }> {
+    const say = this.activity.reporter(instanceId);
+    say('info', 'Checking every game file...');
+    await this.downloads.forgetVerifiedFiles();
+    await this.prepare(instanceId, signal);
+    say('success', 'Game files verified');
+    return { verified: true };
   }
 
   /**
@@ -186,8 +209,9 @@ export class Launcher extends EventEmitter {
     if (!loader) throw new Error(`Unsupported mod loader: ${config.loader}`);
     const list = await loader.listVersions(config.minecraftVersion);
     const chosen = (list.find((v) => v.stable) ?? list[0])?.version;
-    if (!chosen) throw new Error(`${loader.displayName} has no release for Minecraft ${config.minecraftVersion}.`);
-    this.activity.add(instanceId, 'info', `Using ${loader.displayName} ${chosen}`);
+    const name = loader.nameFor(config.minecraftVersion);
+    if (!chosen) throw new Error(`${name} has no release for Minecraft ${config.minecraftVersion}.`);
+    this.activity.add(instanceId, 'info', `Using ${name} ${chosen}`);
     return this.instances.update(instanceId, (c) => {
       c.loaderVersion = chosen;
     });
@@ -202,7 +226,7 @@ export class Launcher extends EventEmitter {
     if (!config.pendingFabricApi) return;
     try {
       if (await this.modrinth.ensureFabricApi(this.instances.gameDir(instanceId), config.minecraftVersion, signal)) {
-        this.activity.add(instanceId, 'success', 'Fabric API installed');
+        this.activity.add(instanceId, 'success', `${fabricApiFor(config.minecraftVersion).name} installed`);
       }
       await this.instances.update(instanceId, (c) => {
         c.pendingFabricApi = false;
@@ -244,7 +268,7 @@ export class Launcher extends EventEmitter {
       const loader = this.loaders.get(config.loader);
       if (!loader) throw new Error(`Unsupported mod loader: ${config.loader}`);
       if (!config.loaderVersion) {
-        stage(`Finding ${loader.displayName} version`);
+        stage(`Finding ${loader.nameFor(mc)} version`);
         config = await this.pinLoaderVersion(instanceId, config);
       }
       const loaderVersion = config.loaderVersion!;
@@ -260,7 +284,11 @@ export class Launcher extends EventEmitter {
     }
     const version = await this.versions.resolve(versionId);
 
-    const required = version.javaVersion?.majorVersion;
+    // Snowball Client builds can need a newer Java than the game itself: Minecraft 1.8.9 asks for Java 8,
+    // and the client for that version is built for Java 21, which 1.8.9 runs on happily.
+    const gameJava = version.javaVersion?.majorVersion ?? 8;
+    const clientJava = this.core.registry.find(mc, config.loader)?.javaMajor ?? 0;
+    const required = Math.max(gameJava, clientJava);
     let javaPath: string | null = null;
     if (config.java.executable) {
       const check = await this.java.validateFor(config.java.executable, required);
@@ -268,21 +296,25 @@ export class Launcher extends EventEmitter {
       javaPath = check.java.path;
     } else {
       javaPath = (await this.java.pickFor(required))?.path ?? null;
-      if (!javaPath && version.javaVersion?.component && this.settings.get().java.autoDownloadRuntime) {
-        stage(`Downloading Java ${required}`);
-        javaPath = (await this.java.installMojangRuntime(version.javaVersion.component, signal, (p) => downloadStage(`Downloading Java ${required}`, p))).path;
+      if (!javaPath && this.settings.get().java.autoDownloadRuntime) {
+        const component = required === gameJava ? version.javaVersion?.component ?? null : await this.java.componentForMajor(required, signal);
+        if (component) {
+          stage(`Downloading Java ${required}`);
+          javaPath = (await this.java.installMojangRuntime(component, signal, (p) => downloadStage(`Downloading Java ${required}`, p))).path;
+        }
       }
-      if (!javaPath) throw new Error(`Java ${required ?? 8} is required. Install it or enable automatic Java downloads in Settings.`);
+      if (!javaPath) throw new Error(`Java ${required} is required. Install it or enable automatic Java downloads in Settings.`);
     }
 
     if (config.loader === 'fabric' || config.loader === 'quilt') {
       if (config.pendingFabricApi) {
-        stage('Installing Fabric API');
+        stage(`Installing ${fabricApiFor(mc).name}`);
         await this.installPendingFabricApi(instanceId, signal);
       }
       const requests = await this.mods.applyClientRequests(gameDir);
-      // A profile chosen at creation (or in-game) is installed on the first launch that needs it.
-      const wanted = requests.performanceProfile ?? (config.performanceProfile !== 'none' && config.managedMods.length === 0 ? config.performanceProfile : null);
+      // A profile chosen at creation (or in-game) is installed on the first launch that needs it. Its optimisation
+      // mods don't exist for Legacy Fabric versions, so none is applied there.
+      const wanted = usesLegacyFabric(mc) ? null : requests.performanceProfile ?? (config.performanceProfile !== 'none' && config.managedMods.length === 0 ? config.performanceProfile : null);
       const needsInstall = wanted !== null && (wanted !== config.performanceProfile || config.managedMods.length === 0);
       if (needsInstall && PERFORMANCE_PROFILES.some((p) => p.id === wanted)) {
         stage('Applying performance profile');
@@ -315,6 +347,9 @@ export class Launcher extends EventEmitter {
     }
     if (config.loader !== 'fabric' && config.loader !== 'quilt') {
       throw new Error('Performance profiles install Fabric optimisation mods. Switch this instance to Fabric or Quilt first.');
+    }
+    if (usesLegacyFabric(config.minecraftVersion)) {
+      throw new Error(`Performance profiles need Minecraft 1.14 or newer; their optimisation mods don't exist for ${config.minecraftVersion}.`);
     }
     const profile = getProfile(profileId);
     if (!profile) throw new Error(`Unknown performance profile: ${profileId}`);

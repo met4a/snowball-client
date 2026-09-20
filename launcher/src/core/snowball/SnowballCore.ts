@@ -4,11 +4,12 @@ import { basename, dirname, join } from 'node:path';
 import type { LoaderId } from '../instance/InstanceManager.js';
 import type { ActivityLevel } from '../logging/Activity.js';
 import { getLogger } from '../logging/Logger.js';
+import { fabricApiFor } from '../minecraft/fabricFamily.js';
 import { compareVersions, matchesFabricPredicate } from '../mods/versionRange.js';
 import { sha1File, writeJsonAtomic } from '../util/fsutil.js';
 import { sanitizeFileName } from '../util/paths.js';
 import { ZipReader } from '../util/zip.js';
-import { FABRIC_API_ID, SNOWBALL_MARKER, SNOWBALL_MOD_FILE, SNOWBALL_MOD_ID } from './protection.js';
+import { SNOWBALL_MARKER, SNOWBALL_MOD_FILE, SNOWBALL_MOD_ID } from './protection.js';
 
 const log = getLogger('snowball');
 
@@ -20,6 +21,8 @@ export interface ClientBuild {
   minecraft: string | string[];
   /** Minecraft versions as players read them, e.g. "26.2". */
   label: string;
+  /** Java version this build needs, from its "java" dependency; null when it does not ask for one. */
+  javaMajor: number | null;
   sha1: string;
 }
 
@@ -27,6 +30,7 @@ interface JarIdentity {
   id: string | null;
   version: string | null;
   minecraft: unknown;
+  java: unknown;
 }
 
 /** Reads id, version and Minecraft dependency from a Fabric jar; null when it is not a readable Fabric mod. */
@@ -35,7 +39,7 @@ async function readIdentity(path: string): Promise<JarIdentity | null> {
     const text = (await ZipReader.open(path)).readText('fabric.mod.json');
     if (!text) return null;
     const j = JSON.parse(text.replace(/^﻿/, '')) as Record<string, any>;
-    return { id: typeof j.id === 'string' ? j.id : null, version: typeof j.version === 'string' ? j.version : null, minecraft: j.depends?.minecraft };
+    return { id: typeof j.id === 'string' ? j.id : null, version: typeof j.version === 'string' ? j.version : null, minecraft: j.depends?.minecraft, java: j.depends?.java };
   } catch {
     // Corrupt or non-jar files simply aren't client builds or client copies.
     return null;
@@ -63,7 +67,8 @@ export class ClientBuildRegistry {
         if (identity?.id !== SNOWBALL_MOD_ID || !identity.version || identity.version.includes('${') || !validRange) continue;
         const range = minecraft as string | string[];
         const label = [range].flat().map((p) => p.replace(/^[~^>=<\s]+/, '')).join(', ');
-        found.push({ path, version: identity.version, minecraft: range, label, sha1: await sha1File(path) });
+        const javaMajor = typeof identity.java === 'string' ? Number(/(\d+)/.exec(identity.java)?.[1]) : NaN;
+        found.push({ path, version: identity.version, minecraft: range, label, javaMajor: Number.isFinite(javaMajor) ? javaMajor : null, sha1: await sha1File(path) });
       }
     }
     const unique = [...new Map(found.map((b) => [b.sha1, b])).values()].sort((a, b) => compareVersions(b.version, a.version));
@@ -167,22 +172,23 @@ export class SnowballCore {
     }
     await writeJsonAtomic(join(target.gameDir, SNOWBALL_MARKER), { schemaVersion: 1, client: build.version, minecraft: build.label });
 
+    const api = fabricApiFor(target.minecraftVersion);
     if (before.fabricApi === 'disabled') {
       await mkdir(dir, { recursive: true });
-      const off = files.find((f) => f.id === FABRIC_API_ID && !f.enabled)!;
+      const off = files.find((f) => f.id === api.id && !f.enabled)!;
       await rename(join(dir, off.fileName), freePath(dir, stripDisabled(off.fileName)));
-      report('warn', 'Fabric API was turned off; it was turned back on because Snowball Client needs it');
+      report('warn', `${api.name} was turned off; it was turned back on because Snowball Client needs it`);
     } else if (before.fabricApi === 'missing') {
-      report('info', 'Installing Fabric API...');
+      report('info', `Installing ${api.name}...`);
       try {
         await this.fabricApi.ensure(target.gameDir, target.minecraftVersion, signal);
       } catch (err) {
         if (signal?.aborted) throw err;
-        const message = `Snowball Client needs Fabric API, which could not be installed: ${(err as Error).message}`;
+        const message = `Snowball Client needs ${api.name}, which could not be installed: ${(err as Error).message}`;
         report('error', message);
         throw new CoreRepairError(message);
       }
-      report('success', 'Fabric API installed');
+      report('success', `${api.name} installed`);
     }
 
     const after = await this.inspect(target);
@@ -219,10 +225,11 @@ export class SnowballCore {
       problems.push('Snowball Client is damaged');
     }
     if (strays) problems.push(`${strays === 1 ? 'An old copy' : `${strays} old copies`} of Snowball Client ${strays === 1 ? 'is' : 'are'} in the mods folder`);
-    const apis = files.filter((f) => f.id === FABRIC_API_ID);
+    const api = fabricApiFor(target.minecraftVersion);
+    const apis = files.filter((f) => f.id === api.id);
     const fabricApi = apis.some((f) => f.enabled) ? 'ok' : apis.length ? 'disabled' : 'missing';
-    if (fabricApi === 'disabled') problems.push('Fabric API is turned off');
-    if (fabricApi === 'missing') problems.push('Fabric API is missing');
+    if (fabricApi === 'disabled') problems.push(`${api.name} is turned off`);
+    if (fabricApi === 'missing') problems.push(`${api.name} is missing`);
     return { supported: true, build: { version: build.version, minecraft: build.label }, client, clientJar: client === 'ok' ? jar : null, fabricApi, problems };
   }
 

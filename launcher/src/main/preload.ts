@@ -32,6 +32,7 @@ const api = {
   gameActivity: invoke('game:activity'),
   coreStatus: invoke('core:status'),
   repairCore: invoke('core:repair'),
+  verifyGameFiles: invoke('game:verify-files'),
   snowballSupport: invoke('core:supports'),
   updateSettings: invoke('settings:update'),
   addOfflineAccount: invoke('accounts:add-offline'),

@@ -5,8 +5,8 @@ import com.google.gson.JsonObject;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.module.ModuleManager;
 import dev.snowballclient.client.waypoint.WaypointStore;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
  * client.json, modules.json, keybinds.json, gui.json, waypoints.json and profiles/*.json.
  */
 public final class ConfigManager {
-	private static final Logger LOGGER = LoggerFactory.getLogger("SnowballClient/Config");
+	private static final Logger LOGGER = LogManager.getLogger("SnowballClient/Config");
 	private static final Pattern PROFILE_NAME = Pattern.compile("[a-z0-9_-]{1,32}");
 
 	private final Path directory;

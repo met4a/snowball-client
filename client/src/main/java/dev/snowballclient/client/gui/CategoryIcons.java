@@ -1,7 +1,7 @@
 package dev.snowballclient.client.gui;
 
 import dev.snowballclient.client.module.ModuleCategory;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import dev.snowballclient.client.ui.Canvas;
 
 /** 9x9 line icons for the menu categories, drawn with fills (no texture assets). */
 public final class CategoryIcons {
@@ -20,20 +20,7 @@ public final class CategoryIcons {
 			{".........", "#########", "#.......#", "#########", "#.......#", "#..###..#", "#.......#", "#########", "........."},
 	};
 
-	public static void draw(GuiGraphicsExtractor g, ModuleCategory category, int x, int y, int argb) {
-		if ((argb >>> 24) < 4) return;
-		String[] rows = ICONS[category.ordinal()];
-		for (int row = 0; row < rows.length; row++) {
-			String line = rows[row];
-			int start = -1;
-			for (int col = 0; col <= line.length(); col++) {
-				boolean lit = col < line.length() && line.charAt(col) == '#';
-				if (lit && start < 0) start = col;
-				if (!lit && start >= 0) {
-					g.fill(x + start, y + row, x + col, y + row + 1, argb);
-					start = -1;
-				}
-			}
-		}
+	public static void draw(Canvas g, ModuleCategory category, int x, int y, int argb) {
+		PixelIcons.draw(g, ICONS[category.ordinal()], x, y, argb);
 	}
 }

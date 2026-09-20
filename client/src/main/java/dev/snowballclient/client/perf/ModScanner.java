@@ -2,8 +2,8 @@ package dev.snowballclient.client.perf;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -18,7 +18,7 @@ import java.util.zip.ZipFile;
 
 /** Finds mods that are installed but currently disabled (".jar.disabled" files), which Fabric does not load. */
 public final class ModScanner {
-	private static final Logger LOGGER = LoggerFactory.getLogger("SnowballClient/ModScanner");
+	private static final Logger LOGGER = LogManager.getLogger("SnowballClient/ModScanner");
 
 	private ModScanner() {
 	}
@@ -33,7 +33,8 @@ public final class ModScanner {
 					ZipEntry entry = zip.getEntry("fabric.mod.json");
 					if (entry == null || entry.getSize() > 1_000_000) continue;
 					try (InputStream in = zip.getInputStream(entry)) {
-						JsonElement json = JsonParser.parseString(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+						// Instance parse() also exists in the older Gson of Minecraft 1.8.9.
+						JsonElement json = new JsonParser().parse(new String(in.readAllBytes(), StandardCharsets.UTF_8));
 						if (!json.isJsonObject()) continue;
 						JsonElement id = json.getAsJsonObject().get("id");
 						JsonElement name = json.getAsJsonObject().get("name");

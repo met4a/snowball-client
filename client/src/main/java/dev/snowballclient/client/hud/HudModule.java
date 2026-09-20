@@ -49,7 +49,7 @@ public abstract class HudModule extends Module {
 		g.pose().pushMatrix();
 		g.pose().translate(Math.round(x), Math.round(y));
 		g.pose().scale(s, s);
-		if (background.isOn()) GuiDraw.roundedRect(g, 0, 0, w, h, 3, theme.surface(backgroundOpacity.floatValue()));
+		if (background.isOn()) GuiDraw.roundedRect(g::fill, 0, 0, w, h, 3, theme.surface(backgroundOpacity.floatValue()));
 		renderContent(g, mc, theme, w, h);
 		g.pose().popMatrix();
 	}

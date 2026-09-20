@@ -18,6 +18,7 @@
 		"OverlayTextureMixin",
 		"ParticleEngineMixin",
 		"ScreenEffectRendererMixin",
+		"SetScreenMixin",
 		"TextureAtlasMixin",
 		"WeatherEffectRendererMixin"
 	],

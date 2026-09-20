@@ -316,19 +316,29 @@
       });
     }
 
+    const verifyButton = h('button', { class: 'btn ghost', disabled: inst.running }, 'Verify files') as HTMLButtonElement;
+    verifyButton.addEventListener('click', async () => {
+      verifyButton.disabled = true;
+      verifyButton.textContent = 'Checking...';
+      const result = await guard(() => api.verifyGameFiles(inst.id));
+      verifyButton.disabled = inst.running;
+      verifyButton.textContent = 'Verify files';
+      if (result) toast('Game files checked. Anything missing or damaged was downloaded again.');
+    });
+
     return h('div', {},
       header('HOME', 'Selected instance', picker),
       inst.error ? h('div', { class: 'issue' }, `This instance could not be loaded: ${inst.error}`) : null,
       h('div', { class: 'hero' },
         h('div', { class: 'card hero-main' },
           h('div', { class: 'row' },
-            h('span', { class: 'tag accent' }, LOADER_NAMES[inst.loader]),
+            h('span', { class: 'tag accent' }, inst.loaderName),
             inst.snowball.supported ? h('span', { class: 'tag accent' }, `SNOWBALL CLIENT ${inst.snowball.version}`) : null,
             inst.running ? h('span', { class: 'tag running' }, 'RUNNING') : null),
           h('div', { class: 'hero-name' }, inst.name),
           h('div', { class: 'stats' },
             stat('Minecraft', inst.minecraftVersion),
-            stat('Loader', inst.loader === 'vanilla' ? 'Vanilla' : `${LOADER_NAMES[inst.loader]} ${inst.loaderVersion ?? '(latest)'}`),
+            stat('Loader', inst.loader === 'vanilla' ? 'Vanilla' : `${inst.loaderName} ${inst.loaderVersion ?? '(latest)'}`),
             stat('Mods', modsValue),
             stat('Memory', fmtMemory(inst.memory.maxMb)),
             stat('Last played', fmtDate(inst.lastPlayed)),
@@ -336,7 +346,8 @@
           h('div', { class: 'row' },
             playButton(inst, true),
             h('button', { class: 'btn', onClick: () => editInstanceDialog(inst) }, 'Edit'),
-            h('button', { class: 'btn ghost', onClick: () => void guard(() => api.openInstanceFolder(inst.id, 'root')) }, 'Open folder')),
+            h('button', { class: 'btn ghost', onClick: () => void guard(() => api.openInstanceFolder(inst.id, 'root')) }, 'Open folder'),
+            verifyButton),
           progressBar(inst.id)),
         h('div', { class: 'card output-card' },
           h('div', { class: 'row log-head' }, h('div', { class: 'section-title' }, 'OUTPUT'), h('div', { class: 'spacer' }), logTabs),
@@ -375,7 +386,7 @@
         h('div', { class: `card instance-card${inst.id === ui.selectedId ? ' selected' : ''}`, onClick: () => select(inst.id) },
           h('div', { class: 'row' },
             h('div', { class: 'instance-icon' }, h('img', { src: 'assets/logo.png', alt: '' })),
-            h('div', { class: 'grow', style: 'min-width:0' }, h('div', { class: 'instance-title truncate' }, inst.name), h('div', { class: 'muted' }, `${inst.minecraftVersion} - ${LOADER_NAMES[inst.loader]}`)),
+            h('div', { class: 'grow', style: 'min-width:0' }, h('div', { class: 'instance-title truncate' }, inst.name), h('div', { class: 'muted' }, `${inst.minecraftVersion} - ${inst.loaderName}`)),
             inst.running ? h('span', { class: 'tag running' }, 'LIVE') : null),
           inst.error ? h('div', { class: 'danger-text' }, 'Broken instance.json') : h('div', { class: 'muted' }, `Last played: ${fmtDate(inst.lastPlayed)}`),
           h('div', { class: 'row' },
@@ -453,7 +464,7 @@
       if (!report) return;
       if (!report.supported) {
         const available = state.snowballBuilds.map((b) => b.minecraft).join(', ');
-        coreEl.replaceChildren(h('div', { class: 'issue warning' }, `Snowball Client isn't available for ${LOADER_NAMES[inst.loader]} ${inst.minecraftVersion} yet${available ? ` (it runs on Fabric ${available})` : ''}. This instance works without it.`));
+        coreEl.replaceChildren(h('div', { class: 'issue warning' }, `Snowball Client isn't available for ${inst.loaderName} ${inst.minecraftVersion} yet${available ? ` (it runs on Fabric ${available})` : ''}. This instance works without it.`));
         return;
       }
       const healthy = report.problems.length === 0;
@@ -563,7 +574,7 @@
   }
 
   const SORTS: Array<[string, string]> = [['relevance', 'Relevance'], ['downloads', 'Downloads'], ['follows', 'Popularity'], ['updated', 'Recently updated'], ['newest', 'Newest'], ['name', 'Name (A-Z)']];
-  const MOD_LOADER_IDS: Snowball.LoaderId[] = ['fabric', 'quilt', 'forge', 'neoforge'];
+  const MOD_LOADERS: Array<[string, string]> = [['fabric', 'Fabric'], ['legacy-fabric', 'Legacy Fabric'], ['quilt', 'Quilt'], ['forge', 'Forge'], ['neoforge', 'NeoForge']];
 
   function browseView(): Node {
     const state = ui.state!;
@@ -572,9 +583,9 @@
     const b = ui.browse;
     if (b.instanceId !== inst.id) {
       // Filters start at the instance's own version and loader so every result can be installed.
-      Object.assign(b, { instanceId: inst.id, version: inst.minecraftVersion, loader: inst.loader === 'vanilla' ? '' : inst.loader, hits: [], total: 0, error: null, searched: false, installed: new Set<string>() });
+      Object.assign(b, { instanceId: inst.id, version: inst.minecraftVersion, loader: inst.modLoaders[0] ?? '', hits: [], total: 0, error: null, searched: false, installed: new Set<string>() });
     }
-    const compatible = inst.loader === 'quilt' ? ['quilt', 'fabric'] : [inst.loader];
+    const compatible = inst.modLoaders;
 
     const picker = h('select', { class: 'input picker', onChange: (e: Event) => select((e.target as HTMLSelectElement).value) },
       ...state.instances.map((i) => h('option', { value: i.id, selected: i.id === inst.id }, i.name)));
@@ -594,7 +605,7 @@
       timer = window.setTimeout(() => void runSearch(false), 300);
     });
     const sortSelect = dropdown(SORTS, b.sort, (v) => { b.sort = v; if (v === 'name') paint(); else void runSearch(false); });
-    const loaderSelect = dropdown([['', 'Any loader'], ...MOD_LOADER_IDS.map((l): [string, string] => [l, LOADER_NAMES[l]])], b.loader, (v) => { b.loader = v; void runSearch(false); });
+    const loaderSelect = dropdown([['', 'Any loader'], ...MOD_LOADERS], b.loader, (v) => { b.loader = v; void runSearch(false); });
     const versionOptions = (): Array<[string, string]> => [['', 'Any version'], ...[...new Set([inst.minecraftVersion, ...b.versions])].map((v): [string, string] => [v, v])];
     const versionSelect = dropdown(versionOptions(), b.version, (v) => { b.version = v; void runSearch(false); });
     if (!b.versions.length) {
@@ -654,7 +665,7 @@
       const fits = hit.gameVersions.includes(inst.minecraftVersion) && hit.loaders.some((l) => compatible.includes(l));
       const installed = b.installed.has(hit.projectId);
       const installing = b.installing.has(`${inst.id}:${hit.projectId}`);
-      const why = inst.loader === 'vanilla' ? 'This instance has no mod loader' : `No ${LOADER_NAMES[inst.loader]} version for Minecraft ${inst.minecraftVersion}`;
+      const why = inst.loader === 'vanilla' ? 'This instance has no mod loader' : `No ${inst.loaderName} version for Minecraft ${inst.minecraftVersion}`;
       const button = h('button', {
         class: `btn small${installed || !fits ? '' : ' primary'}`,
         disabled: installed || installing || !fits || inst.running,
@@ -674,7 +685,7 @@
           h('div', { class: 'truncate' }, h('span', { class: 'mod-title' }, hit.title), hit.author ? h('span', { class: 'muted' }, `  by ${hit.author}`) : null),
           h('div', { class: 'muted mod-desc' }, hit.description),
           h('div', { class: 'row mod-meta' },
-            ...hit.loaders.map((l) => h('span', { class: `tag${compatible.includes(l) ? ' accent' : ''}` }, LOADER_NAMES[l as Snowball.LoaderId] ?? l)),
+            ...hit.loaders.map((l) => h('span', { class: `tag${compatible.includes(l) ? ' accent' : ''}` }, MOD_LOADERS.find(([id]) => id === l)?.[1] ?? l)),
             hit.versionRange ? h('span', { class: 'muted' }, `MC ${hit.versionRange}`) : null)),
         h('div', { class: 'mod-side' },
           h('div', { class: 'muted' }, `${fmtCount(hit.downloads)} downloads`),
@@ -708,7 +719,7 @@
     void loadInstalled();
 
     return h('div', { class: 'stack' },
-      header('BROWSE', `Mods from Modrinth for ${inst.minecraftVersion} ${LOADER_NAMES[inst.loader]}`, picker,
+      header('BROWSE', `Mods from Modrinth for ${inst.minecraftVersion} ${inst.loaderName}`, picker,
         h('button', { class: 'btn ghost', onClick: () => { ui.view = 'mods'; render(); } }, 'Installed mods')),
       inst.loader === 'vanilla' ? h('div', { class: 'issue warning' }, 'This instance has no mod loader. Choose Fabric, Quilt, Forge or NeoForge in the instance editor to install mods.') : null,
       h('div', { class: 'browse-toolbar' }, search, sortSelect, loaderSelect, versionSelect),
@@ -834,8 +845,12 @@
         if (check !== supportCheck) return;
         const available = state.snowballBuilds.map((b) => b.minecraft).join(', ');
         clientNote.textContent = s.supported
-          ? `Snowball Client ${s.version} and Fabric API are set up automatically.`
+          ? `Snowball Client ${s.version} and ${s.fabricApi} are set up automatically.`
           : `Snowball Client isn't available for ${LOADER_NAMES[loader.value as Snowball.LoaderId]} ${version.value} yet${available ? ` (it runs on Fabric ${available})` : ''}. The instance works without it.`;
+        if (!s.performanceProfiles) {
+          profile.disabled = true;
+          profile.value = 'none';
+        }
       }).catch(() => undefined);
       profile.disabled = !(loader.value === 'fabric' || loader.value === 'quilt');
       if (profile.disabled) profile.value = 'none';

@@ -12,7 +12,11 @@ declare namespace Snowball {
     name: string;
     minecraftVersion: string;
     loader: LoaderId;
+    /** Loader name for this instance's version ("Legacy Fabric" for Fabric on 1.13.2 and older). */
+    loaderName: string;
     loaderVersion: string | null;
+    /** Modrinth loader tags this instance can install mods for. */
+    modLoaders: string[];
     javaExecutable: string | null;
     memory: { minMb: number; maxMb: number };
     jvmArgs: string;
@@ -240,7 +244,9 @@ declare namespace Snowball {
     gameActivity(id: string): Promise<ActivityEvent[]>;
     coreStatus(id: string): Promise<CoreReport>;
     repairCore(id: string): Promise<CoreReport>;
-    snowballSupport(minecraftVersion: string, loader: LoaderId): Promise<{ supported: boolean; version: string | null }>;
+    /** Re-checks every Minecraft file of an instance and downloads anything missing or damaged. */
+    verifyGameFiles(id: string): Promise<{ verified: true }>;
+    snowballSupport(minecraftVersion: string, loader: LoaderId): Promise<{ supported: boolean; version: string | null; fabricApi: string; performanceProfiles: boolean }>;
     updateSettings(patch: Partial<Settings>): Promise<Settings>;
     addOfflineAccount(name: string): Promise<Account>;
     removeAccount(id: string): Promise<void>;

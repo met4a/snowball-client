@@ -38,7 +38,8 @@ export function assertVersionId(id: string): string {
  */
 export function mergeVersionJson(parent: VersionJson, child: VersionJson): VersionJson {
   const childKeys = new Set(child.libraries.map((l) => libraryKey(l.name)));
-  const libraries = [...child.libraries, ...parent.libraries.filter((l) => !childKeys.has(libraryKey(l.name)))];
+  const childLibraries = child.libraries.map((l) => withReplacedNatives(l, parent.libraries.filter((p) => libraryKey(p.name) === libraryKey(l.name))));
+  const libraries = [...childLibraries, ...parent.libraries.filter((l) => !childKeys.has(libraryKey(l.name)))];
   return {
     ...parent,
     ...child,
@@ -60,6 +61,17 @@ export function mergeVersionJson(parent: VersionJson, child: VersionJson): Versi
     javaVersion: child.javaVersion ?? parent.javaVersion,
     logging: child.logging ?? parent.logging,
   };
+}
+
+/**
+ * A loader profile can swap a natives library for one published only as per-OS classifier jars without
+ * repeating the "natives" block (Legacy Fabric's LWJGL 2). The vanilla entry it replaces names the
+ * classifier each OS uses, so that is carried over.
+ */
+function withReplacedNatives(lib: Library, replaced: Library[]): Library {
+  if (lib.natives || lib.downloads || !lib.url) return lib;
+  const source = replaced.find((p) => p.natives);
+  return source ? { ...lib, natives: source.natives, extract: lib.extract ?? source.extract } : lib;
 }
 
 export interface ResolvedLibrary {
@@ -89,15 +101,17 @@ export function resolveLibraries(version: VersionJson, librariesDir: string, ctx
     if (nativeKey) {
       const classifier = nativeKey.replace('${arch}', ctx.arch.includes('64') ? '64' : '32');
       const nativeArtifact = lib.downloads?.classifiers?.[classifier];
-      if (nativeArtifact) {
-        const rel = nativeArtifact.path ? assertSafeRelativePath(nativeArtifact.path) : mavenPath(`${lib.name}:${classifier}`);
+      if (nativeArtifact || lib.url) {
+        const rel = nativeArtifact?.path ? assertSafeRelativePath(nativeArtifact.path) : mavenPath(`${lib.name}:${classifier}`);
         const path = safeJoin(librariesDir, rel);
+        // Maven-style entries (loader profiles) have no download block; the classifier jar sits next to the main jar.
+        const url = nativeArtifact?.url ?? `${lib.url!.replace(/\/?$/, '/')}${rel}`;
         out.push({
           name: `${lib.name}:${classifier}`,
           path,
           isNative: true,
           extractExclude: lib.extract?.exclude,
-          task: { url: nativeArtifact.url, dest: path, sha1: nativeArtifact.sha1, size: nativeArtifact.size, label: `${lib.name} (natives)` },
+          task: { url, dest: path, sha1: nativeArtifact?.sha1, size: nativeArtifact?.size, label: `${lib.name} (natives)` },
         });
       }
     }
@@ -176,13 +190,13 @@ export class VersionManager {
 
   async installVanilla(id: string, signal?: AbortSignal, onProgress?: (stage: string, p?: DownloadProgress) => void): Promise<VersionJson> {
     assertVersionId(id);
-    onProgress?.('metadata');
-    const manifest = await this.getManifest();
-    const entry = manifest.versions.find((v) => v.id === id);
     const jsonPath = this.versionJsonPath(id);
-    if (!entry) {
-      if (!existsSync(jsonPath)) throw new VersionError(`Minecraft ${id} does not exist in Mojang's version manifest`);
-    } else {
+    // Mojang never changes a released version's metadata, so it is only fetched when it is missing.
+    if (!existsSync(jsonPath)) {
+      onProgress?.('metadata');
+      const manifest = await this.getManifest();
+      const entry = manifest.versions.find((v) => v.id === id);
+      if (!entry) throw new VersionError(`Minecraft ${id} does not exist in Mojang's version manifest`);
       await this.downloads.download({ url: entry.url, dest: jsonPath, sha1: entry.sha1, label: `${id}.json` }, signal);
     }
     const json = await this.readVersionJson(id);

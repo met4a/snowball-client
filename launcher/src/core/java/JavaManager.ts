@@ -207,6 +207,20 @@ export class JavaManager {
     return all.filter((j) => j.majorVersion >= need && j.is64Bit).sort((a, b) => a.majorVersion - b.majorVersion)[0] ?? null;
   }
 
+  /** The Mojang runtime that provides a Java version, e.g. 21 -> "java-runtime-delta". Null when there is none. */
+  async componentForMajor(major: number, signal?: AbortSignal): Promise<string | null> {
+    if (!this.downloads) return null;
+    const plat = mojangRuntimePlatform();
+    if (!plat) return null;
+    type RuntimeIndex = Record<string, Record<string, Array<{ version: { name: string } }>>>;
+    const index = await this.downloads.fetchJson<RuntimeIndex>(RUNTIME_INDEX_URL, signal);
+    for (const [component, entries] of Object.entries(index[plat] ?? {})) {
+      const name = entries[0]?.version?.name;
+      if (name && parseJavaMajor(name) === major) return component;
+    }
+    return null;
+  }
+
   /**
    * Installs the Mojang-distributed runtime named in a version JSON (`javaVersion.component`).
    * Every file is checksum-verified; paths come from Mojang metadata and are traversal-checked.

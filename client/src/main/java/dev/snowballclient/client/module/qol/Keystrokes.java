@@ -97,7 +97,7 @@ public final class Keystrokes extends HudModule {
 		float t = pressFade[index];
 		int idle = theme.surface(keyOpacity.floatValue());
 		int pressed = Theme.withAlpha(theme.accent(), Math.min(1f, keyOpacity.floatValue() + 0.4f));
-		GuiDraw.roundedRect(g, x, y, w, h, 3, Theme.lerpColor(idle, pressed, t));
+		GuiDraw.roundedRect(g::fill, x, y, w, h, 3, Theme.lerpColor(idle, pressed, t));
 		if (label == null) {
 			int barW = w / 3;
 			g.fill(x + (w - barW) / 2, y + h / 2, x + (w + barW) / 2, y + h / 2 + 1, Theme.lerpColor(theme.text(), theme.onAccentText(), t));

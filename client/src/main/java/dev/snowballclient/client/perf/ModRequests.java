@@ -3,9 +3,10 @@ package dev.snowballclient.client.perf;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import dev.snowballclient.client.config.JsonConfigFile;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -23,7 +24,7 @@ import java.util.regex.Pattern;
  * launcher reads it and enables/disables mod jars and installs the requested performance profile.
  */
 public final class ModRequests {
-	private static final Logger LOGGER = LoggerFactory.getLogger("SnowballClient/ModRequests");
+	private static final Logger LOGGER = LogManager.getLogger("SnowballClient/ModRequests");
 	public static final int SCHEMA_VERSION = 1;
 	private static final Pattern MOD_ID = Pattern.compile("[a-z][a-z0-9_-]{1,63}");
 	private static final Pattern PROFILE = Pattern.compile("[a-z0-9_-]{1,32}");
@@ -91,7 +92,8 @@ public final class ModRequests {
 
 	private static JsonArray toArray(Iterable<String> ids) {
 		JsonArray arr = new JsonArray();
-		for (String id : ids) arr.add(id);
+		// Wrapped explicitly: the Gson that ships with Minecraft 1.8.9 has no add(String).
+		for (String id : ids) arr.add(new JsonPrimitive(id));
 		return arr;
 	}
 

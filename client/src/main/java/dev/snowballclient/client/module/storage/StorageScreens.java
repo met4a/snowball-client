@@ -1,11 +1,11 @@
 package dev.snowballclient.client.module.storage;
 
 import dev.snowballclient.client.SnowballClient;
-import dev.snowballclient.client.gui.ConfigProfilesScreen;
-import dev.snowballclient.client.gui.ModProfilesScreen;
-import dev.snowballclient.client.gui.ScreenshotsScreen;
+import dev.snowballclient.client.gui.ConfigProfilesView;
+import dev.snowballclient.client.gui.ModProfilesView;
+import dev.snowballclient.client.gui.ScreenshotsView;
 import dev.snowballclient.client.module.ModuleCategory;
-import net.minecraft.client.gui.screens.Screen;
+import dev.snowballclient.client.ui.Host;
 
 /** STORAGE entries that open Snowball management screens. */
 public final class StorageScreens {
@@ -18,8 +18,8 @@ public final class StorageScreens {
 		}
 
 		@Override
-		public Screen createSettingsScreen(Screen parent) {
-			return new ScreenshotsScreen(parent, SnowballClient.get());
+		public void openSettings(Host host) {
+			host.open(new ScreenshotsView(SnowballClient.get()));
 		}
 	}
 
@@ -29,8 +29,8 @@ public final class StorageScreens {
 		}
 
 		@Override
-		public Screen createSettingsScreen(Screen parent) {
-			return new ConfigProfilesScreen(parent, SnowballClient.get());
+		public void openSettings(Host host) {
+			host.open(new ConfigProfilesView(SnowballClient.get()));
 		}
 	}
 
@@ -40,8 +40,8 @@ public final class StorageScreens {
 		}
 
 		@Override
-		public Screen createSettingsScreen(Screen parent) {
-			return new ModProfilesScreen(parent, SnowballClient.get());
+		public void openSettings(Host host) {
+			host.open(new ModProfilesView(SnowballClient.get()));
 		}
 	}
 }

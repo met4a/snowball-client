@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { AuthManager, offlineUuid, type SecretCipher } from '../src/core/auth/AuthManager.js';
 import { DownloadManager } from '../src/core/download/DownloadManager.js';
+import { VerifiedFiles } from '../src/core/download/VerifiedFiles.js';
 import { InstanceManager, normalizeInstanceConfig } from '../src/core/instance/InstanceManager.js';
 import { parseJavaMajor, parseJavaProperties, recommendMemory, validateMemory, JavaManager } from '../src/core/java/JavaManager.js';
 import { LogSink, Logger, redactData } from '../src/core/logging/Logger.js';
@@ -112,6 +113,40 @@ describe('version metadata', () => {
     expect(rulesAllow([{ action: 'allow', os: { name: 'osx' } }], ctx)).toBe(true);
     expect(rulesAllow(undefined, ctx)).toBe(true);
   });
+
+  it('keeps the natives of a library a loader profile replaces (Legacy Fabric LWJGL 2)', () => {
+    const natives = { windows: 'natives-windows', linux: 'natives-linux', osx: 'natives-osx' };
+    const vanilla = {
+      id: '1.8.9',
+      mainClass: 'net.minecraft.client.main.Main',
+      libraries: [
+        { name: 'org.lwjgl.lwjgl:lwjgl:2.9.4-nightly-20150209' },
+        {
+          name: 'org.lwjgl.lwjgl:lwjgl-platform:2.9.4-nightly-20150209',
+          natives,
+          extract: { exclude: ['META-INF/'] },
+          rules: [{ action: 'allow' as const }, { action: 'disallow' as const, os: { name: 'osx' } }],
+          downloads: { classifiers: { 'natives-windows': { path: 'org/lwjgl/lwjgl/lwjgl-platform/2.9.4-nightly-20150209/lwjgl-platform-2.9.4-nightly-20150209-natives-windows.jar', url: 'https://libraries.minecraft.net/natives.jar', sha1: 'b'.repeat(40), size: 1 } } },
+        },
+      ],
+    };
+    const legacyFabric = {
+      id: 'fabric-loader-0.19.3-1.8.9',
+      inheritsFrom: '1.8.9',
+      mainClass: 'net.fabricmc.loader.impl.launch.knot.KnotClient',
+      libraries: [
+        { name: 'org.lwjgl.lwjgl:lwjgl:2.9.4+legacyfabric.17', url: 'https://maven.legacyfabric.net/' },
+        { name: 'org.lwjgl.lwjgl:lwjgl-platform:2.9.4+legacyfabric.17', url: 'https://maven.legacyfabric.net/' },
+      ],
+    };
+    const windows = { os: 'windows' as const, arch: 'x64', osVersion: '10.0', features: {} };
+    const libs = resolveLibraries(mergeVersionJson(vanilla, legacyFabric), '/libs', windows);
+    expect(libs.map((l) => [l.name, l.isNative, l.task?.url])).toEqual([
+      ['org.lwjgl.lwjgl:lwjgl:2.9.4+legacyfabric.17', false, 'https://maven.legacyfabric.net/org/lwjgl/lwjgl/lwjgl/2.9.4+legacyfabric.17/lwjgl-2.9.4+legacyfabric.17.jar'],
+      ['org.lwjgl.lwjgl:lwjgl-platform:2.9.4+legacyfabric.17:natives-windows', true, 'https://maven.legacyfabric.net/org/lwjgl/lwjgl/lwjgl-platform/2.9.4+legacyfabric.17/lwjgl-platform-2.9.4+legacyfabric.17-natives-windows.jar'],
+    ]);
+    expect(libs[1].extractExclude).toEqual(['META-INF/']);
+  });
 });
 
 describe('downloads', () => {
@@ -133,6 +168,38 @@ describe('downloads', () => {
     expect(readFileSync(dest, 'utf8')).toBe('hello world');
     expect(existsSync(dest + '.part')).toBe(false);
     expect(await manager.download({ url: 'https://example.invalid/file', dest, sha1: await sha1File(dest) })).toBe('cached');
+  });
+
+  it('hashes a game file once and then trusts it until it changes', async () => {
+    const dir = tempDir();
+    const dest = join(dir, 'asset.bin');
+    const sha1 = '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed';
+    writeFileSync(dest, 'hello world');
+    const verified = new VerifiedFiles(join(dir, 'verified.json'));
+    const manager = new DownloadManager({ retries: 0, verified, fetchImpl: async () => new Response(Buffer.from('hello world'), { status: 200 }) });
+    const task = { url: 'https://example.invalid/a', dest, sha1 };
+
+    expect(await manager.download(task)).toBe('cached');
+    await verified.save();
+
+    // Taken as verified without hashing again: the content changed but its size and timestamp did not.
+    const before = statSync(dest);
+    writeFileSync(dest, 'HELLO WORLD');
+    utimesSync(dest, before.atime, before.mtime);
+    expect(await manager.download(task)).toBe('cached');
+
+    // A different size is noticed, so the file is fetched again.
+    writeFileSync(dest, 'a different length');
+    expect(await manager.download(task)).toBe('downloaded');
+    expect(readFileSync(dest, 'utf8')).toBe('hello world');
+
+    // Records are kept across launcher restarts, and a file written since is checked again.
+    const reloaded = new VerifiedFiles(join(dir, 'verified.json'));
+    await reloaded.load();
+    expect(await reloaded.isVerified(dest, sha1)).toBe(false);
+    await reloaded.record(dest, sha1);
+    expect(await reloaded.isVerified(dest, sha1)).toBe(true);
+    expect(await reloaded.isVerified(dest, 'f'.repeat(40))).toBe(false);
   });
 
   it('aggregates failures and refuses plain HTTP', async () => {

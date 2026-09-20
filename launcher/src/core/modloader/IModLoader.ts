@@ -22,6 +22,8 @@ export interface LoaderInstallContext {
 export interface IModLoader {
   readonly id: Exclude<LoaderId, 'vanilla'>;
   readonly displayName: string;
+  /** Name players see for this loader on a Minecraft version (Fabric is "Legacy Fabric" on 1.13.2 and older). */
+  nameFor(minecraftVersion: string): string;
   /** Newest first. */
   listVersions(minecraftVersion: string): Promise<LoaderVersion[]>;
   /** Version id of an already installed profile, or null when it still needs installing. */

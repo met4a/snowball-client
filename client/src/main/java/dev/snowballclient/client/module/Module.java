@@ -1,8 +1,8 @@
 package dev.snowballclient.client.module;
 
 import dev.snowballclient.client.module.setting.Setting;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
  * cannot break the menu or other modules.
  */
 public abstract class Module {
-	private static final Logger LOGGER = LoggerFactory.getLogger("SnowballClient/Module");
+	private static final Logger LOGGER = LogManager.getLogger("SnowballClient/Module");
 	private static final Pattern ID = Pattern.compile("[a-z0-9_]{1,48}");
 	/** GLFW_KEY_UNKNOWN; means "no keybind". */
 	public static final int UNBOUND = -1;

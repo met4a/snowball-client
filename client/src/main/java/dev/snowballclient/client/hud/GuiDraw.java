@@ -1,14 +1,18 @@
 package dev.snowballclient.client.hud;
 
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-
 /** Small drawing helpers built only from axis-aligned fills (no textures, no allocations). */
 public final class GuiDraw {
+	/** Anything that fills rectangles: a {@code Canvas}, or Minecraft's GUI graphics as {@code graphics::fill}. */
+	@FunctionalInterface
+	public interface Fill {
+		void fill(int x1, int y1, int x2, int y2, int argb);
+	}
+
 	private GuiDraw() {
 	}
 
 	/** Rounded rectangle approximated with stepped corners; radius is clamped to half the size. */
-	public static void roundedRect(GuiGraphicsExtractor g, int x, int y, int w, int h, int radius, int argb) {
+	public static void roundedRect(Fill g, int x, int y, int w, int h, int radius, int argb) {
 		if (w <= 0 || h <= 0 || (argb >>> 24) == 0) return;
 		int r = Math.max(0, Math.min(radius, Math.min(w, h) / 2));
 		if (r == 0) {
@@ -26,7 +30,7 @@ public final class GuiDraw {
 	}
 
 	/** One-pixel outline with stepped corners matching {@link #roundedRect}. */
-	public static void roundedOutline(GuiGraphicsExtractor g, int x, int y, int w, int h, int radius, int argb) {
+	public static void roundedOutline(Fill g, int x, int y, int w, int h, int radius, int argb) {
 		if (w <= 1 || h <= 1 || (argb >>> 24) == 0) return;
 		int r = Math.max(0, Math.min(radius, Math.min(w, h) / 2));
 		g.fill(x + r, y, x + w - r, y + 1, argb);

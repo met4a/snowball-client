@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { fabricApiFor, usesLegacyFabric } from '../src/core/minecraft/fabricFamily.js';
 import { FabricLikeLoader, validateProfile } from '../src/core/modloader/FabricLikeLoader.js';
 import { InstallerLoader } from '../src/core/modloader/InstallerLoader.js';
 import { ModLoaderRegistry } from '../src/core/modloader/ModLoaderRegistry.js';
@@ -50,6 +51,29 @@ describe('Fabric/Quilt loaders', () => {
   it('rejects profiles for the wrong game version or with unsafe repositories', () => {
     expect(() => validateProfile({ ...profile, inheritsFrom: '1.21' } as VersionJson, '26.2', 'Fabric')).toThrow(/expected 26.2/);
     expect(() => validateProfile({ ...profile, libraries: [{ name: 'a:b:1', url: 'http://evil/' }] } as VersionJson, '26.2', 'Fabric')).toThrow(/non-HTTPS/);
+  });
+
+  it('uses Legacy Fabric for Fabric instances on Minecraft 1.13.2 and older', async () => {
+    expect(['1.8.9', '1.12.2', '1.13.2', '1.3.2'].every(usesLegacyFabric)).toBe(true);
+    expect(['1.14', '1.21.11', '26.2', '1.2.5', '18w43b', '1.8.9-pre1'].some(usesLegacyFabric)).toBe(false);
+    expect(fabricApiFor('1.8.9').slug).toBe('legacy-fabric-api');
+    expect(fabricApiFor('26.2').slug).toBe('fabric-api');
+
+    const urls: string[] = [];
+    const legacyProfile = { id: 'fabric-loader-0.19.3-1.8.9', inheritsFrom: '1.8.9', mainClass: 'net.fabricmc.loader.impl.launch.knot.KnotClient', libraries: [{ name: 'net.legacyfabric:intermediary:1.8.9', url: 'https://maven.legacyfabric.net/' }] };
+    const loader = FabricLikeLoader.fabric({
+      fetchJson: async <T>(url: string) => {
+        urls.push(url);
+        return (url.endsWith('/profile/json') ? legacyProfile : [{ loader: { version: '0.19.3', stable: true } }]) as T;
+      },
+    });
+    expect(loader.nameFor('1.8.9')).toBe('Legacy Fabric');
+    expect(loader.nameFor('26.2')).toBe('Fabric');
+    expect(await loader.listVersions('1.8.9')).toEqual([{ version: '0.19.3', stable: true }]);
+    const root = tempDir();
+    expect(await loader.install('1.8.9', '0.19.3', { versions: fakeVersions(root) as never, downloads: {} as never, paths: createLauncherPaths(root) })).toBe('fabric-loader-0.19.3-1.8.9');
+    expect(urls).toEqual(['https://meta.legacyfabric.net/v2/versions/loader/1.8.9', 'https://meta.legacyfabric.net/v2/versions/loader/1.8.9/0.19.3/profile/json']);
+    expect(FabricLikeLoader.quilt({ fetchJson: async <T>() => [] as T }).nameFor('1.8.9')).toBe('Quilt');
   });
 });
 

@@ -1,8 +1,8 @@
 package dev.snowballclient.client.gui;
 
-import net.minecraft.client.gui.screens.Screen;
+import dev.snowballclient.client.ui.Host;
 
-/** Implemented by modules that need a dedicated screen instead of the generic settings list. */
+/** Implemented by modules that open their own screen (or run an action) instead of the generic settings list. */
 public interface CustomSettingsScreen {
-	Screen createSettingsScreen(Screen parent);
+	void openSettings(Host host);
 }

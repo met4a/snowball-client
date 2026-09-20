@@ -1,11 +1,10 @@
 package dev.snowballclient.client.gui.radial;
 
-import com.mojang.blaze3d.platform.NativeImage;
-import dev.snowballclient.client.SnowballClient;
 import dev.snowballclient.client.gui.theme.Theme;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.resources.Identifier;
+import dev.snowballclient.client.ui.Textures;
+import dev.snowballclient.client.ui.UiTexture;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -19,10 +18,7 @@ import static dev.snowballclient.client.gui.radial.WheelGeometry.*;
  * thread; only the final upload happens on the render thread.
  */
 public final class WheelTextures {
-	public static final Identifier BASE = id("dynamic/wheel_base");
-	public static final Identifier HIGHLIGHT = id("dynamic/wheel_highlight");
-	public static final Identifier CENTER_GLOW = id("dynamic/wheel_center_glow");
-
+	private static final Logger LOGGER = LogManager.getLogger("SnowballClient");
 	private static final ExecutorService WORKER = Executors.newSingleThreadExecutor(r -> {
 		Thread t = new Thread(r, "Snowball Client wheel rasteriser");
 		t.setDaemon(true);
@@ -32,26 +28,37 @@ public final class WheelTextures {
 	private record Result(int size, int revision, int[] base, int[] highlight, int[] glow) {
 	}
 
+	private UiTexture base;
+	private UiTexture highlight;
+	private UiTexture centerGlow;
 	private int uploadedSize = -1;
 	private int uploadedRevision = -1;
 	private CompletableFuture<Result> job;
 	private boolean failed;
 
-	private static Identifier id(String path) {
-		return Identifier.fromNamespaceAndPath(SnowballClient.MOD_ID, path);
-	}
-
 	public boolean ready() {
 		return uploadedSize > 0;
 	}
 
+	public UiTexture base() {
+		return base;
+	}
+
+	public UiTexture highlight() {
+		return highlight;
+	}
+
+	public UiTexture centerGlow() {
+		return centerGlow;
+	}
+
 	/** Render thread only. Cheap when nothing changed. */
-	public void update(int requestedPixels, Theme theme, RadialLayout layout) {
+	public void update(Textures textures, int requestedPixels, Theme theme, RadialLayout layout) {
 		if (job != null && job.isDone()) {
 			try {
-				upload(job.join());
+				upload(textures, job.join());
 			} catch (RuntimeException e) {
-				SnowballClient.LOGGER.error("Building the menu wheel texture failed", e);
+				LOGGER.error("Building the menu wheel texture failed", e);
 				failed = true;
 			}
 			job = null;
@@ -105,21 +112,11 @@ public final class WheelTextures {
 		return new Result(size, revision, base.pixels(), highlight.pixels(), glow.pixels());
 	}
 
-	private void upload(Result r) {
-		uploadTexture(BASE, r.size(), r.base());
-		uploadTexture(HIGHLIGHT, r.size(), r.highlight());
-		uploadTexture(CENTER_GLOW, r.size(), r.glow());
+	private void upload(Textures textures, Result r) {
+		base = textures.upload("dynamic/wheel_base", r.size(), r.size(), r.base());
+		highlight = textures.upload("dynamic/wheel_highlight", r.size(), r.size(), r.highlight());
+		centerGlow = textures.upload("dynamic/wheel_center_glow", r.size(), r.size(), r.glow());
 		uploadedSize = r.size();
 		uploadedRevision = r.revision();
-	}
-
-	private static void uploadTexture(Identifier id, int n, int[] pixels) {
-		NativeImage image = new NativeImage(n, n, false);
-		for (int y = 0; y < n; y++) {
-			int row = y * n;
-			for (int x = 0; x < n; x++) image.setPixel(x, y, pixels[row + x]);
-		}
-		// register() closes the previous texture registered under the same id.
-		Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(id::toString, image));
 	}
 }

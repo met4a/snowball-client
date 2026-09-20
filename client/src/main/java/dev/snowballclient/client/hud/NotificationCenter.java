@@ -3,8 +3,7 @@ package dev.snowballclient.client.hud;
 import dev.snowballclient.client.gui.ToggleWidget;
 import dev.snowballclient.client.gui.UiText;
 import dev.snowballclient.client.gui.theme.Theme;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import dev.snowballclient.client.ui.Canvas;
 
 import java.util.ArrayDeque;
 import java.util.Iterator;
@@ -31,10 +30,10 @@ public final class NotificationCenter {
 		while (ENTRIES.size() > MAX) ENTRIES.removeLast();
 	}
 
-	public static void render(GuiGraphicsExtractor g, Minecraft mc, Theme theme) {
+	public static void render(Canvas g, Theme theme) {
 		if (ENTRIES.isEmpty()) return;
 		long now = System.currentTimeMillis();
-		UiText.setDensity(mc.getWindow().getGuiScale());
+		UiText.setDensity(g.guiScale());
 		int y = 6;
 		Iterator<Entry> it = ENTRIES.iterator();
 		while (it.hasNext()) {
@@ -52,8 +51,8 @@ public final class NotificationCenter {
 			GuiDraw.roundedRect(g, x, y, WIDTH, HEIGHT, 5, ToggleWidget.scaleAlpha(theme.surface(theme.panelOpacity), alpha));
 			GuiDraw.roundedOutline(g, x, y, WIDTH, HEIGHT, 5, ToggleWidget.scaleAlpha(theme.border(), alpha));
 			g.fill(x + 1, y + 6, x + 3, y + HEIGHT - 6, ToggleWidget.scaleAlpha(theme.accent(), alpha));
-			UiText.draw(g, mc.font, e.title, UiText.UI, x + 9, y + 5, ToggleWidget.scaleAlpha(theme.text(), alpha));
-			UiText.draw(g, mc.font, e.body, UiText.UI_SMALL, x + 9, y + 17, ToggleWidget.scaleAlpha(theme.mutedText(), alpha));
+			UiText.draw(g, e.title, UiText.UI, x + 9, y + 5, ToggleWidget.scaleAlpha(theme.text(), alpha));
+			UiText.draw(g, e.body, UiText.UI_SMALL, x + 9, y + 17, ToggleWidget.scaleAlpha(theme.mutedText(), alpha));
 			y += HEIGHT + 4;
 		}
 	}

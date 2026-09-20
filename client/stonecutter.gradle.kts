@@ -11,6 +11,14 @@ stonecutter parameters {
     // Each replace(a, b) lists the 1.21.x text first and the 26.x text second.
     replacements {
         string(current.parsed >= "26.1") {
+            // Whole calls first: the general render/extract renames further down must not split them.
+            replace("PlayerFaceRenderer.draw(", "PlayerFaceExtractor.extractRenderState(")
+            replace("import net.minecraft.client.gui.components.PlayerFaceRenderer;", "import net.minecraft.client.gui.components.PlayerFaceExtractor;")
+            replace("renderPanorama(", "extractPanorama(")
+            replace("renderBlurredBackground(", "extractBlurredBackground(")
+            // 26.1 added a flag for whether the options screen was opened from a world.
+            replace("new OptionsScreen(parent, mc().options)", "new OptionsScreen(parent, mc().options, false)")
+
             // Classes that moved to another package in 26.1.
             replace("net.minecraft.client.GuiMessage", "net.minecraft.client.multiplayer.chat.GuiMessage")
             replace("net.minecraft.client.gui.render.state.GuiTextRenderState", "net.minecraft.client.renderer.state.gui.GuiTextRenderState")

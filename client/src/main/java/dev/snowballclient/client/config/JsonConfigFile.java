@@ -6,8 +6,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -25,7 +25,7 @@ import java.util.function.UnaryOperator;
  * and older schema versions are migrated step by step.
  */
 public final class JsonConfigFile {
-	private static final Logger LOGGER = LoggerFactory.getLogger("SnowballClient/Config");
+	private static final Logger LOGGER = LogManager.getLogger("SnowballClient/Config");
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 	public static final String VERSION_KEY = "schemaVersion";
 
@@ -59,7 +59,8 @@ public final class JsonConfigFile {
 		try {
 			String text = Files.readString(path, StandardCharsets.UTF_8);
 			if (text.startsWith("﻿")) text = text.substring(1);
-			JsonElement parsed = JsonParser.parseString(text);
+			// Instance parse() rather than parseString(): it also exists in the older Gson of Minecraft 1.8.9.
+			JsonElement parsed = new JsonParser().parse(text);
 			if (!parsed.isJsonObject()) throw new JsonParseException("Top-level value is not an object");
 			root = parsed.getAsJsonObject();
 		} catch (IOException | JsonParseException | IllegalStateException e) {

@@ -3,6 +3,8 @@ package dev.snowballclient.client.module.storage;
 import dev.snowballclient.client.SnowballClient;
 import dev.snowballclient.client.hud.NotificationCenter;
 import dev.snowballclient.client.module.ModuleCategory;
+import dev.snowballclient.client.platform.ViewScreen;
+import dev.snowballclient.client.ui.Host;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -25,12 +27,15 @@ public final class PackModules {
 		}
 
 		@Override
-		public Screen createSettingsScreen(Screen parent) {
-			Minecraft mc = Minecraft.getInstance();
-			return new PackSelectionScreen(mc.getResourcePackRepository(), repository -> {
-				mc.options.updateResourcePacks(repository);
-				mc.gui.setScreen(parent);
-			}, mc.getResourcePackDirectory(), Component.translatable("resourcePack.title"));
+		public void openSettings(Host host) {
+			// On this version every view is shown by ViewScreen, which can open Minecraft's own screens.
+			((ViewScreen) host).openScreen(parent -> {
+				Minecraft mc = Minecraft.getInstance();
+				return new PackSelectionScreen(mc.getResourcePackRepository(), repository -> {
+					mc.options.updateResourcePacks(repository);
+					mc.gui.setScreen(parent);
+				}, mc.getResourcePackDirectory(), Component.translatable("resourcePack.title"));
+			});
 		}
 	}
 
@@ -45,7 +50,11 @@ public final class PackModules {
 		}
 
 		@Override
-		public Screen createSettingsScreen(Screen parent) {
+		public void openSettings(Host host) {
+			((ViewScreen) host).openScreen(this::shaderScreen);
+		}
+
+		private Screen shaderScreen(Screen parent) {
 			if (FabricLoader.getInstance().isModLoaded("iris")) {
 				try {
 					// Iris' public API; accessed reflectively so Iris stays an optional dependency.

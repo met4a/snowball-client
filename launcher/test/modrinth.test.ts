@@ -1,9 +1,9 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { InstanceManager, normalizeInstanceConfig } from '../src/core/instance/InstanceManager.js';
 import { ModManager } from '../src/core/mods/ModManager.js';
-import { ModrinthService, pickVersion, summarizeVersions, type ModrinthVersion } from '../src/core/mods/Modrinth.js';
+import { modrinthLoaders, ModrinthService, pickVersion, summarizeVersions, type ModrinthVersion } from '../src/core/mods/Modrinth.js';
 import { sha1File } from '../src/core/util/fsutil.js';
 import { makeZip, tempDir } from './helpers.js';
 
@@ -58,6 +58,20 @@ function gameDir(): string {
   mkdirSync(join(dir, 'mods'), { recursive: true });
   return dir;
 }
+
+describe('Legacy Fabric instances', () => {
+  it('install Legacy Fabric mods and Legacy Fabric API on Minecraft 1.8.9', async () => {
+    expect(modrinthLoaders('fabric', '1.8.9')).toEqual(['legacy-fabric']);
+    expect(modrinthLoaders('fabric', '26.2')).toEqual(['fabric']);
+    const dir = gameDir();
+    const http = fakeHttp({ '/project/legacy-fabric-api/version': [version('lf1', 'legacy-fabric-api', '1.13.5', { game_versions: ['1.8.9'], loaders: ['legacy-fabric'] })] });
+    const service = new ModrinthService(http as never, new ModManager());
+    expect(await service.ensureFabricApi(dir, '1.8.9')).toBe(true);
+    expect(http.calls[0]).toContain(`/project/legacy-fabric-api/version?loaders=${encodeURIComponent('["legacy-fabric"]')}`);
+    expect(readdirSync(join(dir, 'mods'))).toEqual(['legacy-fabric-api-1.13.5.jar']);
+    expect(await service.ensureFabricApi(dir, '1.8.9')).toBe(false);
+  });
+});
 
 describe('Modrinth version selection', () => {
   it('needs the exact Minecraft version and a usable loader, and prefers stable releases', () => {

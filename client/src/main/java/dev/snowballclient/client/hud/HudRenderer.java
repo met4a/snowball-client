@@ -3,6 +3,7 @@ package dev.snowballclient.client.hud;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.module.ModuleManager;
 import dev.snowballclient.client.module.ModuleRegistry;
+import dev.snowballclient.client.platform.GuiCanvas;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -11,6 +12,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 public final class HudRenderer {
 	private final HudModule[] huds;
 	private final Theme theme;
+	private final GuiCanvas canvas = new GuiCanvas();
 
 	public HudRenderer(ModuleManager modules, Theme theme) {
 		this.theme = theme;
@@ -31,6 +33,6 @@ public final class HudRenderer {
 				graphics.text(mc.font, zoom, (graphics.guiWidth() - mc.font.width(zoom)) / 2, graphics.guiHeight() / 2 + 14, theme.text(), true);
 			}
 		}
-		if (ModuleRegistry.NOTIFICATIONS != null && ModuleRegistry.NOTIFICATIONS.isEnabled()) NotificationCenter.render(graphics, mc, theme);
+		if (ModuleRegistry.NOTIFICATIONS != null && ModuleRegistry.NOTIFICATIONS.isEnabled()) NotificationCenter.render(canvas.wrap(graphics), theme);
 	}
 }

@@ -71,6 +71,7 @@ const KNOWN_DEPENDENCIES: Record<string, { name: string; slug: string }> = {
 /** Turns a dependency id into something a player recognises. Fabric API's module ids all map to Fabric API. */
 export function describeDependency(id: string): MissingDependency {
   if (id === 'fabric' || id === 'fabric-api' || id === 'fabric-api-base' || /^fabric-[a-z0-9-]+-v\d+$/.test(id)) return { id: 'fabric-api', name: 'Fabric API', slug: 'fabric-api' };
+  if (/^legacy-fabric-(api|api-base|[a-z0-9-]+-v\d+)$/.test(id)) return { id: 'legacy-fabric-api', name: 'Legacy Fabric API', slug: 'legacy-fabric-api' };
   const known = KNOWN_DEPENDENCIES[id];
   return known ? { id, ...known } : { id, name: id, slug: null };
 }
@@ -331,7 +332,7 @@ export class ModManager {
     const disabled = new Set(Array.isArray(result.value.disabledMods) ? result.value.disabledMods.filter((x): x is string => typeof x === 'string') : []);
     const changed: string[] = [];
     for (const mod of await this.list(gameDir)) {
-      if (!mod.id || ['snowballclient', 'fabric-api', 'fabricloader'].includes(mod.id)) continue;
+      if (!mod.id || ['snowballclient', 'fabric-api', 'legacy-fabric-api', 'fabricloader'].includes(mod.id)) continue;
       const shouldEnable = !disabled.has(mod.id);
       if (mod.enabled !== shouldEnable) {
         await this.setEnabled(gameDir, mod.fileName, shouldEnable);

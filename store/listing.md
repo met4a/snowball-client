@@ -41,9 +41,10 @@ Not an official Minecraft product. Not approved by or associated with Mojang or 
 
 ## What's new in this version
 
-- Snowball Client now works on Minecraft 1.21.11 as well as 26.2
-- Snowball Client is built into the launcher: it is loaded automatically, never a mod file, and checked and repaired before every launch
-- New Activity log that shows each step in plain language, with the full game log one click away
+- Snowball Client now works on Minecraft 1.8.9 as well as 1.21.11 and 26.2
+- Its own main menu in place of the title screen, with every vanilla button still there
+- Launching is much faster: game files are checked once and trusted afterwards instead of being re-checked every time
+- Verify files button that re-checks an instance and repairs anything missing or damaged
 
 ## Features (one per line, max 20)
 

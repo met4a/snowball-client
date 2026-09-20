@@ -17,10 +17,14 @@ const outDir = join(clientDir, 'build', 'libs', 'launcher');
 rmSync(outDir, { recursive: true, force: true });
 // .bat files need cmd.exe on Windows. Call it directly with a relative ".\gradlew.bat" and cwd set:
 // a full path with spaces would be split by cmd, and npm's shell does not search the current folder.
-const args = ['build', 'buildAndCollect'];
-const result = windows
-  ? spawnSync('cmd.exe', ['/d', '/c', '.\\gradlew.bat', ...args], { cwd: clientDir, stdio: 'inherit' })
-  : spawnSync('./gradlew', args, { cwd: clientDir, stdio: 'inherit' });
+const gradle = (args) =>
+  windows
+    ? spawnSync('cmd.exe', ['/d', '/c', '.\\gradlew.bat', ...args], { cwd: clientDir, stdio: 'inherit' })
+    : spawnSync('./gradlew', args, { cwd: clientDir, stdio: 'inherit' });
+
+// The modern versions come from the Stonecutter build; Minecraft 1.8.9 is its own build next to it.
+let result = gradle(['build', 'buildAndCollect']);
+if (result.status === 0) result = gradle(['-p', 'legacy', 'build', 'buildAndCollect']);
 const jars = existsSync(outDir) ? readdirSync(outDir).filter((f) => f.endsWith('.jar')) : [];
 if (result.status !== 0 || jars.length === 0) {
   console.error('Client build failed; the launcher cannot be packaged without the Snowball Client jars.');

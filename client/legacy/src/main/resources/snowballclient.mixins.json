@@ -1,0 +1,15 @@
+{
+	"required": true,
+	"package": "dev.snowballclient.client.mixin",
+	"compatibilityLevel": "JAVA_${java}",
+	"client": [
+		"ClientPlayerInteractionManagerMixin",
+		"GameRendererMixin",
+		"KeyBindingMixin",
+		"MinecraftClientMixin",
+		"TitleScreenAccessor"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

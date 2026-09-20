@@ -2,19 +2,20 @@ package dev.snowballclient.client.module.qol;
 
 import dev.snowballclient.client.SnowballClient;
 import dev.snowballclient.client.gui.CustomSettingsScreen;
-import dev.snowballclient.client.gui.WaypointScreen;
+import dev.snowballclient.client.gui.WaypointView;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.module.Module;
 import dev.snowballclient.client.module.ModuleCategory;
 import dev.snowballclient.client.module.setting.BooleanSetting;
 import dev.snowballclient.client.module.setting.NumberSetting;
+import dev.snowballclient.client.ui.Host;
 import dev.snowballclient.client.waypoint.Waypoint;
 import dev.snowballclient.client.waypoint.WaypointProjector;
 import dev.snowballclient.client.waypoint.WaypointStore;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.screens.Screen;
+
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.world.phys.Vec3;
 
@@ -124,7 +125,28 @@ public final class Waypoints extends Module implements CustomSettingsScreen {
 	}
 
 	@Override
-	public Screen createSettingsScreen(Screen parent) {
-		return new WaypointScreen(parent, this, SnowballClient.get());
+	public void openSettings(Host host) {
+		host.open(new WaypointView(this, SnowballClient.get()));
+	}
+
+	/** World key of the world you are in (see {@link #currentWorldKey}), or null. */
+	public String worldKey() {
+		return currentWorldKey(Minecraft.getInstance());
+	}
+
+	public String dimension() {
+		return currentDimension(Minecraft.getInstance());
+	}
+
+	/** The player's block position {x, y, z}, or null outside a world. */
+	public int[] playerBlock() {
+		var p = Minecraft.getInstance().player;
+		return p == null ? null : new int[]{p.getBlockX(), p.getBlockY(), p.getBlockZ()};
+	}
+
+	/** The player's exact position {x, y, z}, or null outside a world. */
+	public double[] playerPosition() {
+		var p = Minecraft.getInstance().player;
+		return p == null ? null : new double[]{p.getX(), p.getY(), p.getZ()};
 	}
 }

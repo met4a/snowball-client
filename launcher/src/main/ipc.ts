@@ -4,14 +4,14 @@ import { LOADER_IDS, PERFORMANCE_PROFILES as PROFILE_IDS, type InstanceConfig, t
 import { recommendMemory } from '../core/java/JavaManager.js';
 import type { Launcher } from '../core/Launcher.js';
 import { getLogger, logSink } from '../core/logging/Logger.js';
-import { SEARCH_SORTS } from '../core/mods/Modrinth.js';
+import { modrinthLoaders, SEARCH_SORTS } from '../core/mods/Modrinth.js';
 import { PERFORMANCE_PROFILES } from '../core/performance/PerformanceProfiles.js';
 import { splitArgs } from '../core/process/LaunchArguments.js';
 import { safeJoin } from '../core/util/paths.js';
 import { openMicrosoftLogin } from './microsoftLogin.js';
 
 const log = getLogger('ipc');
-const MOD_LOADERS = ['fabric', 'quilt', 'forge', 'neoforge'];
+const MOD_LOADERS = ['fabric', 'legacy-fabric', 'quilt', 'forge', 'neoforge'];
 const FOLDERS = new Set(['root', 'mods', 'config', 'resourcepacks', 'shaderpacks', 'saves', 'screenshots', 'logs', 'crash-reports']);
 
 function str(value: unknown, name: string, max = 256): string {
@@ -30,7 +30,9 @@ function toDto(summary: InstanceSummary, launcher: Launcher): Snowball.Instance 
     name: c.name,
     minecraftVersion: c.minecraftVersion,
     loader: c.loader,
+    loaderName: c.loader === 'vanilla' ? 'Vanilla' : launcher.loaders.get(c.loader)?.nameFor(c.minecraftVersion) ?? c.loader,
     loaderVersion: c.loaderVersion,
+    modLoaders: modrinthLoaders(c.loader, c.minecraftVersion),
     javaExecutable: c.java.executable,
     memory: c.memory,
     jvmArgs: joinArgs(c.jvmArgs),
@@ -100,7 +102,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow): void {
       snowballBuilds: launcher.core.registry.builds.map((b) => ({ version: b.version, minecraft: b.label })),
       canAddOffline: launcher.auth.canAddOffline(),
       microsoftSignInConfigured: launcher.microsoftSignInConfigured,
-      launcherVersion: process.env.npm_package_version ?? '1.2.0',
+      launcherVersion: process.env.npm_package_version ?? '1.3.0',
     };
   });
 
@@ -277,6 +279,12 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow): void {
     if (launcher.processes.isRunning(iid)) throw new Error('Stop the game before repairing Snowball Client.');
     return launcher.repairCore(iid);
   });
+  handle('game:verify-files', async (id: unknown) => {
+    const iid = await instanceId(id);
+    if (launcher.processes.isRunning(iid)) throw new Error('Stop the game before checking its files.');
+    return launcher.verifyGameFiles(iid);
+  });
+
   handle('core:supports', async (mc: unknown, loader: unknown) =>
     launcher.snowballSupport(str(mc, 'Minecraft version', 64), LOADER_IDS.includes(loader as never) ? (loader as InstanceConfig['loader']) : 'vanilla'));
 

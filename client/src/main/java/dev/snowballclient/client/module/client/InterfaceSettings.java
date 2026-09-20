@@ -18,6 +18,7 @@ public final class InterfaceSettings extends Module {
 	public final NumberSetting panelOpacity;
 	public final NumberSetting animationSpeed;
 	public final BooleanSetting pauseGame;
+	public final BooleanSetting customMainMenu;
 
 	private final Theme theme;
 	private boolean themeDirty;
@@ -31,6 +32,7 @@ public final class InterfaceSettings extends Module {
 		panelOpacity = setting(new NumberSetting("panel_opacity", "Panel opacity", "", theme.panelOpacity, 0.2, 1, 0.05));
 		animationSpeed = setting(new NumberSetting("animation_speed", "Animation speed", "0 turns animations off", theme.animationSpeed, 0, 3, 0.25));
 		pauseGame = setting(new BooleanSetting("pause_game", "Pause singleplayer in menu", "", clientSettings.pauseGameInMenu));
+		customMainMenu = setting(new BooleanSetting("custom_main_menu", "Snowball main menu", "Use Snowball's main menu instead of Minecraft's title screen", true));
 
 		scale.onChange(v -> apply(() -> theme.scale = v.floatValue()));
 		highContrast.onChange(v -> apply(() -> theme.highContrast = v));

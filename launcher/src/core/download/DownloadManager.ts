@@ -6,7 +6,8 @@ import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { getLogger } from '../logging/Logger.js';
-import { isFileValid } from '../util/fsutil.js';
+import { fileSize, isFileValid } from '../util/fsutil.js';
+import type { VerifiedFiles } from './VerifiedFiles.js';
 
 const log = getLogger('download');
 
@@ -53,6 +54,8 @@ export interface DownloadManagerOptions {
   timeoutMs?: number;
   fetchImpl?: FetchLike;
   userAgent?: string;
+  /** Skips re-hashing files that were checksum-verified earlier and have not changed since. */
+  verified?: VerifiedFiles;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -69,6 +72,7 @@ export class DownloadManager extends EventEmitter {
   private readonly timeoutMs: number;
   private readonly fetchImpl: FetchLike;
   private readonly userAgent: string;
+  private readonly verified?: VerifiedFiles;
 
   constructor(options: DownloadManagerOptions = {}) {
     super();
@@ -78,6 +82,7 @@ export class DownloadManager extends EventEmitter {
     this.timeoutMs = options.timeoutMs ?? 60_000;
     this.fetchImpl = options.fetchImpl ?? ((url, init) => fetch(url, init));
     this.userAgent = options.userAgent ?? 'SnowballClientLauncher/1.0';
+    this.verified = options.verified;
   }
 
   fetchText(url: string, signal?: AbortSignal): Promise<string> {
@@ -131,8 +136,14 @@ export class DownloadManager extends EventEmitter {
 
   async download(task: DownloadTask, signal?: AbortSignal): Promise<'downloaded' | 'cached'> {
     assertHttps(task.url);
+    if (task.sha1 && (await this.verified?.isVerified(task.dest, task.sha1))) return 'cached';
     if (await isFileValid(task.dest, { sha1: task.sha1, size: task.size })) {
-      if (task.sha1 || task.size !== undefined) return 'cached';
+      // A file is complete unless it is empty: downloads are written to .part and renamed when finished.
+      // Loader libraries from Maven repositories publish no checksum, so presence is all there is to check.
+      if ((task.size ?? (await fileSize(task.dest)) ?? 0) > 0) {
+        if (task.sha1) await this.verified?.record(task.dest, task.sha1);
+        return 'cached';
+      }
     }
     await mkdir(dirname(task.dest), { recursive: true });
     const part = `${task.dest}.part`;
@@ -166,6 +177,7 @@ export class DownloadManager extends EventEmitter {
           throw new RetryableError(`checksum mismatch (expected ${task.sha1}, got ${digest})`);
         }
         await rename(part, task.dest);
+        if (task.sha1) await this.verified?.record(task.dest, task.sha1);
         return 'downloaded';
       } catch (err) {
         lastError = err;
@@ -182,8 +194,15 @@ export class DownloadManager extends EventEmitter {
   }
 
   /** Runs all tasks; collects every failure and throws one aggregated error at the end. */
+  /** Drops what is known about verified files, so the next pass checksums everything again. */
+  async forgetVerifiedFiles(): Promise<void> {
+    this.verified?.clear();
+    await this.verified?.save();
+  }
+
   async downloadAll(tasks: DownloadTask[], signal?: AbortSignal, onProgress?: (p: DownloadProgress) => void): Promise<void> {
     const unique = dedupeTasks(tasks);
+    if (!unique.length) return;
     const progress: DownloadProgress = { completed: 0, total: unique.length, bytes: 0 };
     const onBytes = (n: number) => {
       progress.bytes += n;
@@ -209,6 +228,7 @@ export class DownloadManager extends EventEmitter {
       await Promise.all(Array.from({ length: Math.min(this.concurrency, unique.length) }, worker));
     } finally {
       this.off('bytes', onBytes);
+      await this.verified?.save();
     }
     if (signal?.aborted) throw new Error('Download cancelled');
     if (failures.length) {

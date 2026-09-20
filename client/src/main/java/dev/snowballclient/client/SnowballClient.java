@@ -3,7 +3,7 @@ package dev.snowballclient.client;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.Window;
 import dev.snowballclient.client.config.ConfigManager;
-import dev.snowballclient.client.gui.RadialMenuScreen;
+import dev.snowballclient.client.gui.RadialMenuView;
 import dev.snowballclient.client.gui.radial.RadialLayout;
 import dev.snowballclient.client.gui.radial.RadialMetrics;
 import dev.snowballclient.client.gui.radial.WheelTextures;
@@ -17,6 +17,8 @@ import dev.snowballclient.client.module.storage.ClientContainerPreviewTooltip;
 import dev.snowballclient.client.module.storage.ContainerPreview;
 import dev.snowballclient.client.perf.ModRequests;
 import dev.snowballclient.client.perf.ModScanner;
+import dev.snowballclient.client.platform.MinecraftTextures;
+import dev.snowballclient.client.platform.ViewScreen;
 import dev.snowballclient.client.util.OptionsSaver;
 import dev.snowballclient.client.waypoint.WaypointStore;
 import net.fabricmc.api.ClientModInitializer;
@@ -105,6 +107,13 @@ public final class SnowballClient implements ClientModInitializer {
 		return FabricLoader.getInstance().getGameDir();
 	}
 
+	/** This build's version, as written in fabric.mod.json. */
+	public String version() {
+		return FabricLoader.getInstance().getModContainer(MOD_ID)
+				.map(mod -> mod.getMetadata().getVersion().getFriendlyString())
+				.orElse("");
+	}
+
 	@Override
 	public void onInitializeClient() {
 		instance = this;
@@ -167,7 +176,7 @@ public final class SnowballClient implements ClientModInitializer {
 
 	private void onEndTick(Minecraft mc) {
 		while (openMenuKey.consumeClick()) {
-			if (mc.gui.screen() == null && mc.player != null) mc.gui.setScreen(new RadialMenuScreen(this));
+			if (mc.gui.screen() == null && mc.player != null) ViewScreen.show(new RadialMenuView(this));
 		}
 		if (mc.gui.screen() == null && mc.player != null && mc.isWindowActive()) {
 			keybinds.tick(key -> InputConstants.isKeyDown(mc.getWindow(), key), true);
@@ -182,7 +191,7 @@ public final class SnowballClient implements ClientModInitializer {
 			warmupCountdown = TEXTURE_WARMUP_TICKS;
 			Window window = mc.getWindow();
 			RadialMetrics metrics = RadialMetrics.compute(window.getGuiScaledWidth(), window.getGuiScaledHeight(), window.getGuiScale(), theme.scale);
-			wheelTextures.update(metrics.texturePixels(), theme, radialLayout);
+			wheelTextures.update(MinecraftTextures.INSTANCE, metrics.texturePixels(), theme, radialLayout);
 		}
 
 		// Taking damage ends a combo; hurtTime jumps up when the player is hurt.

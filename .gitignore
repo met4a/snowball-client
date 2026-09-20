@@ -2,6 +2,8 @@
 client/.gradle/
 client/build/
 client/versions/*/build/
+client/legacy/.gradle/
+client/legacy/build/
 client/versions/*/logs/
 client/run/
 client/logs/

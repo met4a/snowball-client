@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { getLogger } from '../logging/Logger.js';
+import { usesLegacyFabric } from '../minecraft/fabricFamily.js';
 import type { VersionJson } from '../minecraft/types.js';
 import { writeJsonAtomic } from '../util/fsutil.js';
 import { LOADER_VERSION_PATTERN, LoaderError, type IModLoader, type LoaderInstallContext, type LoaderVersion } from './IModLoader.js';
@@ -11,6 +12,8 @@ type JsonFetcher = { fetchJson<T>(url: string, signal?: AbortSignal): Promise<T>
 /**
  * Fabric and Quilt publish launcher profiles (a version JSON inheriting from vanilla) through their
  * meta services, so installing is: install vanilla, save the validated profile, download libraries.
+ * Fabric instances for Minecraft 1.3 to 1.13.2 use Legacy Fabric's meta, which serves the same Fabric
+ * Loader with its own intermediary names.
  */
 export class FabricLikeLoader implements IModLoader {
   private constructor(
@@ -19,10 +22,11 @@ export class FabricLikeLoader implements IModLoader {
     private readonly metaBase: string,
     private readonly idPrefix: string,
     private readonly fetcher: JsonFetcher,
+    private readonly legacy?: { displayName: string; metaBase: string },
   ) {}
 
   static fabric(fetcher: JsonFetcher): FabricLikeLoader {
-    return new FabricLikeLoader('fabric', 'Fabric', 'https://meta.fabricmc.net/v2', 'fabric-loader', fetcher);
+    return new FabricLikeLoader('fabric', 'Fabric', 'https://meta.fabricmc.net/v2', 'fabric-loader', fetcher, { displayName: 'Legacy Fabric', metaBase: 'https://meta.legacyfabric.net/v2' });
   }
 
   static quilt(fetcher: JsonFetcher): FabricLikeLoader {
@@ -33,10 +37,22 @@ export class FabricLikeLoader implements IModLoader {
     return `${this.idPrefix}-${loader}-${mc}`;
   }
 
+  private usesLegacy(mc: string): boolean {
+    return this.legacy !== undefined && usesLegacyFabric(mc);
+  }
+
+  nameFor(minecraftVersion: string): string {
+    return this.usesLegacy(minecraftVersion) ? this.legacy!.displayName : this.displayName;
+  }
+
+  private metaFor(mc: string): string {
+    return this.usesLegacy(mc) ? this.legacy!.metaBase : this.metaBase;
+  }
+
   async listVersions(minecraftVersion: string): Promise<LoaderVersion[]> {
     type Entry = { loader?: { version?: string; stable?: boolean } };
-    const entries = await this.fetcher.fetchJson<Entry[]>(`${this.metaBase}/versions/loader/${encodeURIComponent(minecraftVersion)}`);
-    if (!Array.isArray(entries)) throw new LoaderError(`${this.displayName} meta returned an unexpected response.`);
+    const entries = await this.fetcher.fetchJson<Entry[]>(`${this.metaFor(minecraftVersion)}/versions/loader/${encodeURIComponent(minecraftVersion)}`);
+    if (!Array.isArray(entries)) throw new LoaderError(`${this.nameFor(minecraftVersion)} meta returned an unexpected response.`);
     return entries
       .map((e) => e.loader)
       .filter((l): l is { version: string; stable?: boolean } => !!l && typeof l.version === 'string' && LOADER_VERSION_PATTERN.test(l.version))
@@ -49,21 +65,22 @@ export class FabricLikeLoader implements IModLoader {
   }
 
   async install(mc: string, loader: string, ctx: LoaderInstallContext): Promise<string> {
-    if (!LOADER_VERSION_PATTERN.test(loader)) throw new LoaderError(`Invalid ${this.displayName} version: ${loader}`);
+    const name = this.nameFor(mc);
+    if (!LOADER_VERSION_PATTERN.test(loader)) throw new LoaderError(`Invalid ${name} version: ${loader}`);
     ctx.onProgress?.(`Installing Minecraft ${mc}`);
     await ctx.versions.installVanilla(mc, ctx.signal);
 
-    ctx.onProgress?.(`Fetching ${this.displayName} ${loader}`);
-    const url = `${this.metaBase}/versions/loader/${encodeURIComponent(mc)}/${encodeURIComponent(loader)}/profile/json`;
+    ctx.onProgress?.(`Fetching ${name} ${loader}`);
+    const url = `${this.metaFor(mc)}/versions/loader/${encodeURIComponent(mc)}/${encodeURIComponent(loader)}/profile/json`;
     const profile = await this.fetcher.fetchJson<VersionJson>(url, ctx.signal);
-    validateProfile(profile, mc, this.displayName);
+    validateProfile(profile, mc, name);
     const id = this.versionId(mc, loader);
-    if (profile.id !== id) throw new LoaderError(`${this.displayName} profile id "${profile.id}" does not match the requested version.`);
+    if (profile.id !== id) throw new LoaderError(`${name} profile id "${profile.id}" does not match the requested version.`);
     await writeJsonAtomic(ctx.versions.versionJsonPath(id), profile);
 
-    ctx.onProgress?.(`Downloading ${this.displayName} libraries`);
+    ctx.onProgress?.(`Downloading ${name} libraries`);
     await ctx.versions.installFiles(await ctx.versions.resolve(id), ctx.signal);
-    log.info(`Installed ${this.displayName} ${loader} for ${mc}`);
+    log.info(`Installed ${name} ${loader} for ${mc}`);
     return id;
   }
 }

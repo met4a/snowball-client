@@ -1,10 +1,11 @@
 package dev.snowballclient.gametest;
 
 import dev.snowballclient.client.SnowballClient;
-import dev.snowballclient.client.gui.RadialMenuScreen;
+import dev.snowballclient.client.gui.RadialMenuView;
 import dev.snowballclient.client.module.ModuleCategory;
 import dev.snowballclient.client.module.ModuleRegistry;
 import dev.snowballclient.client.module.setting.ChoiceSetting;
+import dev.snowballclient.client.platform.ViewScreen;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestServerContext;
@@ -90,7 +91,7 @@ public final class SnowballSceneCapture implements FabricClientGameTest {
 			context.waitTicks(12);
 			context.takeScreenshot("scene_settings");
 			context.getInput().pressKey(KEY_ESCAPE); // back to the menu
-			context.waitForScreen(RadialMenuScreen.class);
+			context.waitFor(mc -> menu(mc) != null, 100);
 			closeMenu(context);
 
 			// HUD showcase.
@@ -140,15 +141,20 @@ public final class SnowballSceneCapture implements FabricClientGameTest {
 		context.waitTicks(2);
 	}
 
-	private static RadialMenuScreen screen(Minecraft mc) {
-		if (mc.gui.screen() instanceof RadialMenuScreen r) return r;
+	private static RadialMenuView menu(Minecraft mc) {
+		return mc.gui.screen() instanceof ViewScreen v && v.view() instanceof RadialMenuView r ? r : null;
+	}
+
+	private static RadialMenuView screen(Minecraft mc) {
+		RadialMenuView r = menu(mc);
+		if (r != null) return r;
 		throw new AssertionError("Radial menu is not open (screen=" + mc.gui.screen() + ")");
 	}
 
 	private static void openMenu(ClientGameTestContext context) {
 		context.getInput().pressKey(KEY_RIGHT_SHIFT);
-		context.waitForScreen(RadialMenuScreen.class);
-		context.waitFor(mc -> mc.gui.screen() instanceof RadialMenuScreen r && r.isFullyOpen() && SnowballClient.get().wheelTextures().ready(), 200);
+		context.waitForScreen(ViewScreen.class);
+		context.waitFor(mc -> menu(mc) != null && menu(mc).isFullyOpen() && SnowballClient.get().wheelTextures().ready(), 200);
 		context.waitTicks(4);
 	}
 

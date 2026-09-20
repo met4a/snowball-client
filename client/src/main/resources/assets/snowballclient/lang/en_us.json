@@ -1,9 +1,8 @@
 {
 	"key.category.snowballclient.main": "Snowball Client",
 	"key.snowballclient.open_menu": "Open Snowball Menu",
-	"snowballclient.menu.title": "Snowball Client",
+
 	"snowballclient.menu.hint": "Press %s to open the Snowball Client menu",
-	"snowballclient.waypoints.title": "Waypoints",
-	"snowballclient.settings.title": "%s Settings",
+
 	"snowballclient.container_search.hint": "Search items..."
 }

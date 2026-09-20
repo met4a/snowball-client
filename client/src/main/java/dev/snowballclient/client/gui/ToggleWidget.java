@@ -2,7 +2,7 @@ package dev.snowballclient.client.gui;
 
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.hud.GuiDraw;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import dev.snowballclient.client.ui.Canvas;
 
 /** Pill toggle switch. State is shown by knob position as well as colour; ON adds a soft accent glow. */
 public final class ToggleWidget {
@@ -16,7 +16,7 @@ public final class ToggleWidget {
 	}
 
 	/** @param t 0 = off, 1 = on (fractional while animating) */
-	public static void draw(GuiGraphicsExtractor g, int x, int y, float t, Theme theme, float alpha) {
+	public static void draw(Canvas g, int x, int y, float t, Theme theme, float alpha) {
 		if (t > 0.01f) {
 			GuiDraw.roundedRect(g, x - 2, y - 2, WIDTH + 4, HEIGHT + 4, (HEIGHT + 4) / 2, scaleAlpha(Theme.withAlpha(theme.accent(), 0.2f * t), alpha));
 		}

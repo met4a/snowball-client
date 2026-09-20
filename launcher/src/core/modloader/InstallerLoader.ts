@@ -50,6 +50,10 @@ export class InstallerLoader implements IModLoader {
     this.displayName = spec.displayName;
   }
 
+  nameFor(): string {
+    return this.displayName;
+  }
+
   static neoforge(fetcher: Fetcher, runner: InstallerRunner = defaultRunner): InstallerLoader {
     return new InstallerLoader({
       id: 'neoforge',

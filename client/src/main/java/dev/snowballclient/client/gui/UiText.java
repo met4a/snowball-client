@@ -1,8 +1,6 @@
 package dev.snowballclient.client.gui;
 
-import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-import org.joml.Matrix3x2fStack;
+import dev.snowballclient.client.ui.Canvas;
 
 /**
  * Menu text in Minecraft's own font. The menu is drawn at fractional scales (it grows with the
@@ -49,54 +47,53 @@ public final class UiText {
 		return (float) (pixels / density);
 	}
 
-	public static int width(Font font, String text, Kind kind) {
-		return Math.round(font.width(text) * scaleFor(kind));
+	public static int width(Canvas c, String text, Kind kind) {
+		return Math.round(c.textWidth(text) * scaleFor(kind));
 	}
 
-	public static void draw(GuiGraphicsExtractor g, Font font, String text, Kind kind, int x, int y, int argb) {
-		drawScaled(g, font, text, x, y, scaleFor(kind), argb);
+	public static void draw(Canvas c, String text, Kind kind, int x, int y, int argb) {
+		drawScaled(c, text, x, y, scaleFor(kind), argb);
 	}
 
-	public static void drawCentered(GuiGraphicsExtractor g, Font font, String text, Kind kind, int centerX, int y, int argb) {
-		draw(g, font, text, kind, centerX - width(font, text, kind) / 2, y, argb);
+	public static void drawCentered(Canvas c, String text, Kind kind, int centerX, int y, int argb) {
+		draw(c, text, kind, centerX - width(c, text, kind) / 2, y, argb);
 	}
 
 	/**
 	 * Centred text that never exceeds maxWidth: uses the crisp pixel-snapped size when it fits and
 	 * otherwise shrinks just enough to fit (used where space is fixed, like wheel segments).
 	 */
-	public static void drawCenteredFitted(GuiGraphicsExtractor g, Font font, String text, Kind kind, int centerX, int y, int maxWidth, int argb) {
-		int raw = Math.max(1, font.width(text));
+	public static void drawCenteredFitted(Canvas c, String text, Kind kind, int centerX, int y, int maxWidth, int argb) {
+		int raw = Math.max(1, c.textWidth(text));
 		float scale = Math.min(scaleFor(kind), maxWidth / (float) raw);
 		int w = Math.round(raw * scale);
 		// Keep the text vertically centred on its line when it had to shrink.
-		int yOffset = Math.round((font.lineHeight * (scaleFor(kind) - scale)) / 2f);
-		drawScaled(g, font, text, centerX - w / 2, y + yOffset, scale, argb);
+		int yOffset = Math.round((c.lineHeight() * (scaleFor(kind) - scale)) / 2f);
+		drawScaled(c, text, centerX - w / 2, y + yOffset, scale, argb);
 	}
 
-	public static void drawRight(GuiGraphicsExtractor g, Font font, String text, Kind kind, int rightX, int y, int argb) {
-		draw(g, font, text, kind, rightX - width(font, text, kind), y, argb);
+	public static void drawRight(Canvas c, String text, Kind kind, int rightX, int y, int argb) {
+		draw(c, text, kind, rightX - width(c, text, kind), y, argb);
 	}
 
 	/** Trims with ".." so the text fits the width (call when layout changes, not per frame). */
-	public static String fit(Font font, String text, Kind kind, int maxWidth) {
-		if (width(font, text, kind) <= maxWidth) return text;
+	public static String fit(Canvas c, String text, Kind kind, int maxWidth) {
+		if (width(c, text, kind) <= maxWidth) return text;
 		String s = text;
-		while (s.length() > 1 && width(font, s + "..", kind) > maxWidth) s = s.substring(0, s.length() - 1);
+		while (s.length() > 1 && width(c, s + "..", kind) > maxWidth) s = s.substring(0, s.length() - 1);
 		return s.trim() + "..";
 	}
 
-	private static void drawScaled(GuiGraphicsExtractor g, Font font, String text, int x, int y, float scale, int argb) {
+	private static void drawScaled(Canvas c, String text, int x, int y, float scale, int argb) {
 		if ((argb >>> 24) < 4) return;
 		if (Math.abs(scale - 1f) < 0.01f) {
-			g.text(font, text, x, y, argb, true);
+			c.drawText(text, x, y, argb, true);
 			return;
 		}
-		Matrix3x2fStack pose = g.pose();
-		pose.pushMatrix();
-		pose.translate(x, y);
-		pose.scale(scale, scale);
-		g.text(font, text, 0, 0, argb, true);
-		pose.popMatrix();
+		c.push();
+		c.translate(x, y);
+		c.scale(scale, scale);
+		c.drawText(text, 0, 0, argb, true);
+		c.pop();
 	}
 }

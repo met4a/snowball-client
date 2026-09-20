@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { DownloadManager } from '../download/DownloadManager.js';
 import type { LoaderId } from '../instance/InstanceManager.js';
 import { getLogger } from '../logging/Logger.js';
+import { fabricApiFor, usesLegacyFabric } from '../minecraft/fabricFamily.js';
 import { sha1File } from '../util/fsutil.js';
 import { assertModChangeAllowed } from '../snowball/protection.js';
 import { safeJoin, sanitizeFileName } from '../util/paths.js';
@@ -14,8 +15,8 @@ const log = getLogger('modrinth');
 
 const API = 'https://api.modrinth.com/v2';
 const CDN = /^https:\/\/cdn\.modrinth\.com\//;
-const MOD_LOADERS = ['fabric', 'quilt', 'forge', 'neoforge'];
-const LOADER_NAMES: Record<string, string> = { fabric: 'Fabric', quilt: 'Quilt', forge: 'Forge', neoforge: 'NeoForge' };
+const MOD_LOADERS = ['fabric', 'legacy-fabric', 'quilt', 'forge', 'neoforge'];
+const LOADER_NAMES: Record<string, string> = { fabric: 'Fabric', 'legacy-fabric': 'Legacy Fabric', quilt: 'Quilt', forge: 'Forge', neoforge: 'NeoForge' };
 /** Stops a broken dependency graph from downloading half of Modrinth. */
 const MAX_PLANNED_FILES = 40;
 
@@ -105,11 +106,14 @@ export class ModInstallError extends Error {
 
 type Http = Pick<DownloadManager, 'fetchJson' | 'postJson' | 'downloadAll'>;
 
-/** Modrinth loader names an instance can load. Quilt runs Fabric mods; modern NeoForge does not run Forge mods. */
-export function modrinthLoaders(loader: LoaderId): string[] {
+/**
+ * Modrinth loader names an instance can load. Quilt runs Fabric mods; modern NeoForge does not run Forge mods;
+ * Fabric on Minecraft 1.13.2 and older is Legacy Fabric, whose mods are listed under their own loader.
+ */
+export function modrinthLoaders(loader: LoaderId, minecraftVersion: string): string[] {
   switch (loader) {
     case 'fabric':
-      return ['fabric'];
+      return usesLegacyFabric(minecraftVersion) ? ['legacy-fabric'] : ['fabric'];
     case 'quilt':
       return ['quilt', 'fabric'];
     case 'forge':
@@ -206,7 +210,7 @@ export class ModrinthService {
   }
 
   async checkUpdates(target: InstanceTarget): Promise<ModUpdate[]> {
-    const loaders = modrinthLoaders(target.loader);
+    const loaders = modrinthLoaders(target.loader, target.minecraftVersion);
     const { installed } = await this.scan(target.gameDir);
     if (!loaders.length || !installed.length) return [];
     const latest = await this.latestVersions(installed.map((i) => i.sha1), target.minecraftVersion, loaders);
@@ -222,7 +226,7 @@ export class ModrinthService {
   /** Replaces one installed mod with its newest compatible version, keeping it enabled or disabled as before. */
   update(target: InstanceTarget, fileName: string, signal?: AbortSignal): Promise<{ oldFile: string; newFile: string; version: string }> {
     return this.locked(target.gameDir, async () => {
-      const loaders = modrinthLoaders(target.loader);
+      const loaders = modrinthLoaders(target.loader, target.minecraftVersion);
       const item = (await this.scan(target.gameDir)).installed.find((i) => i.fileName === fileName);
       if (!item) throw new ModInstallError(`${fileName} is not a Modrinth mod, so it cannot be updated here.`);
       await assertModChangeAllowed(this.mods.modsDir(target.gameDir), fileName, 'replace');
@@ -244,28 +248,29 @@ export class ModrinthService {
   }
 
   /**
-   * Adds the newest Fabric API built for this exact Minecraft version, unless a Fabric API jar
-   * (enabled or disabled) is already present. Returns false when nothing was installed.
+   * Adds the newest Fabric API built for this exact Minecraft version (Legacy Fabric API on 1.13.2 and
+   * older), unless that API's jar (enabled or disabled) is already present. Returns false when nothing was installed.
    */
   ensureFabricApi(gameDir: string, minecraftVersion: string, signal?: AbortSignal): Promise<boolean> {
     return this.locked(gameDir, async () => {
-      if ((await this.mods.list(gameDir)).some((m) => m.id === 'fabric-api')) return false;
-      const versions = await this.projectVersions('fabric-api', minecraftVersion, ['fabric'], signal);
-      const version = pickVersion(versions, minecraftVersion, ['fabric']);
-      if (!version) throw new ModInstallError(`Fabric API has no release for Minecraft ${minecraftVersion} yet.`);
+      const api = fabricApiFor(minecraftVersion);
+      if ((await this.mods.list(gameDir)).some((m) => m.id === api.id)) return false;
+      const versions = await this.projectVersions(api.slug, minecraftVersion, [api.modrinthLoader], signal);
+      const version = pickVersion(versions, minecraftVersion, [api.modrinthLoader]);
+      if (!version) throw new ModInstallError(`${api.name} has no release for Minecraft ${minecraftVersion} yet.`);
       const file = primaryFile(version)!;
-      const name = sanitizeFileName(file.filename.replace(/\.jar$/i, ''), 'fabric-api') + '.jar';
-      await this.http.downloadAll([{ url: file.url, dest: safeJoin(this.mods.modsDir(gameDir), name), sha1: file.hashes.sha1, size: file.size, label: 'Fabric API' }], signal);
-      log.info(`Installed Fabric API ${version.version_number}`, { minecraftVersion });
+      const name = sanitizeFileName(file.filename.replace(/\.jar$/i, ''), api.slug) + '.jar';
+      await this.http.downloadAll([{ url: file.url, dest: safeJoin(this.mods.modsDir(gameDir), name), sha1: file.hashes.sha1, size: file.size, label: api.name }], signal);
+      log.info(`Installed ${api.name} ${version.version_number}`, { minecraftVersion });
       return true;
     });
   }
 
   private async doInstall(target: InstanceTarget, rootProject: string, signal?: AbortSignal): Promise<{ installed: string[] }> {
     const mc = target.minecraftVersion;
-    const loaders = modrinthLoaders(target.loader);
+    const loaders = modrinthLoaders(target.loader, target.minecraftVersion);
     if (!loaders.length) throw new ModInstallError('This instance has no mod loader. Choose Fabric, Quilt, Forge or NeoForge in the instance editor first.');
-    const loaderName = LOADER_NAMES[target.loader] ?? target.loader;
+    const loaderName = LOADER_NAMES[loaders[0]] ?? target.loader;
 
     const { files, installed } = await this.scan(target.gameDir);
     const installedProjects = new Set(installed.map((i) => i.projectId));
