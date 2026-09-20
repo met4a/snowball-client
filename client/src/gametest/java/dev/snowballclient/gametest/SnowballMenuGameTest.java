@@ -3,6 +3,7 @@ package dev.snowballclient.gametest;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.snowballclient.client.SnowballClient;
+import dev.snowballclient.client.gui.HudEditorView;
 import dev.snowballclient.client.gui.RadialMenuView;
 import dev.snowballclient.client.gui.TitleMenuView;
 import dev.snowballclient.client.module.Module;
@@ -14,6 +15,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.options.OptionsScreen;
 import org.slf4j.Logger;
@@ -22,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 /**
@@ -39,6 +42,7 @@ public final class SnowballMenuGameTest implements FabricClientGameTest {
 	public void runTest(ClientGameTestContext context) {
 		if (Boolean.getBoolean("snowball.scene")) return; // scene capture run only
 
+		loadingScreen(context);
 		mainMenu(context);
 		try (TestSingleplayerContext world = context.worldBuilder().create()) {
 			context.waitTicks(60);
@@ -55,6 +59,34 @@ public final class SnowballMenuGameTest implements FabricClientGameTest {
 
 			context.getInput().resizeWindow(1920, 1080);
 			context.waitTicks(20);
+
+			// The player list marks everyone known to be on Snowball Client, starting with you. Minecraft
+			// only draws the list itself with more than one player, so the name is checked directly.
+			String listed = onClient(context, mc -> {
+				PlayerInfo info = mc.getConnection().getPlayerInfo(mc.getUser().getProfileId());
+				return info == null ? "" : mc.gui.hud.getTabList().getNameForDisplay(info).getString();
+			});
+			if (!listed.startsWith(String.valueOf((char) 0xE000))) {
+				throw new AssertionError("The player list name has no Snowball badge: " + listed);
+			}
+			LOG.info("Player list shows the Snowball badge: {}", listed.replace((char) 0xE000, '*'));
+
+			// The HUD editor draws its boxes over the real HUD.
+			onClient(context, mc -> {
+				SnowballClient.get().modules().get("fps_counter").orElseThrow().setEnabled(true);
+				return null;
+			});
+			context.waitTicks(5);
+			onClient(context, mc -> {
+				ViewScreen.show(new HudEditorView(SnowballClient.get()));
+				return null;
+			});
+			context.waitTicks(10);
+			context.takeScreenshot("hud_editor");
+			context.getInput().pressKey(KEY_ESCAPE);
+			context.waitTicks(5);
+			LOG.info("HUD editor opened and closed");
+
 			openMenu(context);
 			for (ModuleCategory category : ModuleCategory.values()) {
 				double[] target = onClient(context, mc -> screen(mc).segmentCenter(category.ordinal()));
@@ -107,6 +139,18 @@ public final class SnowballMenuGameTest implements FabricClientGameTest {
 	}
 
 	/** The main menu that replaces Minecraft's title screen: shown at two sizes, and Options opens and returns. */
+	/** Reloads the resources so the Snowball loading screen is on screen, and photographs it. */
+	private static void loadingScreen(ClientGameTestContext context) {
+		context.waitFor(mc -> title(mc) != null, 400);
+		context.getInput().resizeWindow(1920, 1080);
+		context.waitTicks(10);
+		CompletableFuture<Void> reload = onClient(context, mc -> mc.reloadResourcePacks());
+		context.waitTicks(4);
+		context.takeScreenshot("loading_screen");
+		context.waitFor(mc -> reload.isDone(), 600);
+		LOG.info("Loading screen drawn during a resource reload");
+	}
+
 	private static void mainMenu(ClientGameTestContext context) {
 		context.waitFor(mc -> title(mc) != null, 400);
 		for (int[] size : new int[][]{{1280, 720}, {1920, 1080}}) {

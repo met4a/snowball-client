@@ -6,6 +6,8 @@ import { Launcher } from '../core/Launcher.js';
 import { getLogger } from '../core/logging/Logger.js';
 import { defaultDataRoot } from '../core/util/paths.js';
 import { registerIpc } from './ipc.js';
+import { ChatClient } from '../core/social/ChatClient.js';
+import { scheduleStartupCheck, UpdateService } from './updates.js';
 
 const log = getLogger('main');
 
@@ -22,13 +24,17 @@ function clientBuildDirs(): string[] {
 }
 
 /** Build-time configuration shipped inside the app (e.g. the Azure client ID for Microsoft sign-in). */
-function microsoftClientIdFromConfig(): string {
+function appConfig(): { microsoftClientId?: unknown; chatUrl?: unknown; adminUuid?: unknown; discordAppId?: unknown } {
   try {
-    const config = JSON.parse(readFileSync(join(app.getAppPath(), 'app-config.json'), 'utf8')) as { microsoftClientId?: unknown };
-    return typeof config.microsoftClientId === 'string' ? config.microsoftClientId.trim() : '';
+    return JSON.parse(readFileSync(join(app.getAppPath(), 'app-config.json'), 'utf8')) as Record<string, unknown>;
   } catch {
-    return '';
+    return {};
   }
+}
+
+function microsoftClientIdFromConfig(): string {
+  const value = appConfig().microsoftClientId;
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 async function createWindow(): Promise<void> {
@@ -38,6 +44,7 @@ async function createWindow(): Promise<void> {
     clientBuildDirs: clientBuildDirs(),
     launcherVersion: app.getVersion(),
     defaultMicrosoftClientId: microsoftClientIdFromConfig(),
+    discordAppId: typeof appConfig().discordAppId === "string" ? String(appConfig().discordAppId) : "",
   });
   const win = new BrowserWindow({
     width: 1200,
@@ -57,12 +64,18 @@ async function createWindow(): Promise<void> {
       spellcheck: false,
     },
   });
+  const updates = new UpdateService((state) => {
+    if (!win.isDestroyed()) win.webContents.send('evt:update', state);
+  });
+  const config = appConfig();
+  const chat = new ChatClient(typeof config.chatUrl === 'string' ? config.chatUrl.trim() : '', typeof config.adminUuid === 'string' ? config.adminUuid.trim() : '');
   Menu.setApplicationMenu(null);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (event) => event.preventDefault());
   win.once('ready-to-show', () => win.show());
-  registerIpc(launcher, win);
+  registerIpc(launcher, win, updates, chat);
   await win.loadFile(join(__dirname, '..', 'renderer', 'index.html'));
+  scheduleStartupCheck(updates, win, launcher.settings.get().updates.checkOnStartup);
   if (process.env.SNOWBALLCLIENT_CAPTURE_DIR) await captureViews(win, process.env.SNOWBALLCLIENT_CAPTURE_DIR);
 }
 

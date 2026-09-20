@@ -1,5 +1,5 @@
 # Shared and per-version build properties (https://stonecutter.kikugie.dev/wiki/config/properties).
-mod.version = "1.3.0"
+mod.version = "1.4.0"
 deps.fabric_loader = "0.19.5"
 loomx.loom_version = "1.17-SNAPSHOT"
 

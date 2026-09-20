@@ -145,8 +145,9 @@ declare namespace Snowball {
     downloads: { concurrency: number; retries: number };
     java: { autoDownloadRuntime: boolean; defaultMaxMemoryMb: number | null };
     game: { closeLauncherOnLaunch: boolean; showLogsOnLaunch: boolean };
-    accounts: { microsoftClientId: string; selectedAccountId: string | null };
+    accounts: { microsoftClientId: string; selectedAccountId: string | null; tier: 'snowball' | 'plus' };
     updates: { channel: 'stable' | 'beta'; checkOnStartup: boolean };
+    performance: { installMods: boolean };
     logs: { retainDays: number; debug: boolean };
     selectedInstanceId: string | null;
   }
@@ -214,7 +215,80 @@ declare namespace Snowball {
     stable: boolean;
   }
 
-  type EventName = 'progress' | 'game-log' | 'game-exit' | 'launch-error' | 'launcher-log' | 'state' | 'activity';
+  type ScanVerdict = 'clean' | 'watch' | 'suspicious' | 'dangerous';
+
+  interface ScanFinding {
+    title: string;
+    detail: string;
+    where: string;
+    weight: number;
+  }
+
+  interface ScanResult {
+    fileName: string;
+    sha1: string;
+    sizeBytes: number;
+    verdict: ScanVerdict;
+    score: number;
+    findings: ScanFinding[];
+    modId: string | null;
+    scannedAt: string;
+    error?: string;
+  }
+
+  interface FoundInstance {
+    id: string;
+    launcher: string;
+    name: string;
+    minecraftVersion: string;
+    loader: LoaderId;
+    loaderVersion: string | null;
+    gameDir: string;
+    mods: number;
+    worlds: number;
+    resourcePacks: number;
+  }
+
+  interface ImportOptions {
+    mods: boolean;
+    config: boolean;
+    resourcePacks: boolean;
+    shaderPacks: boolean;
+    saves: boolean;
+    options: boolean;
+  }
+
+  interface ChatMessage {
+    id: string;
+    name: string;
+    uuid: string;
+    text: string;
+    at: string;
+    staff?: boolean;
+    system?: boolean;
+    tier?: 'snowball' | 'plus';
+  }
+
+  interface ChatState {
+    configured: boolean;
+    status: 'offline' | 'connecting' | 'online' | 'error';
+    online: number;
+    announcement: string | null;
+    admin: boolean;
+    tier: 'snowball' | 'plus';
+    message?: string;
+  }
+
+  type UpdateState =
+    | { status: 'idle'; version: string }
+    | { status: 'checking'; version: string }
+    | { status: 'downloading'; version: string; newVersion: string; percent: number }
+    | { status: 'ready'; version: string; newVersion: string }
+    | { status: 'up-to-date'; version: string; checkedAt: string }
+    | { status: 'unsupported'; version: string; reason: string }
+    | { status: 'error'; version: string; message: string };
+
+  type EventName = 'progress' | 'game-log' | 'game-exit' | 'launch-error' | 'launcher-log' | 'state' | 'activity' | 'update' | 'chat-state' | 'chat-message' | 'chat-history';
 
   interface Api {
     getState(): Promise<AppState>;
@@ -253,6 +327,19 @@ declare namespace Snowball {
     selectAccount(id: string): Promise<void>;
     signInMicrosoft(): Promise<Account>;
     openLauncherFolder(folder: 'root' | 'logs'): Promise<void>;
+    scanMods(instanceId: string): Promise<ScanResult[]>;
+    findOtherLaunchers(): Promise<FoundInstance[]>;
+    importFromLauncher(instance: FoundInstance, options: Partial<ImportOptions>): Promise<Instance>;
+    chatState(): Promise<ChatState>;
+    joinChat(): Promise<ChatState>;
+    leaveChat(): Promise<void>;
+    sendChat(text: string): Promise<{ ok: boolean; reason?: string }>;
+    announce(text: string | null): Promise<{ ok: boolean; reason?: string }>;
+    moderateChat(action: 'mute' | 'unmute' | 'clear', uuid?: string, minutes?: number): Promise<{ ok: boolean; reason?: string }>;
+    setSnowballPlus(uuid: string, on: boolean): Promise<{ ok: boolean; reason?: string }>;
+    updateState(): Promise<UpdateState>;
+    checkForUpdates(): Promise<UpdateState | null>;
+    installUpdate(): Promise<void>;
     on(event: EventName, listener: (payload: any) => void): () => void;
   }
 }

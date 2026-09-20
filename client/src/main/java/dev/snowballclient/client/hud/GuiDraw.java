@@ -29,6 +29,55 @@ public final class GuiDraw {
 		}
 	}
 
+	/** A filled circle, drawn as one horizontal span per row. */
+	public static void circle(Fill g, int centreX, int centreY, int radius, int argb) {
+		if (radius <= 0 || (argb >>> 24) == 0) return;
+		for (int dy = -radius; dy < radius; dy++) {
+			double y = dy + 0.5;
+			int half = (int) Math.round(Math.sqrt(Math.max(0, (double) radius * radius - y * y)));
+			if (half <= 0) continue;
+			g.fill(centreX - half, centreY + dy, centreX + half, centreY + dy + 1, argb);
+		}
+	}
+
+	/** A soft halo: rings from {@code radius} inwards, each a little brighter, for glows behind logos. */
+	public static void glow(Fill g, int centreX, int centreY, int radius, int argb, int steps) {
+		float alpha = ((argb >>> 24) & 0xFF) / 255f;
+		for (int i = steps; i >= 1; i--) {
+			float t = i / (float) steps;
+			circle(g, centreX, centreY, Math.round(radius * t), withAlpha(argb, alpha * (1f - t) * (1f - t) * 3f / steps));
+		}
+	}
+
+	/** A vertical gradient drawn as horizontal bands; {@code bands} trades smoothness for fills. */
+	public static void verticalGradient(Fill g, int x, int y, int w, int h, int topArgb, int bottomArgb, int bands) {
+		if (w <= 0 || h <= 0) return;
+		int count = Math.max(1, Math.min(bands, h));
+		for (int i = 0; i < count; i++) {
+			int y0 = y + (int) ((long) h * i / count);
+			int y1 = i == count - 1 ? y + h : y + (int) ((long) h * (i + 1) / count);
+			if (y1 <= y0) continue;
+			g.fill(x, y0, x + w, y1, lerp(topArgb, bottomArgb, (i + 0.5f) / count));
+		}
+	}
+
+	/** Same colour mixing as the theme uses, kept here so drawing helpers do not depend on it. */
+	private static int lerp(int from, int to, float t) {
+		float k = Math.max(0f, Math.min(1f, t));
+		int out = 0;
+		for (int shift = 0; shift < 32; shift += 8) {
+			int a = (from >>> shift) & 0xFF;
+			int b = (to >>> shift) & 0xFF;
+			out |= Math.round(a + (b - a) * k) << shift;
+		}
+		return out;
+	}
+
+	private static int withAlpha(int argb, float alpha) {
+		int a = Math.round(Math.max(0f, Math.min(1f, alpha)) * 255f);
+		return (a << 24) | (argb & 0xFFFFFF);
+	}
+
 	/** One-pixel outline with stepped corners matching {@link #roundedRect}. */
 	public static void roundedOutline(Fill g, int x, int y, int w, int h, int radius, int argb) {
 		if (w <= 1 || h <= 1 || (argb >>> 24) == 0) return;

@@ -9,8 +9,12 @@ export interface LauncherSettings {
   downloads: { concurrency: number; retries: number };
   java: { autoDownloadRuntime: boolean; defaultMaxMemoryMb: number | null };
   game: { closeLauncherOnLaunch: boolean; showLogsOnLaunch: boolean };
-  accounts: { microsoftClientId: string; selectedAccountId: string | null };
+  /** tier is written only from what the Snowball backend reports for the signed-in account. */
+  accounts: { microsoftClientId: string; selectedAccountId: string | null; tier: 'snowball' | 'plus' };
   updates: { channel: 'stable' | 'beta'; checkOnStartup: boolean };
+  /** installMods: let a performance profile download its optimisation mods. Off by default: profiles then
+   *  only use what the instance already has. */
+  performance: { installMods: boolean };
   logs: { retainDays: number; debug: boolean };
   selectedInstanceId: string | null;
 }
@@ -22,8 +26,9 @@ export function defaultSettings(): LauncherSettings {
     downloads: { concurrency: 8, retries: 3 },
     java: { autoDownloadRuntime: true, defaultMaxMemoryMb: null },
     game: { closeLauncherOnLaunch: false, showLogsOnLaunch: false },
-    accounts: { microsoftClientId: '', selectedAccountId: null },
-    updates: { channel: 'stable', checkOnStartup: false },
+    accounts: { microsoftClientId: '', selectedAccountId: null, tier: 'snowball' },
+    updates: { channel: 'stable', checkOnStartup: true },
+    performance: { installMods: false },
     logs: { retainDays: 14, debug: false },
     selectedInstanceId: null,
   };
@@ -49,8 +54,10 @@ export function normalizeSettings(raw: unknown): LauncherSettings {
     accounts: {
       microsoftClientId: typeof r.accounts?.microsoftClientId === 'string' && /^[0-9a-fA-F-]{0,36}$/.test(r.accounts.microsoftClientId) ? r.accounts.microsoftClientId : '',
       selectedAccountId: typeof r.accounts?.selectedAccountId === 'string' ? r.accounts.selectedAccountId : null,
+      tier: r.accounts?.tier === 'plus' ? 'plus' : 'snowball',
     },
-    updates: { channel: r.updates?.channel === 'beta' ? 'beta' : 'stable', checkOnStartup: bool(r.updates?.checkOnStartup, false) },
+    updates: { channel: r.updates?.channel === 'beta' ? 'beta' : 'stable', checkOnStartup: bool(r.updates?.checkOnStartup, d.updates.checkOnStartup) },
+    performance: { installMods: bool(r.performance?.installMods, d.performance.installMods) },
     logs: { retainDays: int(r.logs?.retainDays, 1, 365, d.logs.retainDays), debug: bool(r.logs?.debug, false) },
     selectedInstanceId: typeof r.selectedInstanceId === 'string' ? r.selectedInstanceId : null,
   };

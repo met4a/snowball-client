@@ -5,6 +5,7 @@ import dev.snowballclient.client.config.ClientSettings;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.module.client.ClientHud;
 import dev.snowballclient.client.module.client.ClientHudModules;
+import dev.snowballclient.client.module.client.HudLayout;
 import dev.snowballclient.client.module.client.InterfaceSettings;
 import dev.snowballclient.client.module.client.PvpHudModules;
 import dev.snowballclient.client.module.fps.AdvancedOptions;
@@ -21,7 +22,9 @@ import dev.snowballclient.client.module.misc.Notifications;
 import dev.snowballclient.client.module.misc.ScreenshotUtility;
 import dev.snowballclient.client.module.misc.ServerInfo;
 import dev.snowballclient.client.module.misc.SessionTimer;
+import dev.snowballclient.client.module.misc.DiscordPresenceModule;
 import dev.snowballclient.client.module.qol.CpsCounter;
+import dev.snowballclient.client.module.qol.EzPots;
 import dev.snowballclient.client.module.qol.Freelook;
 import dev.snowballclient.client.module.qol.Keystrokes;
 import dev.snowballclient.client.module.qol.Snaplook;
@@ -45,6 +48,7 @@ import dev.snowballclient.client.module.storage.PackModules;
 import dev.snowballclient.client.module.storage.StorageScreens;
 import dev.snowballclient.client.perf.ModRequests;
 import dev.snowballclient.client.waypoint.WaypointStore;
+import net.minecraft.SharedConstants;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -109,6 +113,7 @@ public final class ModuleRegistry {
 		m.register(new PvpHudModules.MemoryUsage());
 		m.register(new PvpHudModules.PackDisplay());
 		m.register(new ArmorHud());
+		m.register(new HudLayout());
 		INTERFACE = m.register(new InterfaceSettings(theme, clientSettings));
 
 		// FPS BOOST: one Boost switch with preset cards; the fine-tuning modules sit under Advanced.
@@ -151,6 +156,7 @@ public final class ModuleRegistry {
 		CHAT = m.register(new ChatSettings());
 		m.register(new SessionTimer());
 		NICK_HIDER = m.register(new NickHider());
+		m.register(new DiscordPresenceModule(SharedConstants.getCurrentVersion().name()));
 
 		// QOL
 		m.register(new Keystrokes());
@@ -160,6 +166,7 @@ public final class ModuleRegistry {
 		ZOOM = m.register(new Zoom());
 		m.register(new CpsCounter());
 		m.register(new Snaplook());
+		m.register(new EzPots());
 		THIRD_PERSON = m.register(new ThirdPersonCamera());
 
 		// STORAGE
@@ -172,12 +179,12 @@ public final class ModuleRegistry {
 		CONTAINER_SEARCH = m.register(new ContainerSearch());
 		m.register(new ItemCounter());
 
-		m.order(ModuleCategory.CLIENT, "client_hud", "crosshair", "fps_counter", "ping_display", "coordinates", "direction_hud",
+		m.order(ModuleCategory.CLIENT, "client_hud", "hud_layout", "crosshair", "fps_counter", "ping_display", "coordinates", "direction_hud",
 				"speed_display", "combo_counter", "reach_display", "memory_usage", "pack_display", "armor_hud", "interface");
 		m.order(ModuleCategory.RENDER, "fps_boost", "fullbright", "zoom", "freelook", "third_person", "time_changer", "hit_color",
 				"block_outline", "no_hurt_shake", "low_fire", "fov_settings", "render_distance", "entity_distance", "weather_effects");
-		m.order(ModuleCategory.MISC, "chat_settings", "nick_hider", "screenshot_utility", "notifications", "clock", "server_info", "session_timer");
-		m.order(ModuleCategory.QOL, "keystrokes", "toggle_sprint", "zoom", "freelook", "snaplook", "third_person", "waypoints", "cps_counter", "coordinates");
+		m.order(ModuleCategory.MISC, "chat_settings", "nick_hider", "discord_presence", "screenshot_utility", "notifications", "clock", "server_info", "session_timer");
+		m.order(ModuleCategory.QOL, "keystrokes", "toggle_sprint", "ez_pots", "zoom", "freelook", "snaplook", "third_person", "waypoints", "cps_counter", "coordinates");
 	}
 
 	private static <M extends Module> M advanced(M module) {

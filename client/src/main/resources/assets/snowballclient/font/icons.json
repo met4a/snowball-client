@@ -1,0 +1,18 @@
+{
+	"providers": [
+		{
+			"type": "bitmap",
+			"file": "snowballclient:gui/tab_snowball.png",
+			"ascent": 8,
+			"height": 9,
+			"chars": [""]
+		},
+		{
+			"type": "bitmap",
+			"file": "snowballclient:gui/tab_snowball_plus.png",
+			"ascent": 8,
+			"height": 9,
+			"chars": [""]
+		}
+	]
+}

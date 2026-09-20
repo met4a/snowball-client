@@ -16,6 +16,7 @@
     <link rel="icon" type="image/png" href="assets/logo.png" />
     <link rel="stylesheet" href="styles.css?v=5" />
     <link rel="stylesheet" href="demo.css?v=1" />
+    <link rel="stylesheet" href="refresh.css?v=1" />
     <script>document.documentElement.classList.add('js');</script>
   </head>
   <body>
@@ -37,19 +38,19 @@
       <section class="hero">
         <div class="snow" aria-hidden="true"></div>
         <div class="wrap">
-          <a class="pill" href="#download"><span class="dot"></span>Version 1.3.0 is out - now on Minecraft 1.8.9 too</a>
+          <a class="pill" href="#download"><span class="dot"></span>Version 1.4.0 - a menu, a loading screen and a launcher that updates itself</a>
           <img class="hero-logo" src="assets/logo.png" alt="Snowball Client logo" width="112" height="112" />
           <h1>SNOWBALL <span>CLIENT</span></h1>
-          <p class="lead">A fast, clean Minecraft: Java Edition launcher and client. Isolated instances, one-click performance mods and a radial in-game menu for everything else.</p>
+          <p class="lead">A fast, clean Minecraft: Java Edition launcher and client. Your own main menu, a radial in-game menu, isolated instances, and a launcher that keeps itself up to date.</p>
           <div class="hero-actions">
-            <a class="btn primary big" href="#download">Download for Windows</a>
-            <a class="btn big" href="#features">See features</a>
+            <a class="btn primary big" href="#download">Download free for Windows</a>
+            <a class="btn big" href="#features">See what it does</a>
           </div>
           <p class="hero-meta">Free <b>/</b> Minecraft 1.8.9, 1.21.11 and 26.2 <b>/</b> Windows 10 and 11</p>
 
           <figure class="window hero-shot reveal">
-            <div class="window-bar"><i></i><i></i><i></i><span>In game - Right Shift</span></div>
-            <img src="assets/menu-client.jpg" alt="The Snowball Client radial menu in game, with the CLIENT category open" width="1920" height="1080" />
+            <div class="window-bar"><i></i><i></i><i></i><span>Minecraft, opened on the Snowball main menu</span></div>
+            <img src="assets/menu-main.jpg" alt="The Snowball Client main menu in Minecraft: the logo, Singleplayer, Multiplayer and a Snowball menu card over the game's panorama" width="1920" height="1080" />
           </figure>
         </div>
       </section>
@@ -57,8 +58,8 @@
       <section class="stats-band" aria-label="At a glance">
         <div class="wrap stats">
           <div><strong>50+</strong><span>modules</span></div>
-          <div><strong>6</strong><span>menu categories</span></div>
-          <div><strong>4</strong><span>mod loaders</span></div>
+          <div><strong>3</strong><span>Minecraft versions</span></div>
+          <div><strong>0.4s</strong><span>from Play to game</span></div>
           <div><strong>0</strong><span>cheats</span></div>
         </div>
       </section>
@@ -89,8 +90,31 @@
             <div class="card reveal"><span class="tag">QOL</span><h3>Keystrokes and waypoints</h3><p>Keys, clicks per second, toggle sprint, and waypoints with on-screen markers.</p></div>
             <div class="card reveal"><span class="tag">MENU</span><h3>Search everything</h3><p>Start typing in the menu to find any module. Every row explains what it does in a few words.</p></div>
             <div class="card reveal"><span class="tag">STORAGE</span><h3>Profiles and packs</h3><p>Save module setups, switch mod sets, browse screenshots, peek inside shulker boxes and search chests.</p></div>
+            <div class="card reveal"><span class="tag">NEW</span><h3>EZ Pots</h3><p>Hear a potion before it drops. Every effect gets its own sound, pitch and warning times, so Strength and Speed never sound the same.</p></div>
+            <div class="card reveal"><span class="tag">NEW</span><h3>Discord presence</h3><p>Show what you are up to, with the server read from the game itself so nobody can fake where they are playing.</p></div>
+            <div class="card reveal"><span class="tag">NEW</span><h3>Snowball loading screen</h3><p>The red Mojang screen becomes a Snowball one, with a real progress bar while the game loads.</p></div>
+            <div class="card reveal"><span class="tag">NEW</span><h3>Snowball in the player list</h3><p>Players on Snowball Client get a snowball next to their name when you hold Tab.</p></div>
             <div class="card reveal"><span class="tag">MENU</span><h3>Your own main menu</h3><p>The title screen becomes the Snowball menu: your account, Singleplayer, Multiplayer and quick buttons for the game's own screens, over Minecraft's own panorama. Switch it off any time.</p></div>
           </div>
+        </div>
+      </section>
+
+      <section id="legacy">
+        <div class="wrap split reveal">
+          <div>
+            <p class="section-title">1.8.9</p>
+            <h2 class="section-heading">The same client on old Minecraft</h2>
+            <p class="section-lead">PvP still lives on 1.8.9, so Snowball Client runs there too. Create a Fabric instance for 1.8.9 and the launcher sets up Legacy Fabric, the API and the client for you.</p>
+            <ul class="checks">
+              <li><strong>The same menus</strong>, the same modules and the same config files as on 1.21.11 and 26.2</li>
+              <li><strong>Nothing to install by hand</strong>: Legacy Fabric, its API and Java are handled for you</li>
+              <li><strong>Your settings follow you</strong> between versions, because they are stored the same way</li>
+            </ul>
+          </div>
+          <figure class="window">
+            <div class="window-bar"><i></i><i></i><i></i><span>Minecraft 1.8.9</span></div>
+            <img src="assets/menu-189.jpg" alt="The Snowball Client radial menu running on Minecraft 1.8.9" width="1280" height="720" loading="lazy" />
+          </figure>
         </div>
       </section>
 
@@ -101,6 +125,9 @@
             <h2 class="section-heading">Instances that never conflict</h2>
             <p class="section-lead">Each instance has its own version, mods, worlds and settings, so your PvP setup never breaks your modpack.</p>
             <ul class="checks">
+              <li><strong>Updates itself</strong>: new versions arrive in the background and install when you restart, so you never run an installer again</li>
+              <li><strong>Escaping another launcher?</strong> Import instances, mods, worlds and settings from Modrinth, CurseForge, Prism, MultiMC, ATLauncher, GDLauncher or the official launcher</li>
+              <li><strong>Check mods</strong>: every jar is read on your computer and told back to you in plain language - what it can run, read or send</li>
               <li><strong>Snowball Client built in</strong>: loaded by the launcher, never a mod file you can lose, checked and repaired before every launch</li>
               <li><strong>Readable activity log</strong>: see each step, from checking files to joining a world, with the full game log one click away</li>
               <li><strong>Starts fast</strong>: game files are checked once and trusted while they stay untouched, so pressing Play starts the game instead of re-checking thousands of files</li>
@@ -191,31 +218,51 @@
         <div class="wrap">
           <p class="section-title">DOWNLOAD</p>
           <h2 class="section-heading">Get Snowball Client</h2>
-          <p class="section-lead center">Version 1.3.0 for Windows 10 and 11 (64-bit), with Snowball Client for Minecraft 1.8.9, 1.21.11 and 26.2. You need a Microsoft account that owns Minecraft: Java Edition.</p>
+          <p class="section-lead center">Version 1.4.0 for Windows 10 and 11 (64-bit), with Snowball Client for Minecraft 1.8.9, 1.21.11 and 26.2. You need a Microsoft account that owns Minecraft: Java Edition.</p>
           <div class="options">
             <div class="card featured reveal">
               <span class="tag">RECOMMENDED</span>
               <h3>Installer</h3>
-              <p>Installs Snowball Client with a Start menu shortcut and uninstaller.</p>
-              <p class="size">.exe - 107 MB</p>
-              <a class="btn primary" href="https://github.com/met4a/snowball-website/releases/download/v1.3.0/SnowballClient-1.3.0-setup.exe">Download installer</a>
+              <p>Installs Snowball Client with a Start menu shortcut, and updates itself from then on.</p>
+              <p class="size">.exe - 108 MB</p>
+              <a class="btn primary" href="https://github.com/met4a/snowball-website/releases/download/v1.4.0/SnowballClient-1.4.0-setup.exe">Download installer</a>
             </div>
             <div class="card reveal">
               <span class="tag">PORTABLE</span>
               <h3>Portable</h3>
               <p>A single file you can run from anywhere. Nothing is installed.</p>
-              <p class="size">.exe - 107 MB</p>
-              <a class="btn" href="https://github.com/met4a/snowball-website/releases/download/v1.3.0/SnowballClient-1.3.0-portable.exe">Download portable</a>
+              <p class="size">.exe - 108 MB</p>
+              <a class="btn" href="https://github.com/met4a/snowball-website/releases/download/v1.4.0/SnowballClient-1.4.0-portable.exe">Download portable</a>
+            </div>
+            <div class="card reveal">
+              <span class="tag">ZIP</span>
+              <h3>Zip archive</h3>
+              <p>For when your browser refuses to download a .exe. Unpack it and run Snowball Client Launcher.exe.</p>
+              <p class="size">.zip - 148 MB</p>
+              <a class="btn" href="https://github.com/met4a/snowball-website/releases/download/v1.4.0/SnowballClient-1.4.0-win.zip">Download zip</a>
             </div>
           </div>
           <p class="note">Windows may show "Windows protected your PC" because the app is new and not yet code-signed. Choose More info, then Run anyway.</p>
+          <div class="help">
+            <h3>Microsoft Edge blocked the download?</h3>
+            <p class="muted">Edge and SmartScreen hold back files that few people have downloaded yet. It is not a virus warning, and here is how to get past it:</p>
+            <ol>
+              <li>Open Edge's Downloads list (Ctrl+J) and find Snowball Client.</li>
+              <li>Click the three dots next to it, then <strong>Keep</strong>.</li>
+              <li>If Edge asks again, choose <strong>Show more</strong>, then <strong>Keep anyway</strong>.</li>
+              <li>Still refusing? Take the <strong>zip</strong> above instead - browsers treat it far more kindly.</li>
+            </ol>
+            <p class="muted">You can always check the file against the SHA-256 checksums below before running it.</p>
+          </div>
           <details class="checksums">
             <summary>SHA-256 checksums</summary>
             <dl>
-              <dt>SnowballClient-1.3.0-setup.exe</dt>
-              <dd>081fc246510713cbd2b3c0a90c4ab7b9e7dcf80adac156cd7c8f46e99f8d1cd5</dd>
-              <dt>SnowballClient-1.3.0-portable.exe</dt>
-              <dd>aa85c3e7306a3b5978870d8fc509b55d22e81cf9d5c353ada82ad77ea618a643</dd>
+              <dt>SnowballClient-1.4.0-setup.exe</dt>
+              <dd>fcc54804c089093bd110560504fdf498de59c09878eff50c3d87b29f8fe3ea7d</dd>
+              <dt>SnowballClient-1.4.0-portable.exe</dt>
+              <dd>87d4b824b1778f2a6f3d9169c72056c59519aab6ad3021c9135efd695fe67fee</dd>
+              <dt>SnowballClient-1.4.0-win.zip</dt>
+              <dd>d1e52cb557c2a8bea80846e3959837c0c3b3a66561e2f67eae3691dbf030d5e8</dd>
             </dl>
           </details>
           <p class="note"><a href="https://github.com/met4a/snowball-website/releases">All releases</a></p>
@@ -252,7 +299,47 @@
           </details>
           <details>
             <summary>Does it cost anything?</summary>
-            <p>No. Snowball Client is free. You still need to own Minecraft: Java Edition.</p>
+            <p>No. Snowball Client is free, with nothing to buy inside it. You still need to own Minecraft: Java Edition.</p>
+          </details>
+          <details>
+            <summary>Microsoft Edge or Chrome blocked the download</summary>
+            <p>Browsers hold back files that few people have downloaded yet. In Edge, open Downloads (Ctrl+J), click the three dots next to the file and choose Keep, then Show more and Keep anyway. Chrome hides the same choice under the arrow next to the download. If your browser will not budge, download the zip instead: browsers rarely block those.</p>
+          </details>
+          <details>
+            <summary>Do I have to reinstall it for every update?</summary>
+            <p>No. From 1.4.0 the launcher updates itself: a new version downloads in the background and takes over when you restart, and your instances, mods and settings are untouched. The portable build cannot replace itself, so it tells you when a new file is on the website.</p>
+          </details>
+          <details>
+            <summary>How do I move over from another launcher?</summary>
+            <p>Open Instances and choose Import from another launcher. Snowball looks for Modrinth, CurseForge, Prism, MultiMC, ATLauncher, GDLauncher and the official launcher, and copies the instance you pick: mods, settings, resource packs, shader packs and worlds. Nothing is moved or deleted, so your old launcher keeps working exactly as it did.</p>
+          </details>
+          <details>
+            <summary>How do I know a mod is safe?</summary>
+            <p>The Mods page has a Check mods button. Every jar is read on your computer and reported in plain language: whether it can run programs, read your Discord or browser folders, reach your Minecraft session, or send data to a webhook. Nothing is uploaded anywhere, and the report always shows which file matched so you can judge for yourself.</p>
+          </details>
+          <details>
+            <summary>Will a performance profile install mods I did not ask for?</summary>
+            <p>No. Profiles use the optimisation mods your instance already has and skip the rest, so picking one never downloads anything. If you would rather Snowball fetched them for you, turn on "Install optimisation mods" in Settings.</p>
+          </details>
+          <details>
+            <summary>What does it do to my computer?</summary>
+            <p>It keeps everything in one folder (Settings shows you where), downloads Minecraft, Java and the mods you ask for, and writes nothing to the registry beyond what the installer needs for its own shortcut and uninstaller. Uninstalling removes the app; your instances stay until you delete that folder.</p>
+          </details>
+          <details>
+            <summary>Does Snowball Client collect anything about me?</summary>
+            <p>No accounts, no tracking and no telemetry. Sign-in happens on Microsoft's own page, the token is encrypted by Windows on your computer, and logs stay on your disk with tokens redacted.</p>
+          </details>
+          <details>
+            <summary>Can I use it with shaders?</summary>
+            <p>Yes. Install Iris and Sodium in the instance (the mod browser has both) and your shader packs work as usual. Snowball Client's own features are drawn on top and do not replace the renderer.</p>
+          </details>
+          <details>
+            <summary>Is 1.8.9 really the same client?</summary>
+            <p>Yes. The same menus, modules, HUD and config files, built against Legacy Fabric for 1.8.9. The launcher sets up the loader, the API and the right Java version when you create the instance.</p>
+          </details>
+          <details>
+            <summary>Something broke. Where do I look?</summary>
+            <p>The Home page shows a readable activity log while the game starts, with the full technical log one tab away, and Settings has a button that opens the launcher's log folder. Crashes open a window with the crash report path.</p>
           </details>
         </div>
       </section>

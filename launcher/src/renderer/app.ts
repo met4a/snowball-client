@@ -4,7 +4,7 @@
 (() => {
   const api = window.snowball;
 
-  type View = 'home' | 'instances' | 'mods' | 'browse' | 'java' | 'settings';
+  type View = 'home' | 'instances' | 'mods' | 'browse' | 'chat' | 'java' | 'settings';
 
   const ui = {
     state: null as Snowball.AppState | null,
@@ -35,6 +35,9 @@
     updates: new Map<string, Map<string, Snowball.ModUpdate>>(),
     activity: new Map<string, Snowball.ActivityEvent[]>(),
     logMode: 'activity' as 'activity' | 'technical',
+    update: null as Snowball.UpdateState | null,
+    chat: null as Snowball.ChatState | null,
+    chatMessages: [] as Snowball.ChatMessage[],
   };
 
   // ---------- DOM helpers ----------
@@ -62,6 +65,7 @@
   // Static, trusted icon markup (no user data is ever inserted here).
   const ICONS: Record<string, string> = {
     home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+    chat: '<path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/>',
     instances: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
     mods: '<path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M12 22V12M21 7l-9 5-9-5"/>',
     browse: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
@@ -196,6 +200,7 @@
     ['instances', 'INSTANCES'],
     ['mods', 'MODS'],
     ['browse', 'BROWSE'],
+    ['chat', 'CHAT'],
     ['java', 'JAVA'],
     ['settings', 'SETTINGS'],
   ];
@@ -217,8 +222,41 @@
       content.replaceChildren(h('div', { class: 'empty muted' }, 'Loading...'));
       return;
     }
-    const views: Record<View, () => Node> = { home: homeView, instances: instancesView, mods: modsView, browse: browseView, java: javaView, settings: settingsView };
-    content.replaceChildren(views[ui.view]());
+    const views: Record<View, () => Node> = { home: homeView, instances: instancesView, mods: modsView, browse: browseView, chat: chatView, java: javaView, settings: settingsView };
+    const banners = [announcementBanner(), updateBanner()].filter((b): b is HTMLElement => b !== null);
+    content.replaceChildren(...banners, views[ui.view]());
+  }
+
+  /** The Snowball team's message of the day, when there is one. */
+  function announcementBanner(): HTMLElement | null {
+    const text = ui.chat?.announcement;
+    if (!text) return null;
+    return h('div', { class: 'update-bar announce' },
+      h('div', { class: 'update-dot' }),
+      h('div', { class: 'grow' }, h('div', { class: 'muted', style: 'font-size:11px;letter-spacing:2px' }, 'SNOWBALL'), h('div', {}, text)));
+  }
+
+  /** Shown while a new launcher version downloads and once it is ready to take over. */
+  function updateBanner(): HTMLElement | null {
+    const state = ui.update;
+    if (!state) return null;
+    if (state.status === 'downloading') {
+      return h('div', { class: 'update-bar' },
+        h('div', { class: 'update-dot' }),
+        h('div', { class: 'grow' },
+          h('div', {}, `Downloading Snowball Client ${state.newVersion}`),
+          h('div', { class: 'progress thin' }, h('div', { style: `width:${state.percent}%` }))),
+        h('div', { class: 'muted' }, `${state.percent}%`));
+    }
+    if (state.status === 'ready') {
+      return h('div', { class: 'update-bar ready' },
+        h('div', { class: 'update-dot' }),
+        h('div', { class: 'grow' },
+          h('div', {}, `Snowball Client ${state.newVersion} is ready`),
+          h('div', { class: 'muted', style: 'font-size:13px' }, 'It takes a few seconds, and your instances are untouched.')),
+        h('button', { class: 'btn small primary', onClick: () => void api.installUpdate() }, 'Restart now'));
+    }
+    return null;
   }
 
   function header(title: string, subtitle: string, ...actions: Child[]): HTMLElement {
@@ -232,7 +270,9 @@
       h('img', { src: 'assets/logo.png', alt: '' }),
       h('h2', { class: 'page-title', style: 'margin-top:16px' }, 'NO INSTANCES'),
       h('p', { class: 'muted' }, message),
-      h('button', { class: 'btn primary', onClick: () => createInstanceDialog() }, 'Create instance'));
+      h('div', { class: 'row', style: 'justify-content:center' },
+        h('button', { class: 'btn primary', onClick: () => createInstanceDialog() }, 'Create instance'),
+        h('button', { class: 'btn', onClick: () => importDialog() }, 'Escaping another launcher?')));
   }
 
   // ---------- play controls ----------
@@ -270,13 +310,29 @@
     }
   }
 
+  /** The steps a launch goes through, so the progress card can show what is done and what is next. */
+  const LAUNCH_STEPS = ['Checking game files', 'Downloading libraries', 'Downloading game assets', 'Checking core files', 'Loading Minecraft'];
+
+  function stepIndex(stage: string | undefined): number {
+    if (!stage) return 0;
+    const lower = stage.toLowerCase();
+    const found = LAUNCH_STEPS.findIndex((step) => lower.startsWith(step.toLowerCase().slice(0, 12)));
+    return found < 0 ? 0 : found;
+  }
+
   function progressBar(id: string): HTMLElement | null {
     if (!ui.busy.has(id)) return null;
     const p = ui.progress.get(id);
     const pct = p?.total ? Math.round((100 * (p.completed ?? 0)) / p.total) : null;
-    return h('div', {},
+    const current = stepIndex(p?.stage);
+    return h('div', { class: 'launch-progress' },
+      h('div', { class: 'launch-progress-head' },
+        h('div', { class: 'launch-stage' }, p?.stage ?? 'Preparing'),
+        h('div', { class: 'launch-pct' }, pct === null ? '' : `${pct}%`)),
       h('div', { class: `progress${pct === null ? ' indeterminate' : ''}` }, h('div', { style: pct === null ? '' : `width:${pct}%` })),
-      h('div', { class: 'muted', style: 'margin-top:6px;font-size:13px' }, p ? `${p.stage}${pct !== null ? ` - ${pct}% (${p.completed}/${p.total})` : ''}` : 'Preparing...'));
+      h('div', { class: 'launch-steps' }, ...LAUNCH_STEPS.map((step, i) =>
+        h('div', { class: `launch-step${i < current ? ' done' : i === current ? ' active' : ''}` }, h('span', { class: 'launch-step-dot' }), step))),
+      p && pct !== null ? h('div', { class: 'muted', style: 'font-size:12px' }, `${p.completed} of ${p.total} files`) : null);
   }
 
   // ---------- views ----------
@@ -379,9 +435,10 @@
   function instancesView(): Node {
     const state = ui.state!;
     const newButton = h('button', { class: 'btn primary', onClick: () => createInstanceDialog() }, '+ New instance');
+    const importButton = h('button', { class: 'btn', onClick: () => importDialog() }, 'Import from another launcher');
     if (state.instances.length === 0) return h('div', {}, header('INSTANCES', 'Isolated game installations'), emptyState('Each instance has its own version, mods, settings and worlds.'));
     return h('div', {},
-      header('INSTANCES', `${state.instances.length} isolated installation${state.instances.length === 1 ? '' : 's'}`, newButton),
+      header('INSTANCES', `${state.instances.length} isolated installation${state.instances.length === 1 ? '' : 's'}`, importButton, newButton),
       h('div', { class: 'grid cards' }, ...state.instances.map((inst) =>
         h('div', { class: `card instance-card${inst.id === ui.selectedId ? ' selected' : ''}`, onClick: () => select(inst.id) },
           h('div', { class: 'row' },
@@ -560,6 +617,7 @@
     return h('div', { class: 'stack' },
       header('MODS', 'Install, toggle and check compatibility', picker,
         h('button', { class: 'btn', disabled: inst.running || inst.loader === 'vanilla', onClick: async () => { const r = await guard(() => api.addMods(inst.id)); if (r) { if (r.added) toast(`Added ${r.added} mod${r.added === 1 ? '' : 's'}`); r.errors.forEach((e) => toast(e, 'error')); await load(); } } }, '+ Add mods'),
+        h('button', { class: 'btn', disabled: inst.loader === 'vanilla', onClick: () => scanDialog(inst.id) }, 'Check mods'),
         h('button', { class: 'btn ghost', onClick: () => void guard(() => api.openInstanceFolder(inst.id, 'mods')) }, 'Open folder')),
       h('div', { class: 'card' },
         h('div', { class: 'section-title' }, 'PERFORMANCE PROFILE'),
@@ -726,6 +784,100 @@
       h('div', { class: 'card' }, results, footer));
   }
 
+  function chatView(): Node {
+    const state = ui.chat;
+    if (!state || !state.configured) {
+      return h('div', { class: 'stack' },
+        header('CHAT', 'Talk to other Snowball players'),
+        h('div', { class: 'card empty' },
+          h('h2', { class: 'page-title' }, 'CHAT IS NOT SWITCHED ON'),
+          h('p', { class: 'muted' }, 'This build has no chat server set, so there is nothing to join yet.')));
+    }
+
+    const messages = h('div', { class: 'chat-log', id: 'chat-log' });
+    paintChat(messages);
+    const input = h('input', { class: 'input', placeholder: state.status === 'online' ? 'Say something' : 'Join chat to talk', maxlength: '240', disabled: state.status !== 'online' }) as HTMLInputElement;
+    const send = async () => {
+      const text = input.value.trim();
+      if (!text) return;
+      const result = await guard(() => api.sendChat(text));
+      if (!result) return;
+      if (!result.ok) {
+        toast(result.reason ?? 'That message was not sent.', 'error');
+        return;
+      }
+      input.value = '';
+    };
+    input.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter') void send();
+    });
+
+    const status = state.status === 'online'
+      ? `${state.online} online`
+      : state.status === 'connecting' ? 'Connecting...' : state.message ?? 'Not connected';
+
+    return h('div', { class: 'stack' },
+      header('CHAT', status,
+        state.status === 'online'
+          ? h('button', { class: 'btn', onClick: () => void api.leaveChat() }, 'Leave')
+          : h('button', { class: 'btn primary', onClick: () => void guard(() => api.joinChat()) }, 'Join chat')),
+      state.admin ? adminCard() : null,
+      h('div', { class: 'card chat-card' },
+        messages,
+        h('div', { class: 'row chat-input' }, input, h('button', { class: 'btn primary', disabled: state.status !== 'online', onClick: () => void send() }, 'Send')),
+        h('p', { class: 'muted', style: 'font-size:12px;margin:8px 0 0' }, 'No links, no images and no abuse. Everyone here signed in with Microsoft, so names are real.')));
+  }
+
+  /** Only the Snowball account sees this, and the server checks that again for every action. */
+  function adminCard(): HTMLElement {
+    const announcement = h('input', { class: 'input', placeholder: 'Announcement everyone sees', maxlength: '300', value: ui.chat?.announcement ?? '' }) as HTMLInputElement;
+    const muteUuid = h('input', { class: 'input', placeholder: 'UUID to mute' }) as HTMLInputElement;
+    const plusUuid = h('input', { class: 'input', placeholder: 'UUID to give Snowball+' }) as HTMLInputElement;
+    const muteMinutes = h('input', { class: 'input', type: 'number', min: '1', max: '1440', value: '10', style: 'max-width:110px' }) as HTMLInputElement;
+    const run = async (fn: () => Promise<{ ok: boolean; reason?: string }>) => {
+      const result = await guard(fn);
+      if (result && !result.ok) toast(result.reason ?? 'That did not work.', 'error');
+      else if (result) toast('Done');
+    };
+    return h('div', { class: 'card' },
+      h('div', { class: 'section-title' }, 'ADMIN'),
+      h('div', { class: 'list' },
+        h('div', { class: 'list-row' },
+          h('div', { class: 'grow' }, announcement),
+          h('button', { class: 'btn small primary', onClick: () => void run(() => api.announce(announcement.value)) }, 'Post'),
+          h('button', { class: 'btn small', onClick: () => { announcement.value = ''; void run(() => api.announce(null)); } }, 'Clear')),
+        h('div', { class: 'list-row' },
+          h('div', { class: 'grow' }, muteUuid),
+          muteMinutes,
+          h('button', { class: 'btn small', onClick: () => void run(() => api.moderateChat('mute', muteUuid.value.trim(), Number(muteMinutes.value))) }, 'Mute'),
+          h('button', { class: 'btn small', onClick: () => void run(() => api.moderateChat('unmute', muteUuid.value.trim())) }, 'Unmute')),
+        h('div', { class: 'list-row' },
+          h('div', { class: 'grow' }, plusUuid),
+          h('button', { class: 'btn small primary', onClick: () => void run(() => api.setSnowballPlus(plusUuid.value.trim(), true)) }, 'Give Snowball+'),
+          h('button', { class: 'btn small', onClick: () => void run(() => api.setSnowballPlus(plusUuid.value.trim(), false)) }, 'Remove')),
+        h('div', { class: 'list-row' },
+          h('div', { class: 'grow' }, h('div', {}, 'Clear the chat for everyone'), h('div', { class: 'muted', style: 'font-size:12px' }, 'Wipes the recent messages the server keeps.')),
+          h('button', { class: 'btn small danger', onClick: () => void run(() => api.moderateChat('clear')) }, 'Clear chat'))));
+  }
+
+  function paintChat(view: HTMLElement): void {
+    if (!ui.chatMessages.length) {
+      view.replaceChildren(h('div', { class: 'muted' }, 'Nothing said yet.'));
+      return;
+    }
+    view.replaceChildren(...ui.chatMessages.map(chatRow));
+    view.scrollTop = view.scrollHeight;
+  }
+
+  function chatRow(message: Snowball.ChatMessage): HTMLElement {
+    const time = new Date(message.at);
+    return h('div', { class: `chat-line${message.system ? ' system' : ''}` },
+      h('span', { class: 'chat-time' }, Number.isNaN(time.getTime()) ? '' : time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })),
+      message.staff ? h('span', { class: 'chat-role' }, 'Owner') : message.tier === 'plus' ? h('span', { class: 'chat-role plus' }, 'Snowball+') : null,
+      h('span', { class: `chat-name${message.staff ? ' staff' : ''}` }, message.name),
+      h('span', { class: 'chat-text' }, message.text));
+  }
+
   function javaView(): Node {
     const state = ui.state!;
     const listEl = h('div', { class: 'list' }, h('div', { class: 'muted' }, 'Detecting Java installations...'));
@@ -764,6 +916,128 @@
         listEl));
   }
 
+  /** Everything about keeping the launcher itself current, in one place. */
+  function updatesCard(s: Snowball.Settings, update: (patch: Partial<Snowball.Settings>) => Promise<void>): HTMLElement {
+    const state = ui.update;
+    const line = (): string => {
+      if (!state) return 'No update has been checked for yet.';
+      switch (state.status) {
+        case 'checking': return 'Looking for a new version...';
+        case 'downloading': return `Downloading ${state.newVersion} (${state.percent}%)`;
+        case 'ready': return `Version ${state.newVersion} is ready to install.`;
+        case 'up-to-date': return 'You have the newest version.';
+        case 'unsupported': return state.reason;
+        case 'error': return `Could not check: ${state.message}`;
+        default: return 'No update has been checked for yet.';
+      }
+    };
+    const status = h('div', { class: 'muted', style: 'font-size:13px' }, line());
+    return h('div', { class: 'card' },
+      h('div', { class: 'section-title' }, 'UPDATES'),
+      h('div', { class: 'list' },
+        h('div', { class: 'list-row' },
+          h('div', { class: 'grow' },
+            h('div', {}, 'Update by itself'),
+            h('div', { class: 'muted', style: 'font-size:13px' }, 'New versions install in the background, so you never run the installer again.')),
+          toggle(s.updates.checkOnStartup, (v) => void update({ updates: { ...s.updates, checkOnStartup: v } }))),
+        h('div', { class: 'list-row' },
+          h('div', { class: 'grow' }, h('div', {}, 'Status'), status),
+          state?.status === 'ready'
+            ? h('button', { class: 'btn small primary', onClick: () => void api.installUpdate() }, 'Restart now')
+            : h('button', {
+                class: 'btn small',
+                onClick: async () => {
+                  status.textContent = 'Looking for a new version...';
+                  const r = await guard(() => api.checkForUpdates());
+                  if (r) { ui.update = r; render(); }
+                },
+              }, 'Check now'))));
+  }
+
+  /** "Escaping from another launcher": finds instances elsewhere on this computer and copies one over. */
+  function importDialog(): void {
+    const list = h('div', { class: 'list' }, h('div', { class: 'muted' }, 'Looking for other launchers...'));
+    const picks: Snowball.ImportOptions = { mods: true, config: true, resourcePacks: true, shaderPacks: true, saves: true, options: true };
+    const optionRow = (label: string, key: keyof Snowball.ImportOptions) =>
+      h('div', { class: 'list-row' }, h('div', { class: 'grow' }, label), toggle(picks[key], (v) => { picks[key] = v; }));
+    const options = h('div', { class: 'list', style: 'margin-top:12px' },
+      optionRow('Mods', 'mods'),
+      optionRow('Mod settings (config)', 'config'),
+      optionRow('Resource packs', 'resourcePacks'),
+      optionRow('Shader packs', 'shaderPacks'),
+      optionRow('Worlds', 'saves'),
+      optionRow('Game options and servers', 'options'));
+    const body = h('div', {},
+      h('p', { class: 'muted' }, 'Nothing is moved or deleted: your other launcher keeps working exactly as it does now.'),
+      list,
+      h('div', { class: 'section-title', style: 'margin-top:16px' }, 'BRING ACROSS'),
+      options);
+    const close = modal('IMPORT FROM ANOTHER LAUNCHER', body, [{ label: 'Close', kind: 'ghost', onClick: (c) => c() }]);
+
+    void api.findOtherLaunchers().then((found) => {
+      if (!found.length) {
+        list.replaceChildren(h('div', { class: 'muted' }, 'No other launcher was found on this computer. Modrinth, CurseForge, Prism, MultiMC, ATLauncher, GDLauncher and the official launcher are all checked.'));
+        return;
+      }
+      list.replaceChildren(...found.map((f) => h('div', { class: 'list-row' },
+        h('div', { class: 'grow' },
+          h('div', {}, f.name, h('span', { class: 'tag', style: 'margin-left:8px' }, f.launcher.toUpperCase())),
+          h('div', { class: 'muted', style: 'font-size:12px' }, `Minecraft ${f.minecraftVersion} - ${LOADER_NAMES[f.loader]} - ${f.mods} mod${f.mods === 1 ? '' : 's'}, ${f.worlds} world${f.worlds === 1 ? '' : 's'}`)),
+        h('button', {
+          class: 'btn small primary',
+          onClick: async (e: MouseEvent) => {
+            const button = e.currentTarget as HTMLButtonElement;
+            button.disabled = true;
+            button.textContent = 'Copying...';
+            const created = await guard(() => api.importFromLauncher(f, picks));
+            button.disabled = false;
+            button.textContent = 'Import';
+            if (created) {
+              toast(`Imported ${created.name}`);
+              close();
+              await refresh();
+              select(created.id);
+            }
+          },
+        }, 'Import'))));
+    }).catch((err) => list.replaceChildren(h('div', { class: 'muted' }, errorMessage(err))));
+  }
+
+  /** Snowball's own mod check: reads each jar on this computer and reports what it can do. */
+  function scanDialog(instanceId: string): void {
+    const body = h('div', {});
+    const list = h('div', { class: 'list' }, h('div', { class: 'muted' }, 'Reading every mod in this instance...'));
+    const summary = h('p', { class: 'muted' }, 'Nothing is uploaded: each jar is read here and compared with what stealers and loaders do.');
+    body.append(summary, list);
+    modal('MOD CHECK', body, [{ label: 'Close', kind: 'ghost', onClick: (c) => c() }]);
+
+    void api.scanMods(instanceId).then((results) => {
+      if (!results.length) {
+        list.replaceChildren(h('div', { class: 'muted' }, 'This instance has no mods to check.'));
+        return;
+      }
+      const bad = results.filter((r) => r.verdict === 'dangerous' || r.verdict === 'suspicious').length;
+      summary.textContent = bad
+        ? `${bad} of ${results.length} mods do things worth a second look. Nothing was uploaded; everything was checked here.`
+        : `All ${results.length} mods look ordinary. Nothing was uploaded; everything was checked here.`;
+      list.replaceChildren(...results.map((r) => {
+        const findings = h('div', { class: 'scan-findings' }, ...r.findings.map((f) =>
+          h('div', { class: 'scan-finding' },
+            h('div', {}, f.title),
+            h('div', { class: 'muted', style: 'font-size:12px' }, f.detail),
+            h('div', { class: 'muted', style: 'font-size:11px' }, f.where))));
+        findings.hidden = true;
+        const row = h('div', { class: 'list-row scan-row' },
+          h('span', { class: `verdict ${r.verdict}` }, r.verdict.toUpperCase()),
+          h('div', { class: 'grow' },
+            h('div', {}, r.fileName),
+            h('div', { class: 'muted', style: 'font-size:12px' }, r.error ? r.error : r.findings.length ? `${r.findings.length} thing${r.findings.length === 1 ? '' : 's'} found` : 'Nothing unusual')),
+          r.findings.length ? h('button', { class: 'btn small', onClick: () => { findings.hidden = !findings.hidden; } }, 'Details') : null);
+        return h('div', {}, row, findings);
+      }));
+    }).catch((err) => list.replaceChildren(h('div', { class: 'muted' }, errorMessage(err))));
+  }
+
   function settingsView(): Node {
     const state = ui.state!;
     const s = state.settings;
@@ -790,6 +1064,7 @@
         h('div', { class: 'row', style: 'margin-top:12px' },
           h('button', { class: 'btn primary', onClick: () => microsoftSignIn() }, 'Sign in with Microsoft'),
           h('button', { class: 'btn', disabled: !state.canAddOffline, title: state.canAddOffline ? '' : 'Requires a Microsoft account first', onClick: () => offlineDialog() }, 'Add offline profile'))),
+      updatesCard(s, update),
       h('div', { class: 'card' },
         h('div', { class: 'section-title' }, 'LAUNCHER'),
         h('div', { class: 'list' },
@@ -1063,7 +1338,47 @@
     if (ui.launcherLogs.length > 500) ui.launcherLogs.shift();
   });
   api.on('state', () => void refresh());
+  api.on('chat-state', (state: Snowball.ChatState) => {
+    const wasAnnouncement = ui.chat?.announcement ?? null;
+    ui.chat = state;
+    if (ui.view === 'chat' || wasAnnouncement !== state.announcement) render();
+  });
+  api.on('chat-history', (messages: Snowball.ChatMessage[]) => {
+    ui.chatMessages = messages.slice(-200);
+    const view = document.getElementById('chat-log');
+    if (view) paintChat(view);
+  });
+  api.on('chat-message', (message: Snowball.ChatMessage) => {
+    ui.chatMessages.push(message);
+    if (ui.chatMessages.length > 200) ui.chatMessages.shift();
+    const view = document.getElementById('chat-log');
+    if (view) {
+      const atBottom = view.scrollTop + view.clientHeight >= view.scrollHeight - 40;
+      view.append(chatRow(message));
+      if (atBottom) view.scrollTop = view.scrollHeight;
+    }
+  });
+  api.on('update', (state: Snowball.UpdateState) => {
+    ui.update = state;
+    render();
+  });
+  void api.chatState().then((state) => {
+    ui.chat = state;
+    if (state.configured) render();
+  }).catch(() => {});
+  void api.updateState().then((state) => {
+    ui.update = state;
+    render();
+  }).catch(() => {});
 
   render();
-  void refresh().catch((err) => toast(errorMessage(err), 'error'));
+  void refresh()
+    .catch((err) => toast(errorMessage(err), 'error'))
+    .finally(() => {
+      // The splash stays until the first real frame is on screen, then fades out of the way.
+      const boot = document.getElementById('boot');
+      if (!boot) return;
+      boot.classList.add('leaving');
+      setTimeout(() => boot.remove(), 300);
+    });
 })();

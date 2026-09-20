@@ -1,3 +1,6 @@
 {
-  "microsoftClientId": "02d2d854-5423-43b6-b9b0-e896b8954d3f"
+  "microsoftClientId": "02d2d854-5423-43b6-b9b0-e896b8954d3f",
+  "chatUrl": "",
+  "adminUuid": "",
+  "discordAppId": ""
 }

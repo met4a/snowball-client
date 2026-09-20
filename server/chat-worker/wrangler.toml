@@ -1,0 +1,15 @@
+name = "snowball-chat"
+main = "src/worker.js"
+compatibility_date = "2026-09-01"
+
+# The account that may post announcements and moderate, as a Minecraft UUID without dashes.
+[vars]
+ADMIN_UUID = "PUT-YOUR-MINECRAFT-UUID-HERE"
+
+[[durable_objects.bindings]]
+name = "CHAT_ROOM"
+class_name = "ChatRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ChatRoom"]

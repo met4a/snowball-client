@@ -1,9 +1,11 @@
+import { existsSync } from 'node:fs';
 import { EventEmitter } from 'node:events';
-import { mkdir, readFile, rm } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { AuthManager, type SecretCipher } from './auth/AuthManager.js';
 import { DownloadManager, type DownloadProgress } from './download/DownloadManager.js';
 import { VerifiedFiles } from './download/VerifiedFiles.js';
+import { detectInstances, foldersFor, type FoundInstance, type ImportOptions } from './import/LauncherImport.js';
 import { InstanceManager, type CreateInstanceOptions, type InstanceConfig, type LoaderId, type PerformanceProfileId } from './instance/InstanceManager.js';
 import { JavaManager, recommendMemory } from './java/JavaManager.js';
 import { ActivityLog } from './logging/Activity.js';
@@ -15,6 +17,7 @@ import { ModLoaderRegistry } from './modloader/ModLoaderRegistry.js';
 import { ModManager } from './mods/ModManager.js';
 import { ModrinthService } from './mods/Modrinth.js';
 import { getProfile, installProfile, PERFORMANCE_PROFILES, resolveProfile } from './performance/PerformanceProfiles.js';
+import { scanJars, type ScanResult } from './security/ModScanner.js';
 import { GameActivityInterpreter } from './process/GameOutput.js';
 import { buildLaunchPlan } from './process/LaunchArguments.js';
 import { ProcessManager, type GameExit, type GameRecordEvent } from './process/ProcessManager.js';
@@ -47,6 +50,8 @@ export interface LauncherOptions {
   /** Folders holding the Snowball Client jars shipped with the launcher (missing folders are ignored). */
   clientBuildDirs: string[];
   launcherVersion: string;
+  /** Discord application id from the build config; empty when the presence module is not set up. */
+  discordAppId?: string;
   consoleLogs?: boolean;
   /** Azure application (client) ID shipped with this build (app-config.json); Settings can override it. */
   defaultMicrosoftClientId?: string;
@@ -60,6 +65,7 @@ export class Launcher extends EventEmitter {
   /** Readable per-instance timeline, shown as the Activity view. */
   readonly activity = new ActivityLog();
   private readonly interpreters = new Map<string, GameActivityInterpreter>();
+  private readonly discordAppId: string;
   private readonly lastStage = new Map<string, string>();
 
   private constructor(
@@ -78,6 +84,7 @@ export class Launcher extends EventEmitter {
     private readonly options: LauncherOptions,
   ) {
     super();
+    this.discordAppId = options.discordAppId?.trim() ?? "";
   }
 
   static async create(options: LauncherOptions): Promise<Launcher> {
@@ -314,7 +321,9 @@ export class Launcher extends EventEmitter {
       const requests = await this.mods.applyClientRequests(gameDir);
       // A profile chosen at creation (or in-game) is installed on the first launch that needs it. Its optimisation
       // mods don't exist for Legacy Fabric versions, so none is applied there.
-      const wanted = usesLegacyFabric(mc) ? null : requests.performanceProfile ?? (config.performanceProfile !== 'none' && config.managedMods.length === 0 ? config.performanceProfile : null);
+      // Profiles only install mods when the player asked for that in Settings; otherwise they use what is there.
+      const mayInstall = this.settings.get().performance.installMods;
+      const wanted = usesLegacyFabric(mc) || !mayInstall ? null : requests.performanceProfile ?? (config.performanceProfile !== 'none' && config.managedMods.length === 0 ? config.performanceProfile : null);
       const needsInstall = wanted !== null && (wanted !== config.performanceProfile || config.managedMods.length === 0);
       if (needsInstall && PERFORMANCE_PROFILES.some((p) => p.id === wanted)) {
         stage('Applying performance profile');
@@ -330,6 +339,55 @@ export class Launcher extends EventEmitter {
     const issues = this.mods.analyze(await this.mods.list(gameDir), mc, config.loader).filter((i) => i.severity === 'error');
     if (issues.length) throw new LaunchBlockedError(issues.map((i) => i.message));
     return { config: await this.instances.load(instanceId), version, javaPath, clientJar: core.clientJar };
+  }
+
+  /**
+   * Checks every mod of an instance for the things stealers and loaders do. It is a local check of
+   * what is inside each jar, not a virus scanner and not a web service: nothing is uploaded.
+   */
+  async scanMods(instanceId: string): Promise<ScanResult[]> {
+    const modsDir = join(this.instances.gameDir(instanceId), 'mods');
+    if (!existsSync(modsDir)) return [];
+    const files = (await readdir(modsDir)).filter((f) => /\.jar(\.disabled)?$/i.test(f));
+    const trusted = new Set(this.core.registry.builds.map((b) => b.sha1));
+    return scanJars(files.map((f) => join(modsDir, f)), trusted);
+  }
+
+  /** Instances of other launchers found on this computer. */
+  async findOtherLaunchers(): Promise<FoundInstance[]> {
+    return detectInstances();
+  }
+
+  /**
+   * Copies an instance out of another launcher: a new Snowball instance with the same Minecraft
+   * version and loader, and the files the player asked to bring across. Nothing is moved or deleted,
+   * so the other launcher keeps working exactly as before.
+   */
+  async importFromLauncher(found: FoundInstance, options: ImportOptions, signal?: AbortSignal): Promise<InstanceConfig> {
+    const config = await this.createInstance({
+      name: found.name,
+      minecraftVersion: found.minecraftVersion,
+      loader: found.loader,
+      loaderVersion: found.loaderVersion ?? undefined,
+    });
+    const say = this.activity.reporter(config.id);
+    const target = this.instances.gameDir(config.id);
+    await mkdir(target, { recursive: true });
+    for (const folder of foldersFor(options)) {
+      const from = join(found.gameDir, folder);
+      if (!existsSync(from)) continue;
+      say('info', `Copying ${folder} from ${found.launcher}`);
+      await cp(from, join(target, folder), { recursive: true, force: true, errorOnExist: false });
+      signal?.throwIfAborted();
+    }
+    if (options.options) {
+      for (const file of ['options.txt', 'servers.dat', 'optionsof.txt']) {
+        const from = join(found.gameDir, file);
+        if (existsSync(from)) await cp(from, join(target, file), { force: true });
+      }
+    }
+    say('success', `Imported ${found.name} from ${found.launcher}`);
+    return this.instances.load(config.id);
   }
 
   /** Installs (or removes, with 'none') the optimisation stack of a performance profile. */
@@ -353,6 +411,18 @@ export class Launcher extends EventEmitter {
     }
     const profile = getProfile(profileId);
     if (!profile) throw new Error(`Unknown performance profile: ${profileId}`);
+    if (!this.settings.get().performance.installMods) {
+      // Nothing is downloaded: the profile runs with whichever of its mods the instance already has.
+      const present = new Set((await this.mods.list(gameDir)).filter((m) => m.enabled).map((m) => (m.id ?? '').toLowerCase()));
+      await this.instances.update(instanceId, (c) => {
+        c.performanceProfile = profileId;
+      });
+      await this.mods.recordPerformanceProfile(gameDir, profileId);
+      return {
+        installed: profile.mods.filter((m) => present.has(m.modId)).map((m) => m.name),
+        unavailable: profile.mods.filter((m) => !present.has(m.modId)).map((m) => m.name),
+      };
+    }
     const resolved = await resolveProfile(profile, config.minecraftVersion, config.loader, this.downloads);
     const managed = await installProfile(gameDir, config.managedMods, resolved.files, this.downloads, signal);
     await this.instances.update(instanceId, (c) => {
@@ -392,7 +462,13 @@ export class Launcher extends EventEmitter {
         launcherName: 'snowball-client-launcher',
         launcherVersion: this.options.launcherVersion,
         // Snowball Client is loaded straight from the launcher's folder, so it is never a file in the instance.
-        extraJvmArgs: prep.clientJar ? [`-Dfabric.addMods=${prep.clientJar}`] : [],
+        extraJvmArgs: [
+          ...(prep.clientJar ? [`-Dfabric.addMods=${prep.clientJar}`] : []),
+          // The client's Discord presence needs an application id; without one the module stays off.
+          ...(this.discordAppId ? [`-Dsnowball.discordAppId=${this.discordAppId}`] : []),
+          // The edition the backend granted this account; the client only reads it, never sets it.
+          `-Dsnowball.tier=${this.settings.get().accounts.tier}`,
+        ],
       });
       say('info', 'Starting Minecraft...');
       this.interpreters.set(instanceId, new GameActivityInterpreter({ minecraftVersion: prep.config.minecraftVersion, loader: prep.config.loader }));

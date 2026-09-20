@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 // The renderer runs sandboxed with no Node access; it can only call these whitelisted channels.
 const invoke = (channel: string) => (...args: unknown[]) => ipcRenderer.invoke(channel, ...args);
-const EVENTS = new Set(['progress', 'game-log', 'game-exit', 'launch-error', 'launcher-log', 'state', 'activity']);
+const EVENTS = new Set(['progress', 'game-log', 'game-exit', 'launch-error', 'launcher-log', 'state', 'activity', 'update', 'chat-state', 'chat-message', 'chat-history']);
 
 const api = {
   getState: invoke('state:get'),
@@ -40,6 +40,19 @@ const api = {
   selectAccount: invoke('accounts:select'),
   signInMicrosoft: invoke('accounts:sign-in-microsoft'),
   openLauncherFolder: invoke('app:open-folder'),
+  scanMods: invoke('mods:scan'),
+  findOtherLaunchers: invoke('import:detect'),
+  importFromLauncher: invoke('import:run'),
+  chatState: invoke('chat:state'),
+  joinChat: invoke('chat:connect'),
+  leaveChat: invoke('chat:disconnect'),
+  sendChat: invoke('chat:send'),
+  announce: invoke('chat:announce'),
+  moderateChat: invoke('chat:moderate'),
+  setSnowballPlus: invoke('chat:set-plus'),
+  updateState: invoke('updates:state'),
+  checkForUpdates: invoke('updates:check'),
+  installUpdate: invoke('updates:install'),
   on(event: string, listener: (payload: unknown) => void): () => void {
     if (!EVENTS.has(event)) throw new Error(`Unknown event ${event}`);
     const wrapped = (_e: unknown, payload: unknown) => listener(payload);

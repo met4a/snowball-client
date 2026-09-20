@@ -5,6 +5,7 @@ import dev.snowballclient.client.config.ClientSettings;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.module.client.ClientHud;
 import dev.snowballclient.client.module.client.ClientHudModules;
+import dev.snowballclient.client.module.client.HudLayout;
 import dev.snowballclient.client.module.client.InterfaceSettings;
 import dev.snowballclient.client.module.client.PvpHudModules;
 import dev.snowballclient.client.module.fps.FpsBoost;
@@ -61,6 +62,7 @@ public final class ModuleRegistry {
 		m.register(new PvpHudModules.ReachDisplay(COMBAT));
 		m.register(new PvpHudModules.MemoryUsage());
 		m.register(new ArmorHud());
+		m.register(new HudLayout());
 		INTERFACE = m.register(new InterfaceSettings(theme, clientSettings));
 
 		// FPS BOOST
@@ -91,7 +93,7 @@ public final class ModuleRegistry {
 		m.register(new StorageScreens.ConfigProfiles());
 		m.register(new StorageScreens.ModProfiles());
 
-		m.order(ModuleCategory.CLIENT, "client_hud", "fps_counter", "ping_display", "coordinates", "direction_hud",
+		m.order(ModuleCategory.CLIENT, "client_hud", "hud_layout", "fps_counter", "ping_display", "coordinates", "direction_hud",
 				"speed_display", "combo_counter", "reach_display", "memory_usage", "armor_hud", "interface");
 		m.order(ModuleCategory.RENDER, "fps_boost", "fullbright", "zoom", "potion_hud", "fov_settings", "render_distance");
 		m.order(ModuleCategory.MISC, "notifications", "clock", "server_info", "session_timer");

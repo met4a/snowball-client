@@ -1,7 +1,7 @@
 {
   "name": "snowball-client-launcher",
   "productName": "Snowball Client Launcher",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Instance-based Minecraft launcher for Snowball Client",
   "license": "MIT",
   "main": "dist/main/main.js",
@@ -23,7 +23,8 @@
     "files": [
       "dist/**/*",
       "package.json",
-      "app-config.json"
+      "app-config.json",
+      "node_modules/**/*"
     ],
     "extraResources": [
       {
@@ -37,9 +38,26 @@
     "icon": "build-resources/icon.png",
     "win": {
       "target": [
-        "nsis",
-        "portable"
-      ]
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "SnowballClient-${version}-win.${ext}"
     },
     "portable": {
       "artifactName": "SnowballClient-${version}-portable.exe"
@@ -76,7 +94,15 @@
         "en-US"
       ],
       "artifactName": "SnowballClient-${version}.${ext}"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "met4a",
+        "repo": "snowball-website",
+        "releaseType": "release"
+      }
+    ]
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
@@ -84,5 +110,8 @@
     "electron-builder": "^26.15.3",
     "typescript": "^7.0.2",
     "vitest": "^5.0.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

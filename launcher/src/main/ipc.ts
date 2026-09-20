@@ -9,6 +9,8 @@ import { PERFORMANCE_PROFILES } from '../core/performance/PerformanceProfiles.js
 import { splitArgs } from '../core/process/LaunchArguments.js';
 import { safeJoin } from '../core/util/paths.js';
 import { openMicrosoftLogin } from './microsoftLogin.js';
+import type { ChatClient } from '../core/social/ChatClient.js';
+import type { UpdateService } from './updates.js';
 
 const log = getLogger('ipc');
 const MOD_LOADERS = ['fabric', 'legacy-fabric', 'quilt', 'forge', 'neoforge'];
@@ -48,7 +50,58 @@ function toDto(summary: InstanceSummary, launcher: Launcher): Snowball.Instance 
   };
 }
 
-export function registerIpc(launcher: Launcher, win: BrowserWindow): void {
+export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: UpdateService, chat?: ChatClient): void {
+  const toRenderer = (event: string, payload: unknown) => {
+    if (!win.isDestroyed()) win.webContents.send(`evt:${event}`, payload);
+  };
+  chat?.on('state', (state) => toRenderer('chat-state', state));
+  chat?.on('tier', (tier: 'snowball' | 'plus') => {
+    // Kept so the next launch can tell the game, and so the launcher can show the edition.
+    void launcher.settings.update((s) => {
+      s.accounts.tier = tier;
+    });
+  });
+  chat?.on('message', (message) => toRenderer('chat-message', message));
+  chat?.on('history', (messages) => toRenderer('chat-history', messages));
+  ipcMain.handle('chat:state', () => chat?.current() ?? { configured: false, status: 'offline', online: 0, announcement: null, admin: false });
+  ipcMain.handle('chat:connect', async () => {
+    if (!chat) throw new Error('Global chat is not available in this build.');
+    const accounts = launcher.auth.list();
+    const accountId = launcher.settings.get().accounts.selectedAccountId ?? accounts[0]?.id;
+    if (!accountId) throw new Error('Sign in with Microsoft before joining chat.');
+    const account = accounts.find((a) => a.id === accountId);
+    if (!account) throw new Error('Sign in with Microsoft before joining chat.');
+    if (account.type !== 'msa') throw new Error('Global chat needs a Microsoft account, so that names cannot be faked.');
+    const session = await launcher.auth.session(accountId);
+    return chat.connect({ name: session.name, uuid: session.uuid, accessToken: session.accessToken, type: 'msa' });
+  });
+  ipcMain.handle('chat:disconnect', () => chat?.disconnect());
+  ipcMain.handle('chat:send', (_e, text: unknown) => chat?.send(str(text, 'message', 400)) ?? { ok: false, reason: 'Chat is not available.' });
+  ipcMain.handle('chat:announce', (_e, text: unknown) => chat?.announce(text === null ? null : str(text, 'announcement', 300)) ?? { ok: false, reason: 'Chat is not available.' });
+  ipcMain.handle('chat:set-plus', (_e, uuid: unknown, on: unknown) => chat?.setPlus(str(uuid, 'uuid', 40), on !== false) ?? { ok: false, reason: 'Chat is not available.' });
+  ipcMain.handle('chat:moderate', (_e, action: unknown, uuid: unknown, minutes: unknown) =>
+    chat?.moderateChat(str(action, 'action', 16) as 'mute' | 'unmute' | 'clear', uuid === undefined || uuid === null ? undefined : str(uuid, 'uuid', 40), typeof minutes === 'number' ? minutes : undefined)
+      ?? { ok: false, reason: 'Chat is not available.' });
+  ipcMain.handle('mods:scan', (_e, id: unknown) => launcher.scanMods(str(id, 'instance id')));
+  ipcMain.handle('import:detect', () => launcher.findOtherLaunchers());
+  ipcMain.handle('import:run', async (_e, found: unknown, options: unknown) => {
+    const f = found as { id?: unknown; gameDir?: unknown; name?: unknown; minecraftVersion?: unknown; loader?: unknown; loaderVersion?: unknown; launcher?: unknown };
+    const known = (await launcher.findOtherLaunchers()).find((i) => i.id === f?.id);
+    if (!known) throw new Error('That instance is no longer where it was; scan again.');
+    const o = (options ?? {}) as Record<string, unknown>;
+    const pick = (key: string) => o[key] !== false;
+    return launcher.importFromLauncher(known, {
+      mods: pick('mods'),
+      config: pick('config'),
+      resourcePacks: pick('resourcePacks'),
+      shaderPacks: pick('shaderPacks'),
+      saves: pick('saves'),
+      options: pick('options'),
+    });
+  });
+  ipcMain.handle('updates:state', () => updates?.current() ?? { status: 'unsupported', version: '', reason: 'Updates are not available in this build.' });
+  ipcMain.handle('updates:check', () => updates?.check(true) ?? null);
+  ipcMain.handle('updates:install', () => updates?.install());
   const send = (event: string, payload: unknown) => {
     if (!win.isDestroyed()) win.webContents.send(`evt:${event}`, payload);
   };
@@ -102,7 +155,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow): void {
       snowballBuilds: launcher.core.registry.builds.map((b) => ({ version: b.version, minecraft: b.label })),
       canAddOffline: launcher.auth.canAddOffline(),
       microsoftSignInConfigured: launcher.microsoftSignInConfigured,
-      launcherVersion: process.env.npm_package_version ?? '1.3.0',
+      launcherVersion: process.env.npm_package_version ?? '1.4.0',
     };
   });
 

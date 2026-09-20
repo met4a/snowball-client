@@ -19,6 +19,8 @@ public final class InterfaceSettings extends Module {
 	public final NumberSetting animationSpeed;
 	public final BooleanSetting pauseGame;
 	public final BooleanSetting customMainMenu;
+	public final BooleanSetting customLoadingScreen;
+	public final BooleanSetting snowballTabBadge;
 
 	private final Theme theme;
 	private boolean themeDirty;
@@ -33,6 +35,8 @@ public final class InterfaceSettings extends Module {
 		animationSpeed = setting(new NumberSetting("animation_speed", "Animation speed", "0 turns animations off", theme.animationSpeed, 0, 3, 0.25));
 		pauseGame = setting(new BooleanSetting("pause_game", "Pause singleplayer in menu", "", clientSettings.pauseGameInMenu));
 		customMainMenu = setting(new BooleanSetting("custom_main_menu", "Snowball main menu", "Use Snowball's main menu instead of Minecraft's title screen", true));
+		customLoadingScreen = setting(new BooleanSetting("custom_loading_screen", "Snowball loading screen", "Show the Snowball loading screen while the game loads its resources", true));
+		snowballTabBadge = setting(new BooleanSetting("tab_badge", "Snowball badge in the player list", "Mark players who are on Snowball Client with a snowball next to their name", true));
 
 		scale.onChange(v -> apply(() -> theme.scale = v.floatValue()));
 		highContrast.onChange(v -> apply(() -> theme.highContrast = v));

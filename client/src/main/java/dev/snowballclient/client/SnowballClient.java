@@ -19,6 +19,7 @@ import dev.snowballclient.client.perf.ModRequests;
 import dev.snowballclient.client.perf.ModScanner;
 import dev.snowballclient.client.platform.MinecraftTextures;
 import dev.snowballclient.client.platform.ViewScreen;
+import dev.snowballclient.client.social.SnowballPlayers;
 import dev.snowballclient.client.util.OptionsSaver;
 import dev.snowballclient.client.waypoint.WaypointStore;
 import net.fabricmc.api.ClientModInitializer;
@@ -69,6 +70,16 @@ public final class SnowballClient implements ClientModInitializer {
 
 	public static SnowballClient get() {
 		return instance;
+	}
+
+	/** Whether to draw the Snowball loading screen. Safe before the client has started: the answer is then yes. */
+	public static boolean showLoadingScreen() {
+		return ModuleRegistry.INTERFACE == null || ModuleRegistry.INTERFACE.customLoadingScreen.isOn();
+	}
+
+	/** Whether to mark Snowball players in the player list. */
+	public static boolean showTabBadge() {
+		return ModuleRegistry.INTERFACE != null && ModuleRegistry.INTERFACE.snowballTabBadge.isOn();
 	}
 
 	public ModuleManager modules() {
@@ -167,6 +178,9 @@ public final class SnowballClient implements ClientModInitializer {
 
 		ClientTickEvents.END_CLIENT_TICK.register(this::onEndTick);
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> saveAll());
+		// The launcher passes the edition the backend granted this account; the client only reads it.
+		SnowballPlayers.setSelfTier("plus".equalsIgnoreCase(System.getProperty("snowball.tier", "snowball"))
+				? SnowballPlayers.Tier.PLUS : SnowballPlayers.Tier.SNOWBALL);
 		LOGGER.info("Snowball Client initialised with {} modules", modules.all().size());
 	}
 
@@ -200,9 +214,13 @@ public final class SnowballClient implements ClientModInitializer {
 		lastHurtTime = hurtTime;
 
 		boolean inWorld = mc.level != null && mc.player != null;
-		if (inWorld && !wasInWorld) showMenuHint(mc);
+		if (inWorld && !wasInWorld) {
+			showMenuHint(mc);
+			if (mc.getUser() != null) SnowballPlayers.setSelf(mc.getUser().getProfileId());
+		}
 		if (!inWorld && wasInWorld) {
 			ModuleRegistry.COMBAT.reset();
+			SnowballPlayers.forgetOthers();
 			saveIfDirty();
 		}
 		wasInWorld = inWorld;
