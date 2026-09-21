@@ -38,4 +38,22 @@ if (check.status !== 0) {
   console.error('Refusing to package: the generated sources are not right for every Minecraft version.');
   process.exit(check.status || 1);
 }
+
+// Then actually start Minecraft. 1.6.0 shipped a client that crashed on launch while every build
+// step above passed, because none of them ran the game: the jars existed and were well-formed, and
+// the mod was dead on startup. The gametest loads the client, opens the menus and the HUD editor
+// and takes screenshots, and it catches that in about a minute per version.
+// SNOWBALL_SKIP_GAMETEST=1 skips it while iterating locally; a release should never skip it.
+if (process.env.SNOWBALL_SKIP_GAMETEST === '1') {
+  console.warn('SNOWBALL_SKIP_GAMETEST=1: the client was NOT started. Do not publish this build.');
+} else {
+  for (const version of ['1.21.11', '26.2']) {
+    console.log(`Starting Minecraft ${version} to check the client actually loads...`);
+    const test = gradle([`:${version}:runClientGameTest`]);
+    if (test.status !== 0) {
+      console.error(`Refusing to package: the Snowball client failed its gametest on Minecraft ${version}.`);
+      process.exit(test.status || 1);
+    }
+  }
+}
 console.log(`Snowball Client builds ready in ${outDir}:\n${jars.map((j) => `  ${j}`).join('\n')}`);
