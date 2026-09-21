@@ -24,6 +24,11 @@ restart. You only download an installer once.
   to try, with **Copy details** and **Open logs** for when you need the rest.
 - Settings has log controls: open the folder, copy the recent log, and choose
   how long logs are kept.
+- Rank badges are redrawn. Every Snowball player now wears the snowball in the
+  player list, with their rank's emblem set into it — a flask for Tester, a
+  beetle for Bug Hunter, a star for Partner, a shield for Staff, brackets for
+  Developer, a crown for Owner. The same badge appears in chat and in the
+  launcher, so a rank looks the same everywhere.
 
 ### Fixed
 - The launcher looked pixelated. It was the interface font and the way the logo
@@ -32,6 +37,8 @@ restart. You only download an installer once.
   could not be placed properly.
 - Three parts of the interface had no styling at all and rendered as bare text:
   the output panel header, rank badges, and rows in the mod checker.
+- Rank badges looked blurry in the player list. They were drawn at a size that
+  did not divide evenly into the size they were stored at.
 - An update that failed to apply used to leave no trace. Snowball now notices on
   the next start and offers to try again.
 - A download that arrives damaged or is not actually a newer version is refused

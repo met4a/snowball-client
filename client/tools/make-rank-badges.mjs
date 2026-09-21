@@ -1,16 +1,18 @@
 /**
- * Builds Snowball's rank badges: the snowball, with the rank's logo attached to it.
+ * Builds Snowball's rank badges: the snowball, with the rank's emblem set into it.
  *
  * Every Snowball player wears the snowball in the player list, the way a Lunar player wears the
- * moon, so a Snowball player is recognisable before you read anything. The rank's own logo is
- * shrunk and set into the lower-right of the ball, overlapping its edge so the two read as one
- * mark rather than as two things that happen to be next to each other.
+ * moon, so a Snowball player is recognisable before you read a word. The rank's emblem is seated
+ * into the lower-right of the ball, overlapping its edge, so the two read as one mark rather than
+ * as two things standing next to each other.
  *
- * The art in source-logos/ is the original hand-drawn set; this tool places it and does not
- * redraw it. The badge is 32x32 and the font draws it at 8, an exact quarter, so nothing lands
- * between pixels - the old badges were 16px art declared at height 9, and that fractional
- * reduction is what made them look muddy. Working at 32 also leaves the shrunken logo enough
- * room to keep its shape.
+ * The emblems are drawn from geometry in rank-icons.mjs rather than stored as bitmaps, so one
+ * definition renders sharply at the three sizes this needs: the player list's, the launcher's,
+ * and the preview sheet's.
+ *
+ * The badge is composed at 32x32 and the font draws it at 8, an exact quarter, so nothing lands
+ * between pixels. The old badges were 16px art declared at height 9 - a fractional reduction, and
+ * that is what made them look muddy.
  *
  *   node client/tools/make-rank-badges.mjs [--preview]
  */
@@ -18,6 +20,7 @@ import { deflateSync, inflateSync } from 'node:zlib';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { renderEmblem } from './rank-icons.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SOURCE = join(here, 'source-logos');
@@ -29,22 +32,19 @@ const LAUNCHER = join(here, '..', '..', 'launcher', 'src', 'renderer', 'assets',
 
 /** The badge canvas. 32 is an exact 4x of the height 8 the font draws it at. */
 const SIZE = 32;
-/** How wide the shrunken logo is. Small enough to read as an attachment, not a second badge. */
-const LOGO = 15;
+/** How wide the emblem is drawn. Big enough to read, small enough to stay an attachment. */
+const EMBLEM = 15;
 
-/**
- * `logo` is null for the two ranks that are just the snowball: an unranked player wears the plain
- * ball, and Snowball+ wears the ball that already carries its own plus.
- */
+/** `emblem` is null for the two ranks that are only the snowball. Colours match Rank.java. */
 const RANKS = [
-  { id: 'snowball', name: 'Snowball', ball: '_ball.png', logo: null },
-  { id: 'plus', name: 'Snowball+', ball: '_ball_plus.png', logo: null },
-  { id: 'tester', name: 'Tester', ball: '_ball.png', logo: 'tester.png' },
-  { id: 'bug_hunter', name: 'Bug Hunter', ball: '_ball.png', logo: 'bug_hunter.png' },
-  { id: 'partner', name: 'Partner', ball: '_ball.png', logo: 'partner.png' },
-  { id: 'staff', name: 'Staff', ball: '_ball.png', logo: 'staff.png' },
-  { id: 'developer', name: 'Developer', ball: '_ball.png', logo: 'developer.png' },
-  { id: 'owner', name: 'Owner', ball: '_ball.png', logo: 'owner.png' },
+  { id: 'snowball', name: 'Snowball', file: 'tab_snowball.png', ball: '_ball.png', emblem: null, color: '#C7D2DD' },
+  { id: 'plus', name: 'Snowball+', file: 'tab_snowball_plus.png', ball: '_ball_plus.png', emblem: null, color: '#9FD8FF' },
+  { id: 'tester', name: 'Tester', file: 'rank/tester.png', ball: '_ball.png', emblem: 'tester', color: '#5CD6A8' },
+  { id: 'bug_hunter', name: 'Bug Hunter', file: 'rank/bug_hunter.png', ball: '_ball.png', emblem: 'bug_hunter', color: '#FFD166' },
+  { id: 'partner', name: 'Partner', file: 'rank/partner.png', ball: '_ball.png', emblem: 'partner', color: '#FFA24D' },
+  { id: 'staff', name: 'Staff', file: 'rank/staff.png', ball: '_ball.png', emblem: 'staff', color: '#5C8CFF' },
+  { id: 'developer', name: 'Developer', file: 'rank/developer.png', ball: '_ball.png', emblem: 'developer', color: '#B57BFF' },
+  { id: 'owner', name: 'Owner', file: 'rank/owner.png', ball: '_ball.png', emblem: 'owner', color: '#7FCBFF', emblemColor: '#EAF4FF' },
 ];
 
 // ------------------------------------------------------------- PNG in/out
@@ -164,31 +164,17 @@ function scaleTo(sprite, box) {
   return { w, h, px: out };
 }
 
+/** Accepts either a {w,h,px} sprite or a plain RGBA grid. */
 function draw(target, sprite, ox, oy) {
-  for (let y = 0; y < sprite.h; y++) for (let x = 0; x < sprite.w; x++) {
-    const [r, g, b, a] = sprite.px[y][x];
+  const px = sprite.px ?? sprite;
+  const h = px.length;
+  const w = px[0].length;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const [r, g, b, a] = px[y][x];
     const ty = oy + y, tx = ox + x;
     if (a < 24 || ty < 0 || tx < 0 || ty >= target.length || tx >= target[0].length) continue;
     target[ty][tx] = [r, g, b, 255];
   }
-}
-
-/**
- * A dark rim traced around whatever was drawn last, so the logo separates from the pale ball it
- * overlaps while still touching it. Without this the two just smear into each other.
- */
-function rim(target, before) {
-  const added = [];
-  for (let y = 0; y < target.length; y++) for (let x = 0; x < target[0].length; x++) {
-    if (target[y][x][3] !== 255 || before[y][x]) continue;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
-      const nx = x + dx, ny = y + dy;
-      if (ny < 0 || nx < 0 || ny >= target.length || nx >= target[0].length) continue;
-      if (target[ny][nx][3] === 255 && !before[ny][nx]) continue;
-      added.push([nx, ny]);
-    }
-  }
-  for (const [x, y] of added) target[y][x] = [8, 12, 18, 255];
 }
 
 const ball = scaleTo(crop(decode(join(SOURCE, '_ball.png'))), SIZE);
@@ -198,18 +184,16 @@ function badge(rank) {
   const canvas = blank(SIZE, SIZE);
   const base = rank.ball === '_ball_plus.png' ? ballPlus : ball;
   draw(canvas, base, Math.floor((SIZE - base.w) / 2), Math.floor((SIZE - base.h) / 2));
-  if (!rank.logo) return canvas;
+  if (!rank.emblem) return canvas;
 
-  // Which pixels were the ball, so the rim only traces the logo.
-  const wasBall = canvas.map((row) => row.map((p) => p[3] === 255));
-  const logo = scaleTo(crop(decode(join(SOURCE, rank.logo))), LOGO);
-  // Seated on the lower-right of the ball rather than hung off its corner: centred at 68% of
-  // the canvas, the logo overlaps the ball across most of its width and still clears the edge.
-  const ox = Math.min(SIZE - logo.w, Math.round(SIZE * 0.68 - logo.w / 2));
-  const oy = Math.min(SIZE - logo.h, Math.round(SIZE * 0.68 - logo.h / 2));
-  draw(canvas, logo, ox, oy);
-  rim(canvas, wasBall);
-  draw(canvas, logo, ox, oy);
+  const emblem = renderEmblem(rank.emblem, rank.emblemColor ?? rank.color, EMBLEM);
+  const w = emblem[0].length;
+  const h = emblem.length;
+  // Seated on the lower-right of the ball rather than hung off its corner: centred at 68% of the
+  // canvas, the emblem overlaps the ball across most of its width and still clears the edge.
+  const ox = Math.min(SIZE - w, Math.round(SIZE * 0.68 - w / 2));
+  const oy = Math.min(SIZE - h, Math.round(SIZE * 0.68 - h / 2));
+  draw(canvas, emblem, ox, oy);
   return canvas;
 }
 
@@ -219,40 +203,39 @@ const write = (to, data) => { mkdirSync(dirname(to), { recursive: true }); write
 const built = RANKS.map((rank) => ({ rank, data: encode(badge(rank)) }));
 
 for (const tree of TREES) {
-  const gui = join(tree, 'textures', 'gui');
-  for (const { rank, data } of built) {
-    write(join(gui, rank.id === 'snowball' ? 'tab_snowball.png' : rank.id === 'plus' ? 'tab_snowball_plus.png' : `rank/${rank.logo}`), data);
-  }
+  for (const { rank, data } of built) write(join(tree, 'textures', 'gui', rank.file), data);
 
-  /**
-   * One bitmap provider per rank. ascent 7 with height 8 sits the badge on the text baseline.
-   */
-  const providers = built.map(({ rank }, i) => ({
-    file: rank.id === 'snowball' ? 'gui/tab_snowball.png' : rank.id === 'plus' ? 'gui/tab_snowball_plus.png' : `gui/rank/${rank.logo}`,
-    char: `\\uE00${i}`,
-  }));
+  /** One bitmap provider per rank. ascent 7 with height 8 sits the badge on the text baseline. */
+  const providers = built.map(({ rank }, i) => ({ file: `gui/${rank.file}`, char: `\\uE00${i}` }));
   const json = `{\n\t"providers": [\n${providers
     .map((p) => `\t\t{ "type": "bitmap", "file": "snowballclient:${p.file}", "ascent": 7, "height": 8, "chars": ["${p.char}"] }`)
     .join(',\n')}\n\t]\n}\n`;
   write(join(tree, 'font', 'icons.json'), json);
 }
 
-// The launcher shows the same badge in chat, the people list and the admin panel.
-for (const { rank, data } of built) write(join(LAUNCHER, `${rank.id}.png`), data);
+// The launcher shows the same badge in chat, the people list and the admin panel, and the emblem
+// on its own where there is room for it.
+for (const { rank, data } of built) {
+  write(join(LAUNCHER, `${rank.id}.png`), data);
+  if (rank.emblem) write(join(LAUNCHER, `${rank.id}-emblem.png`), encode(renderEmblem(rank.emblem, rank.emblemColor ?? rank.color, 32)));
+}
 
-for (const { rank } of built) console.log(`${rank.name.padEnd(12)} ${rank.logo ? `ball + ${rank.logo} at ${LOGO}px` : 'ball only'}`);
+for (const { rank } of built) console.log(`${rank.name.padEnd(12)} ${rank.emblem ? `ball + ${rank.emblem} at ${EMBLEM}px` : 'ball only'}`);
 console.log(`\n${count} files written.`);
 
 if (process.argv.includes('--preview')) {
-  // A page showing each badge at the size the player list draws it, and magnified.
+  // A page showing each badge at the size the player list draws it, magnified, and the emblem on
+  // its own, which is how it appears in profiles and on the website.
   const b64 = (rank) => built.find((b) => b.rank.id === rank.id).data.toString('base64');
+  const solo = (rank) => (rank.emblem ? encode(renderEmblem(rank.emblem, rank.emblemColor ?? rank.color, 32)).toString('base64') : null);
   const row = (rank) => {
     const img = `<img src="data:image/png;base64,${b64(rank)}">`;
+    const only = solo(rank);
     return `<tr>
       <td class="s8">${img}</td>
       <td class="s64">${img}</td>
-      <td class="tab"><span class="s16">${img}</span><span class="tag">[${rank.name}]</span> <span class="pl">Met4a</span></td>
-      <td class="f">${rank.logo ?? '\u2014'}</td>
+      <td class="s32">${only ? `<img src="data:image/png;base64,${only}">` : '<span class="f">—</span>'}</td>
+      <td class="tab"><span class="s16">${img}</span><span style="color:${rank.color}">[${rank.name}]</span> <span class="pl">Met4a</span></td>
     </tr>`;
   };
   writeFileSync(join(here, 'rank-badges-preview.html'), `<!doctype html><meta charset=utf-8><title>Snowball rank badges</title>
@@ -261,19 +244,19 @@ if (process.argv.includes('--preview')) {
  h1{font-size:17px;margin:0 0 4px}
  p.sub{color:#8b95a3;margin:0 0 22px;font-size:13px;max-width:640px;line-height:1.5}
  table{border-collapse:collapse}
- th{text-align:left;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#6e7987;font-weight:600;padding:0 18px 8px 0;border-bottom:1px solid #222831}
- td{padding:10px 18px 10px 0;border-bottom:1px solid #1a1f27;vertical-align:middle}
+ th{text-align:left;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#6e7987;font-weight:600;padding:0 20px 8px 0;border-bottom:1px solid #222831}
+ td{padding:10px 20px 10px 0;border-bottom:1px solid #1a1f27;vertical-align:middle}
  img{image-rendering:pixelated;display:inline-block;vertical-align:middle}
  .s8 img{width:8px;height:8px}
- .s16 img{width:16px;height:16px;margin-right:5px}
+ .s16 img{width:16px;height:16px;margin-right:6px}
+ .s32 img{width:32px;height:32px}
  .s64 img{width:64px;height:64px}
  .tab{font:15px Consolas,monospace;white-space:nowrap}
- .tag{color:#9fb0c4}
  .pl{color:#fff}
  .f{font:12px Consolas,monospace;color:#6e7987}
 </style>
 <h1>Snowball rank badges</h1>
-<p class=sub>Every player wears the snowball. The rank's logo is shrunk and set into its lower-right, overlapping the edge so the two read as one mark.</p>
-<table><tr><th>In game</th><th>Magnified</th><th>As it reads in TAB</th><th>Logo</th></tr>${RANKS.map(row).join('')}</table>`);
+<p class=sub>Every player wears the snowball. The rank's emblem is seated into its lower-right, overlapping the edge so the two read as one mark. Emblems are drawn from geometry, so they stay sharp at every size.</p>
+<table><tr><th>In game</th><th>Badge</th><th>Emblem</th><th>As it reads in TAB</th></tr>${RANKS.map(row).join('')}</table>`);
   console.log('preview: client/tools/rank-badges-preview.html');
 }
