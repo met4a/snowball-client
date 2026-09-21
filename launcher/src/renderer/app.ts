@@ -41,7 +41,8 @@
     stats: null as Snowball.SnowballStats | null,
     people: [] as Snowball.SnowballPerson[],
     bugs: [] as Snowball.BugReport[],
-    adminTab: 'chat' as 'chat' | 'people' | 'bugs' | 'flags',
+    adminTab: 'chat' as 'chat' | 'ranks' | 'people' | 'bugs' | 'flags',
+    lookup: null as Snowball.RankLookup | null,
   };
 
   // ---------- DOM helpers ----------
@@ -207,6 +208,28 @@
   }
 
   // ---------- layout ----------
+  /** The ranks, their short tags and their colours: one table the whole launcher reads from. */
+  const RANKS: { id: string; tag: string; name: string; color: string }[] = [
+    { id: 'snowball', tag: 'Snowball', name: 'Snowball', color: '#c7d2dd' },
+    { id: 'plus', tag: 'Snowball+', name: 'Snowball Plus', color: '#9fd8ff' },
+    { id: 'tester', tag: 'Tester', name: 'Snowball Tester', color: '#5cd6a8' },
+    { id: 'bug_hunter', tag: 'Bug Hunter', name: 'Snowball Bug Hunter', color: '#ffd166' },
+    { id: 'partner', tag: 'Partner', name: 'Snowball Partner', color: '#ffa24d' },
+    { id: 'staff', tag: 'Staff', name: 'Snowball Staff', color: '#5c8cff' },
+    { id: 'developer', tag: 'Developer', name: 'Snowball Developer', color: '#b57bff' },
+    { id: 'owner', tag: 'Owner', name: 'Snowball Owner', color: '#7fcbff' },
+  ];
+
+  const rankInfo = (id: string | undefined) => RANKS.find((r) => r.id === id) ?? RANKS[0];
+
+  /** The little [Tag] chip used in chat, the people list and profiles. */
+  function rankChip(id: string | undefined, extra = ''): HTMLElement {
+    const rank = rankInfo(id);
+    const chip = h('span', { class: 'rank-chip' + (extra ? ' ' + extra : '') }, rank.tag);
+    chip.style.setProperty('--rank', rank.color);
+    return chip;
+  }
+
   const NAV: Array<[View, string]> = [
     ['home', 'HOME'],
     ['instances', 'INSTANCES'],
@@ -915,7 +938,7 @@
       if (result && !result.ok) toast(result.reason ?? 'That did not work.', 'error');
       else if (result) toast('Done');
     };
-    const tab = (id: 'chat' | 'people' | 'bugs' | 'flags', label: string) =>
+    const tab = (id: typeof ui.adminTab, label: string) =>
       h('button', { class: `log-tab${ui.adminTab === id ? ' active' : ''}`, onClick: () => {
         ui.adminTab = id;
         if (id === 'people') void api.chatAdmin('people');
@@ -926,13 +949,13 @@
     if (ui.adminTab !== 'chat') {
       return h('div', { class: 'card' },
         h('div', { class: 'row' }, h('div', { class: 'section-title' }, 'ADMIN'), h('div', { class: 'spacer' }),
-          h('div', { class: 'log-tabs' }, tab('chat', 'CHAT'), tab('people', 'PEOPLE'), tab('bugs', 'BUGS'), tab('flags', 'FEATURES'))),
-        ui.adminTab === 'people' ? peopleList() : ui.adminTab === 'bugs' ? bugList() : flagList());
+          h('div', { class: 'log-tabs' }, tab('chat', 'CHAT'), tab('ranks', 'RANKS'), tab('people', 'PEOPLE'), tab('bugs', 'BUGS'), tab('flags', 'FEATURES'))),
+        ui.adminTab === 'ranks' ? rankManager() : ui.adminTab === 'people' ? peopleList() : ui.adminTab === 'bugs' ? bugList() : flagList());
     }
 
     return h('div', { class: 'card' },
       h('div', { class: 'row' }, h('div', { class: 'section-title' }, 'ADMIN'), h('div', { class: 'spacer' }),
-        h('div', { class: 'log-tabs' }, tab('chat', 'CHAT'), tab('people', 'PEOPLE'), tab('bugs', 'BUGS'), tab('flags', 'FEATURES'))),
+        h('div', { class: 'log-tabs' }, tab('chat', 'CHAT'), tab('ranks', 'RANKS'), tab('people', 'PEOPLE'), tab('bugs', 'BUGS'), tab('flags', 'FEATURES'))),
       h('div', { class: 'list' },
         h('div', { class: 'list-row' },
           h('div', { class: 'grow' }, announcement),
@@ -952,16 +975,76 @@
           h('button', { class: 'btn small danger', onClick: () => void run(() => api.moderateChat('clear')) }, 'Clear chat'))));
   }
 
+  /**
+   * Look a player up by their Minecraft name, see the rank they hold and who gave it, and change
+   * it. The server checks the permission again and tells the player at once, so nobody reinstalls.
+   */
+  function rankManager(): HTMLElement {
+    const search = h('input', { class: 'input', placeholder: 'Minecraft username', maxlength: '16' }) as HTMLInputElement;
+    const find = () => {
+      const name = search.value.trim();
+      if (!name) return;
+      void api.chatAdmin('lookup', { name });
+    };
+    search.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter') find();
+    });
+    const found = ui.lookup;
+
+    const result: Node[] = [];
+    if (found && !found.found) {
+      result.push(h('p', { class: 'muted' }, 'Mojang has no account called ' + found.name + '.'));
+    } else if (found) {
+      const current = rankInfo(found.rank);
+      const picker = h('select', { class: 'input', style: 'max-width:190px' },
+        ...RANKS.filter((r) => r.id !== 'owner').map((r) => h('option', { value: r.id, selected: r.id === found.rank }, r.name))) as HTMLSelectElement;
+      result.push(h('div', { class: 'list-row' },
+        h('div', { class: 'grow' },
+          h('div', {}, found.name, ' ', rankChip(found.rank)),
+          h('div', { class: 'muted', style: 'font-size:11px' }, found.uuid ?? ''),
+          found.given ? h('div', { class: 'muted', style: 'font-size:11px' }, 'Given by ' + found.given.byName + ' ' + fmtWhen(found.given.at)) : null,
+          found.seen ? h('div', { class: 'muted', style: 'font-size:11px' }, 'Last seen ' + fmtWhen(found.seen.last)) : null),
+        picker,
+        h('button', { class: 'btn small primary', onClick: () => void applyRank(found.uuid!, picker.value) }, 'Set rank'),
+        h('button', { class: 'btn small', onClick: () => void applyRank(found.uuid!, 'snowball') }, 'Revoke')));
+      if (found.history?.length) {
+        result.push(h('div', { class: 'section-title', style: 'margin-top:12px' }, 'HISTORY'));
+        result.push(h('div', { class: 'list' }, ...found.history.slice(0, 12).map((entry) =>
+          h('div', { class: 'list-row' },
+            h('div', { class: 'grow' }, rankChip(entry.rank), ' ', h('span', { class: 'muted', style: 'font-size:12px' }, 'by ' + entry.byName)),
+            h('div', { class: 'muted', style: 'font-size:11px' }, fmtWhen(entry.at))))));
+      } else if (current.id === 'snowball') {
+        result.push(h('p', { class: 'muted' }, 'No rank has ever been given to this account.'));
+      }
+    }
+
+    return h('div', { class: 'stack' },
+      h('div', { class: 'row' },
+        h('div', { class: 'grow' }, search),
+        h('button', { class: 'btn small primary', onClick: find }, 'Find')),
+      ...result);
+  }
+
+  async function applyRank(uuid: string, rank: string): Promise<void> {
+    const result = await guard(() => api.setRank(uuid, rank));
+    if (!result) return;
+    if (!result.ok) {
+      toast(result.reason ?? 'That rank was not changed.', 'error');
+      return;
+    }
+    toast('Rank set to ' + rankInfo(rank).name);
+  }
+
   /** Everyone the Snowball server has seen, newest first. */
   function peopleList(): HTMLElement {
     if (!ui.people.length) return h('p', { class: 'muted' }, 'Nobody has joined yet, or the list is still coming.');
     return h('div', { class: 'list' }, ...ui.people.slice(0, 60).map((person) =>
       h('div', { class: 'list-row' },
         h('div', { class: 'grow' },
-          h('div', {}, person.name, person.tier === 'plus' ? h('span', { class: 'chat-role plus', style: 'margin-left:8px' }, 'Snowball+') : null),
+          h('div', {}, person.name, ' ', person.rank && person.rank !== 'snowball' ? rankChip(person.rank) : null),
           h('div', { class: 'muted', style: 'font-size:11px' }, `last seen ${fmtWhen(person.last)}${person.muted ? ' - muted' : ''}`)),
-        h('button', { class: 'btn small', onClick: () => void api.setSnowballPlus(person.uuid, person.tier !== 'plus').then(() => setTimeout(() => void api.chatAdmin('people'), 400)) },
-          person.tier === 'plus' ? 'Remove Snowball+' : 'Give Snowball+'),
+        h('button', { class: 'btn small', onClick: () => void api.setSnowballPlus(person.uuid, person.rank === 'snowball').then(() => setTimeout(() => void api.chatAdmin('people'), 400)) },
+          person.rank === 'snowball' ? 'Give Snowball+' : 'Remove rank'),
         h('button', { class: 'btn small', onClick: () => void api.moderateChat(person.muted ? 'unmute' : 'mute', person.uuid, 10).then(() => setTimeout(() => void api.chatAdmin('people'), 400)) },
           person.muted ? 'Unmute' : 'Mute 10m'))));
   }
@@ -1019,7 +1102,7 @@
     const time = new Date(message.at);
     return h('div', { class: `chat-line${message.system ? ' system' : ''}` },
       h('span', { class: 'chat-time' }, Number.isNaN(time.getTime()) ? '' : time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })),
-      message.staff ? h('span', { class: 'chat-role' }, 'Owner') : message.tier === 'plus' ? h('span', { class: 'chat-role plus' }, 'Snowball+') : null,
+      message.rank && message.rank !== 'snowball' ? rankChip(message.rank) : null,
       h('span', { class: `chat-name${message.staff ? ' staff' : ''}` }, message.name),
       h('span', { class: 'chat-text' }, message.text));
   }
@@ -1488,6 +1571,16 @@
     const wasAnnouncement = ui.chat?.announcement ?? null;
     ui.chat = state;
     if (ui.view === 'chat' || wasAnnouncement !== state.announcement) render();
+  });
+  api.on('chat-lookup', (result: Snowball.RankLookup) => {
+    ui.lookup = result;
+    if (ui.view === 'chat') render();
+  });
+  api.on('chat-rank-set', (result: { uuid: string; rank: string; history: Snowball.RankLookup['history'] }) => {
+    if (ui.lookup?.uuid === result.uuid) {
+      ui.lookup = { ...ui.lookup, rank: result.rank, history: result.history };
+      if (ui.view === 'chat') render();
+    }
   });
   api.on('chat-people', (people: Snowball.SnowballPerson[]) => {
     ui.people = people;

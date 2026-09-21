@@ -10,6 +10,8 @@ import dev.snowballclient.client.module.Module;
 import dev.snowballclient.client.module.ModuleCategory;
 import dev.snowballclient.client.module.ModuleRegistry;
 import dev.snowballclient.client.platform.ViewScreen;
+import dev.snowballclient.client.social.Rank;
+import dev.snowballclient.client.social.SnowballPlayers;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
@@ -34,6 +36,7 @@ import java.util.function.Function;
 public final class SnowballMenuGameTest implements FabricClientGameTest {
 	private static final Logger LOG = LoggerFactory.getLogger("SnowballClientGameTest");
 	private static final int KEY_RIGHT_SHIFT = 344;
+	private static final int KEY_E = 69;
 	private static final int KEY_ESCAPE = 256;
 	private static final int KEY_ENTER = 257;
 	private static final int[][] RESOLUTIONS = {{1280, 720}, {1920, 1080}, {2560, 1440}, {3840, 2160}};
@@ -66,10 +69,42 @@ public final class SnowballMenuGameTest implements FabricClientGameTest {
 				PlayerInfo info = mc.getConnection().getPlayerInfo(mc.getUser().getProfileId());
 				return info == null ? "" : mc.gui.hud.getTabList().getNameForDisplay(info).getString();
 			});
-			if (!listed.startsWith(String.valueOf((char) 0xE000))) {
-				throw new AssertionError("The player list name has no Snowball badge: " + listed);
+			if (!listed.startsWith(String.valueOf((char) 0xE000)) || !listed.contains("[Snowball]")) {
+				throw new AssertionError("The player list name has no Snowball rank: " + listed);
 			}
-			LOG.info("Player list shows the Snowball badge: {}", listed.replace((char) 0xE000, '*'));
+			LOG.info("Player list shows the rank: {}", listed.replace((char) 0xE000, '*'));
+
+			// Every rank draws its own badge and tag, so a wrong glyph shows up here rather than in game.
+			for (Rank rank : Rank.values()) {
+				String shown = onClient(context, mc -> {
+					SnowballPlayers.setSelfRank(rank);
+					PlayerInfo info = mc.getConnection().getPlayerInfo(mc.getUser().getProfileId());
+					return info == null ? "" : mc.gui.hud.getTabList().getNameForDisplay(info).getString();
+				});
+				if (!shown.startsWith(String.valueOf(rank.badge())) || !shown.contains("[" + rank.tag() + "]")) {
+					throw new AssertionError("Rank " + rank.id() + " is not drawn correctly: " + shown);
+				}
+			}
+			onClient(context, mc -> {
+				SnowballPlayers.setSelfRank(Rank.SNOWBALL);
+				return null;
+			});
+			LOG.info("All {} ranks draw their badge and tag", Rank.values().length);
+
+			// Glass GUI: the same screen with Minecraft's background, then with Snowball's glass.
+			for (boolean glass : new boolean[]{false, true}) {
+				onClient(context, mc -> {
+					SnowballClient.get().modules().get("glass_gui").orElseThrow().setEnabled(glass);
+					return null;
+				});
+				context.waitTicks(5);
+				context.getInput().pressKey(KEY_E);
+				context.waitTicks(10);
+				context.takeScreenshot(glass ? "inventory_glass" : "inventory_plain");
+				context.getInput().pressKey(KEY_ESCAPE);
+				context.waitTicks(5);
+			}
+			LOG.info("Glass GUI screenshots taken");
 
 			// The HUD editor draws its boxes over the real HUD.
 			onClient(context, mc -> {

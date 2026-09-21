@@ -145,7 +145,7 @@ declare namespace Snowball {
     downloads: { concurrency: number; retries: number };
     java: { autoDownloadRuntime: boolean; defaultMaxMemoryMb: number | null };
     game: { closeLauncherOnLaunch: boolean; showLogsOnLaunch: boolean };
-    accounts: { microsoftClientId: string; selectedAccountId: string | null; tier: 'snowball' | 'plus' };
+    accounts: { microsoftClientId: string; selectedAccountId: string | null; rank: string };
     updates: { channel: 'stable' | 'beta'; checkOnStartup: boolean };
     performance: { installMods: boolean };
     logs: { retainDays: number; debug: boolean };
@@ -266,7 +266,17 @@ declare namespace Snowball {
     at: string;
     staff?: boolean;
     system?: boolean;
-    tier?: 'snowball' | 'plus';
+    rank?: string;
+  }
+
+  interface RankLookup {
+    found: boolean;
+    name: string;
+    uuid?: string;
+    rank?: string;
+    given?: { rank: string; at: number; by: string; byName: string } | null;
+    history?: { rank: string; at: number; by: string; byName: string }[];
+    seen?: { name: string; first: number; last: number; rank: string } | null;
   }
 
   interface SnowballStats {
@@ -293,7 +303,7 @@ declare namespace Snowball {
   interface SnowballPerson {
     uuid: string;
     name: string;
-    tier: 'snowball' | 'plus';
+    rank: string;
     first: number;
     last: number;
     muted: boolean;
@@ -305,7 +315,8 @@ declare namespace Snowball {
     online: number;
     announcement: string | null;
     admin: boolean;
-    tier: 'snowball' | 'plus';
+    rank: string;
+    permissions: string[];
     flags: Record<string, boolean>;
     message?: string;
   }
@@ -319,7 +330,7 @@ declare namespace Snowball {
     | { status: 'unsupported'; version: string; reason: string }
     | { status: 'error'; version: string; message: string };
 
-  type EventName = 'progress' | 'game-log' | 'game-exit' | 'launch-error' | 'launcher-log' | 'state' | 'activity' | 'update' | 'chat-state' | 'chat-message' | 'chat-history' | 'chat-people' | 'chat-bugs' | 'chat-bug-filed';
+  type EventName = 'progress' | 'game-log' | 'game-exit' | 'launch-error' | 'launcher-log' | 'state' | 'activity' | 'update' | 'chat-state' | 'chat-message' | 'chat-history' | 'chat-people' | 'chat-bugs' | 'chat-bug-filed' | 'chat-lookup' | 'chat-rank-set' | 'chat-history-ranks';
 
   interface Api {
     getState(): Promise<AppState>;
@@ -368,6 +379,7 @@ declare namespace Snowball {
     announce(text: string | null): Promise<{ ok: boolean; reason?: string }>;
     moderateChat(action: 'mute' | 'unmute' | 'clear', uuid?: string, minutes?: number): Promise<{ ok: boolean; reason?: string }>;
     setSnowballPlus(uuid: string, on: boolean): Promise<{ ok: boolean; reason?: string }>;
+    setRank(uuid: string, rank: string): Promise<{ ok: boolean; reason?: string }>;
     snowballStats(): Promise<SnowballStats | null>;
     reportBug(report: Record<string, string>): Promise<{ ok: boolean; reason?: string }>;
     chatAdmin(action: string, extra?: Record<string, unknown>): Promise<{ ok: boolean; reason?: string }>;

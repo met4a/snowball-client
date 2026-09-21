@@ -6,19 +6,14 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Who is playing on Snowball Client, and on which edition. You are always on the list; other players
- * are added by whatever tells the client about them, so the player list only ever claims what it
- * actually knows. The edition is never decided here either - the backend says who has Snowball+.
+ * Who is playing on Snowball Client, and which rank each of them holds. You are always on the list;
+ * other players are added by whatever tells the client about them, so the player list only claims
+ * what it actually knows. Ranks are never decided here - the backend sends them.
  */
 public final class SnowballPlayers {
-	/** Snowball editions, in the order they outrank each other. */
-	public enum Tier {
-		NONE, SNOWBALL, PLUS
-	}
-
-	private static final Map<UUID, Tier> USERS = new ConcurrentHashMap<>();
+	private static final Map<UUID, Rank> USERS = new ConcurrentHashMap<>();
 	private static volatile UUID self;
-	private static volatile Tier selfTier = Tier.SNOWBALL;
+	private static volatile Rank selfRank = Rank.SNOWBALL;
 
 	private SnowballPlayers() {
 	}
@@ -28,27 +23,37 @@ public final class SnowballPlayers {
 		self = id;
 	}
 
-	/** Set from the launcher, which asks the backend: the client never decides its own edition. */
-	public static void setSelfTier(Tier tier) {
-		selfTier = tier == null ? Tier.SNOWBALL : tier;
+	/** Set from the launcher, which asks the backend: the client never decides its own rank. */
+	public static void setSelfRank(Rank rank) {
+		selfRank = rank == null ? Rank.SNOWBALL : rank;
 	}
 
-	public static Tier tier(UUID id) {
-		if (id == null) return Tier.NONE;
-		if (id.equals(self)) return selfTier;
-		return USERS.getOrDefault(id, Tier.NONE);
+	public static Rank selfRank() {
+		return selfRank;
+	}
+
+	/** The rank of a player, or null when they are not known to be on Snowball at all. */
+	public static Rank rank(UUID id) {
+		if (id == null) return null;
+		if (id.equals(self)) return selfRank;
+		return USERS.get(id);
 	}
 
 	public static boolean isSnowball(UUID id) {
-		return tier(id) != Tier.NONE;
+		return rank(id) != null;
 	}
 
-	public static void add(UUID id, Tier tier) {
-		if (id != null) USERS.put(id, tier == null ? Tier.SNOWBALL : tier);
+	/** True when this account may use a feature; the backend checks the same thing again. */
+	public static boolean can(Permission permission) {
+		return Permission.granted(selfRank, permission);
+	}
+
+	public static void add(UUID id, Rank rank) {
+		if (id != null) USERS.put(id, rank == null ? Rank.SNOWBALL : rank);
 	}
 
 	public static void addAll(Collection<UUID> ids) {
-		for (UUID id : ids) add(id, Tier.SNOWBALL);
+		for (UUID id : ids) add(id, Rank.SNOWBALL);
 	}
 
 	public static void remove(UUID id) {

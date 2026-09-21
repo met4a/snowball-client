@@ -1,18 +1,12 @@
 {
 	"providers": [
-		{
-			"type": "bitmap",
-			"file": "snowballclient:gui/tab_snowball.png",
-			"ascent": 8,
-			"height": 9,
-			"chars": [""]
-		},
-		{
-			"type": "bitmap",
-			"file": "snowballclient:gui/tab_snowball_plus.png",
-			"ascent": 8,
-			"height": 9,
-			"chars": [""]
-		}
+		{ "type": "bitmap", "file": "snowballclient:gui/tab_snowball.png", "ascent": 8, "height": 9, "chars": [""] },
+		{ "type": "bitmap", "file": "snowballclient:gui/tab_snowball_plus.png", "ascent": 8, "height": 9, "chars": [""] },
+		{ "type": "bitmap", "file": "snowballclient:gui/rank/tester.png", "ascent": 8, "height": 9, "chars": [""] },
+		{ "type": "bitmap", "file": "snowballclient:gui/rank/bug_hunter.png", "ascent": 8, "height": 9, "chars": [""] },
+		{ "type": "bitmap", "file": "snowballclient:gui/rank/partner.png", "ascent": 8, "height": 9, "chars": [""] },
+		{ "type": "bitmap", "file": "snowballclient:gui/rank/staff.png", "ascent": 8, "height": 9, "chars": [""] },
+		{ "type": "bitmap", "file": "snowballclient:gui/rank/developer.png", "ascent": 8, "height": 9, "chars": [""] },
+		{ "type": "bitmap", "file": "snowballclient:gui/rank/owner.png", "ascent": 8, "height": 9, "chars": [""] }
 	]
 }

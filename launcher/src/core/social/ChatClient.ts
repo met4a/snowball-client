@@ -17,7 +17,9 @@ export interface ChatMessage {
   system?: boolean;
 }
 
-export type SnowballTier = 'snowball' | 'plus';
+/** The ranks the backend can hand out, from least to most. */
+export const RANKS = ['snowball', 'plus', 'tester', 'bug_hunter', 'partner', 'staff', 'developer', 'owner'] as const;
+export type SnowballRank = (typeof RANKS)[number];
 
 export interface SnowballStats {
   online: number;
@@ -56,8 +58,10 @@ export interface ChatState {
   online: number;
   announcement: string | null;
   admin: boolean;
-  /** The edition the backend says this account has. Never decided here. */
-  tier: SnowballTier;
+  /** The rank the backend says this account holds. Never decided here. */
+  rank: SnowballRank;
+  /** What that rank is allowed to do, as the backend spelled it out. */
+  permissions: string[];
   /** Features the owner has switched on or off for everyone. */
   flags: Record<string, boolean>;
   message?: string;
@@ -84,7 +88,7 @@ export class ChatClient extends EventEmitter {
 
   constructor(private readonly baseUrl: string, private readonly adminUuid: string) {
     super();
-    this.state = { configured: Boolean(baseUrl), status: 'offline', online: 0, announcement: null, admin: false, tier: 'snowball', flags: {} };
+    this.state = { configured: Boolean(baseUrl), status: 'offline', online: 0, announcement: null, admin: false, rank: 'snowball', permissions: [], flags: {} };
   }
 
   current(): ChatState {
@@ -177,12 +181,22 @@ export class ChatClient extends EventEmitter {
     return { ok: true };
   }
 
-  /** Admin only: give or take away Snowball+ for an account. The server decides whether you may. */
-  setPlus(uuid: string, on: boolean): { ok: boolean; reason?: string } {
+  /** True when this account's rank includes a permission. The backend checks it again anyway. */
+  can(permission: string): boolean {
+    return this.state.permissions.includes('everything') || this.state.permissions.includes(permission);
+  }
+
+  /** Gives an account a rank, or takes it back to plain Snowball. Refused unless the rank allows it. */
+  setRank(uuid: string, rank: SnowballRank): { ok: boolean; reason?: string } {
     if (!this.socket || this.state.status !== 'online') return { ok: false, reason: 'You are not connected to chat.' };
-    if (!this.state.admin) return { ok: false, reason: 'Only the Snowball owner can change editions.' };
-    this.socket.send(JSON.stringify({ type: 'admin', action: on ? 'grant' : 'ungrant', uuid }));
+    if (!this.can('ranks.manage')) return { ok: false, reason: 'Your rank cannot change other people\u2019s ranks.' };
+    this.socket.send(JSON.stringify({ type: 'admin', action: 'rank-set', uuid, rank }));
     return { ok: true };
+  }
+
+  /** Snowball+ is a rank like any other; this keeps the older wording working. */
+  setPlus(uuid: string, on: boolean): { ok: boolean; reason?: string } {
+    return this.setRank(uuid, on ? 'plus' : 'snowball');
   }
 
   /** Admin only: mute a player for a while, or clear the chat for everyone. */
@@ -254,9 +268,20 @@ export class ChatClient extends EventEmitter {
       case 'history':
         if (Array.isArray(payload.messages)) this.emit('history', payload.messages as ChatMessage[]);
         break;
-      case 'you':
-        this.set({ tier: payload.tier === 'plus' ? 'plus' : 'snowball', admin: Boolean(payload.owner), flags: payload.flags ?? {} });
-        this.emit('tier', this.state.tier);
+      case 'you': {
+        const rank = (RANKS as readonly string[]).includes(payload.rank) ? (payload.rank as SnowballRank) : 'snowball';
+        this.set({ rank, permissions: payload.permissions ?? [], admin: Boolean(payload.owner), flags: payload.flags ?? {} });
+        this.emit('rank', rank);
+        break;
+      }
+      case 'lookup':
+        this.emit('lookup', payload);
+        break;
+      case 'rank-set':
+        this.emit('rank-set', payload);
+        break;
+      case 'history':
+        this.emit('history', payload);
         break;
       case 'flags':
         this.set({ flags: payload.flags ?? {} });

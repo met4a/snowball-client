@@ -28,8 +28,8 @@ public final class ClientHudExtras {
 		}
 
 		private String text(Minecraft mc) {
-			boolean plus = showEdition.isOn() && SnowballPlayers.tier(mc.getUser().getProfileId()) == SnowballPlayers.Tier.PLUS;
-			return plus ? "Snowball+" : "Snowball";
+			// The rank comes from the backend; the watermark only writes down what it was told.
+			return showEdition.isOn() ? SnowballPlayers.selfRank().rankName() : "Snowball";
 		}
 
 		@Override

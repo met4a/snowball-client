@@ -5,6 +5,7 @@ import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.module.Module;
 import dev.snowballclient.client.module.ModuleCategory;
 import dev.snowballclient.client.module.setting.BooleanSetting;
+import dev.snowballclient.client.module.setting.ChoiceSetting;
 import dev.snowballclient.client.module.setting.NumberSetting;
 
 /**
@@ -20,7 +21,7 @@ public final class InterfaceSettings extends Module {
 	public final BooleanSetting pauseGame;
 	public final BooleanSetting customMainMenu;
 	public final BooleanSetting customLoadingScreen;
-	public final BooleanSetting snowballTabBadge;
+	public final ChoiceSetting tabRanks;
 
 	private final Theme theme;
 	private boolean themeDirty;
@@ -36,7 +37,7 @@ public final class InterfaceSettings extends Module {
 		pauseGame = setting(new BooleanSetting("pause_game", "Pause singleplayer in menu", "", clientSettings.pauseGameInMenu));
 		customMainMenu = setting(new BooleanSetting("custom_main_menu", "Snowball main menu", "Use Snowball's main menu instead of Minecraft's title screen", true));
 		customLoadingScreen = setting(new BooleanSetting("custom_loading_screen", "Snowball loading screen", "Show the Snowball loading screen while the game loads its resources", true));
-		snowballTabBadge = setting(new BooleanSetting("tab_badge", "Snowball badge in the player list", "Mark players who are on Snowball Client with a snowball next to their name", true));
+		tabRanks = setting(new ChoiceSetting("tab_ranks", "Ranks in the player list", "How a player's Snowball rank is shown next to their name", "badge_tag", java.util.List.of("badge_tag", "badge", "tag", "off")));
 
 		scale.onChange(v -> apply(() -> theme.scale = v.floatValue()));
 		highContrast.onChange(v -> apply(() -> theme.highContrast = v));

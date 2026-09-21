@@ -20,6 +20,7 @@ import dev.snowballclient.client.perf.ModRequests;
 import dev.snowballclient.client.perf.ModScanner;
 import dev.snowballclient.client.platform.MinecraftTextures;
 import dev.snowballclient.client.platform.ViewScreen;
+import dev.snowballclient.client.social.Rank;
 import dev.snowballclient.client.social.SnowballPlayers;
 import dev.snowballclient.client.util.OptionsSaver;
 import dev.snowballclient.client.waypoint.WaypointStore;
@@ -78,9 +79,14 @@ public final class SnowballClient implements ClientModInitializer {
 		return ModuleRegistry.INTERFACE == null || ModuleRegistry.INTERFACE.customLoadingScreen.isOn();
 	}
 
-	/** Whether to mark Snowball players in the player list. */
-	public static boolean showTabBadge() {
-		return ModuleRegistry.INTERFACE != null && ModuleRegistry.INTERFACE.snowballTabBadge.isOn();
+	/**
+	 * How ranks appear in the player list: "badge_tag", "badge", "tag", or "off" for nothing at all.
+	 * The mixin reads this rather than deciding for itself, so the shape stays one setting.
+	 */
+	public static String tabFormat() {
+		if (ModuleRegistry.INTERFACE == null) return "badge_tag";
+		String format = ModuleRegistry.INTERFACE.tabRanks.get();
+		return "off".equals(format) ? "" : format;
 	}
 
 	public ModuleManager modules() {
@@ -179,9 +185,8 @@ public final class SnowballClient implements ClientModInitializer {
 
 		ClientTickEvents.END_CLIENT_TICK.register(this::onEndTick);
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> saveAll());
-		// The launcher passes the edition the backend granted this account; the client only reads it.
-		SnowballPlayers.setSelfTier("plus".equalsIgnoreCase(System.getProperty("snowball.tier", "snowball"))
-				? SnowballPlayers.Tier.PLUS : SnowballPlayers.Tier.SNOWBALL);
+		// The launcher passes the rank the backend granted this account; the client only reads it.
+		SnowballPlayers.setSelfRank(Rank.byId(System.getProperty("snowball.rank", "snowball")));
 		LOGGER.info("Snowball Client initialised with {} modules", modules.all().size());
 	}
 

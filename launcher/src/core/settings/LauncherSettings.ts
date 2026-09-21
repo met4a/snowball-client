@@ -9,8 +9,8 @@ export interface LauncherSettings {
   downloads: { concurrency: number; retries: number };
   java: { autoDownloadRuntime: boolean; defaultMaxMemoryMb: number | null };
   game: { closeLauncherOnLaunch: boolean; showLogsOnLaunch: boolean };
-  /** tier is written only from what the Snowball backend reports for the signed-in account. */
-  accounts: { microsoftClientId: string; selectedAccountId: string | null; tier: 'snowball' | 'plus' };
+  /** rank is written only from what the Snowball backend reports for the signed-in account. */
+  accounts: { microsoftClientId: string; selectedAccountId: string | null; rank: string };
   updates: { channel: 'stable' | 'beta'; checkOnStartup: boolean };
   /** installMods: let a performance profile download its optimisation mods. Off by default: profiles then
    *  only use what the instance already has. */
@@ -26,7 +26,7 @@ export function defaultSettings(): LauncherSettings {
     downloads: { concurrency: 8, retries: 3 },
     java: { autoDownloadRuntime: true, defaultMaxMemoryMb: null },
     game: { closeLauncherOnLaunch: false, showLogsOnLaunch: false },
-    accounts: { microsoftClientId: '', selectedAccountId: null, tier: 'snowball' },
+    accounts: { microsoftClientId: '', selectedAccountId: null, rank: 'snowball' },
     updates: { channel: 'stable', checkOnStartup: true },
     performance: { installMods: false },
     logs: { retainDays: 14, debug: false },
@@ -54,7 +54,7 @@ export function normalizeSettings(raw: unknown): LauncherSettings {
     accounts: {
       microsoftClientId: typeof r.accounts?.microsoftClientId === 'string' && /^[0-9a-fA-F-]{0,36}$/.test(r.accounts.microsoftClientId) ? r.accounts.microsoftClientId : '',
       selectedAccountId: typeof r.accounts?.selectedAccountId === 'string' ? r.accounts.selectedAccountId : null,
-      tier: r.accounts?.tier === 'plus' ? 'plus' : 'snowball',
+      rank: typeof r.accounts?.rank === 'string' ? r.accounts.rank : 'snowball',
     },
     updates: { channel: r.updates?.channel === 'beta' ? 'beta' : 'stable', checkOnStartup: bool(r.updates?.checkOnStartup, d.updates.checkOnStartup) },
     performance: { installMods: bool(r.performance?.installMods, d.performance.installMods) },

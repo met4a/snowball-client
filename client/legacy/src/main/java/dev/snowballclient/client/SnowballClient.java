@@ -11,6 +11,7 @@ import dev.snowballclient.client.keybind.KeybindTracker;
 import dev.snowballclient.client.module.ModuleManager;
 import dev.snowballclient.client.module.ModuleCategory;
 import dev.snowballclient.client.module.ModuleRegistry;
+import dev.snowballclient.client.social.Rank;
 import dev.snowballclient.client.social.SnowballPlayers;
 import dev.snowballclient.client.perf.ModRequests;
 import dev.snowballclient.client.perf.ModScanner;
@@ -143,9 +144,8 @@ public final class SnowballClient implements ClientModInitializer {
 		HudRenderCallback.EVENT.register((client, tickDelta) -> hud.render(hudCanvas.frame()));
 		ClientTickEvents.END_CLIENT_TICK.register(this::onEndTick);
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> saveAll());
-		// The launcher passes the edition the backend granted this account; the client only reads it.
-		SnowballPlayers.setSelfTier("plus".equalsIgnoreCase(System.getProperty("snowball.tier", "snowball"))
-				? SnowballPlayers.Tier.PLUS : SnowballPlayers.Tier.SNOWBALL);
+		// The launcher passes the rank the backend granted this account; the client only reads it.
+		SnowballPlayers.setSelfRank(Rank.byId(System.getProperty("snowball.rank", "snowball")));
 		LOGGER.info("Snowball Client initialised with {} modules", modules.all().size());
 	}
 

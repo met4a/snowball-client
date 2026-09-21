@@ -16,6 +16,7 @@ stonecutter parameters {
             replace("import net.minecraft.client.gui.components.PlayerFaceRenderer;", "import net.minecraft.client.gui.components.PlayerFaceExtractor;")
             replace("renderPanorama(", "extractPanorama(")
             replace("renderBlurredBackground(", "extractBlurredBackground(")
+            replace("renderMenuBackground(", "extractMenuBackground(")
             // 26.1 added a flag for whether the options screen was opened from a world.
             replace("new OptionsScreen(parent, mc().options)", "new OptionsScreen(parent, mc().options, false)")
 

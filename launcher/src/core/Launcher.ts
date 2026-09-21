@@ -466,8 +466,8 @@ export class Launcher extends EventEmitter {
           ...(prep.clientJar ? [`-Dfabric.addMods=${prep.clientJar}`] : []),
           // The client's Discord presence needs an application id; without one the module stays off.
           ...(this.discordAppId ? [`-Dsnowball.discordAppId=${this.discordAppId}`] : []),
-          // The edition the backend granted this account; the client only reads it, never sets it.
-          `-Dsnowball.tier=${this.settings.get().accounts.tier}`,
+          // The rank the backend granted this account; the client only reads it, never sets it.
+          `-Dsnowball.rank=${this.settings.get().accounts.rank}`,
         ],
       });
       say('info', 'Starting Minecraft...');

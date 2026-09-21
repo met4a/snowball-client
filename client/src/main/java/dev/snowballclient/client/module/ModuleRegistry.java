@@ -38,6 +38,7 @@ import dev.snowballclient.client.module.render.ArmorHud;
 import dev.snowballclient.client.module.render.Crosshair;
 import dev.snowballclient.client.module.render.FovSettings;
 import dev.snowballclient.client.module.render.Fullbright;
+import dev.snowballclient.client.module.render.GlassGui;
 import dev.snowballclient.client.module.render.HitColor;
 import dev.snowballclient.client.module.render.PotionHud;
 import dev.snowballclient.client.module.render.RenderDistance;
@@ -70,6 +71,7 @@ public final class ModuleRegistry {
 	public static final CombatTracker COMBAT = new CombatTracker();
 
 	public static ClientHud CLIENT_HUD;
+	public static GlassGui GLASS_GUI;
 	public static Freelook FREELOOK;
 	public static Zoom ZOOM;
 	public static Fullbright FULLBRIGHT;
@@ -104,6 +106,7 @@ public final class ModuleRegistry {
 								   ModRequests requests, Predicate<String> isLoaded, Map<String, String> disabledJars) {
 		// CLIENT
 		CLIENT_HUD = m.register(new ClientHud());
+		GLASS_GUI = m.register(new GlassGui());
 		CROSSHAIR = m.register(new Crosshair());
 		m.register(new ClientHudExtras.Watermark());
 		m.register(new ClientHudExtras.CustomText());
@@ -191,7 +194,7 @@ public final class ModuleRegistry {
 				"time_changer", "weather_effects");
 		m.order(ModuleCategory.PVP, "crosshair", "armor_hud", "cps_counter", "combo_counter", "reach_display", "target_info");
 		m.order(ModuleCategory.MOVEMENT, "toggle_sprint", "speed_display");
-		m.order(ModuleCategory.VISUALS, "fullbright", "zoom", "freelook", "snaplook", "hit_color");
+		m.order(ModuleCategory.VISUALS, "glass_gui", "fullbright", "zoom", "freelook", "snaplook", "hit_color");
 		m.order(ModuleCategory.WORLD, "waypoints", "render_distance", "entity_distance");
 		m.order(ModuleCategory.MISC, "chat_settings", "nick_hider", "discord_presence", "screenshot_utility", "notifications", "clock", "server_info", "session_timer");
 		m.order(ModuleCategory.QOL, "keystrokes", "ez_pots", "item_counter");

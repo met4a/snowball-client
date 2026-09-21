@@ -12,6 +12,38 @@ const HISTORY = 60;
 const MAX_MESSAGE_LENGTH = 240;
 const MUTE_DEFAULT_MINUTES = 10;
 
+/** Ranks from least to most. The client displays these; this file is what actually decides them. */
+const RANKS = ['snowball', 'plus', 'tester', 'bug_hunter', 'partner', 'staff', 'developer', 'owner'];
+
+/**
+ * What each rank may do. A rank keeps everything the rank below it has, so a new ability given to
+ * 'staff' reaches developer and owner too without being listed again.
+ */
+const PERMISSIONS = {
+  snowball: ['base', 'bugs.report'],
+  plus: ['plus.features'],
+  tester: ['beta.access'],
+  bug_hunter: ['bugs.triage'],
+  partner: ['partner.features'],
+  staff: ['chat.moderate', 'users.view'],
+  developer: ['dev.tools', 'flags.manage', 'chat.announce'],
+  owner: ['ranks.manage', 'everything'],
+};
+
+function permissionsOf(rank) {
+  const granted = new Set();
+  for (const name of RANKS) {
+    for (const permission of PERMISSIONS[name]) granted.add(permission);
+    if (name === rank) break;
+  }
+  return [...granted];
+}
+
+function can(member, permission) {
+  const granted = permissionsOf(member.rank);
+  return granted.includes('everything') || granted.includes(permission);
+}
+
 const BANNED = [
   'nigger', 'nigga', 'faggot', 'fag', 'retard', 'retarded', 'kys', 'killyourself', 'rape', 'rapist',
   'cunt', 'whore', 'slut', 'bitch', 'bastard', 'dick', 'cock', 'pussy', 'penis', 'vagina', 'porn',
@@ -61,7 +93,8 @@ export class ChatRoom {
     this.history = [];
     this.announcement = null;
     this.mutes = new Map();
-    this.tiers = new Map();
+    this.ranks = new Map();
+    this.rankLog = new Map();
     this.people = new Map();
     this.bugs = [];
     this.flags = {};
@@ -70,7 +103,8 @@ export class ChatRoom {
       this.history = (await state.storage.get('history')) ?? [];
       this.announcement = (await state.storage.get('announcement')) ?? null;
       this.mutes = new Map((await state.storage.get('mutes')) ?? []);
-      this.tiers = new Map((await state.storage.get('tiers')) ?? []);
+      this.ranks = new Map((await state.storage.get('ranks')) ?? []);
+      this.rankLog = new Map((await state.storage.get('rankLog')) ?? []);
       this.people = new Map((await state.storage.get('people')) ?? []);
       this.bugs = (await state.storage.get('bugs')) ?? [];
       this.flags = (await state.storage.get('flags')) ?? {};
@@ -102,14 +136,14 @@ export class ChatRoom {
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
     server.accept();
-    const admin = uuid === String(this.env.ADMIN_UUID ?? '').replace(/-/g, '');
-    // The edition comes from here and nowhere else: a changed client cannot grant itself Snowball+.
-    const tier = admin ? 'plus' : this.tiers.get(uuid) ?? 'snowball';
-    const member = { name: profile.name, uuid, admin, tier, times: [] };
+    // The owner is fixed in the worker's own settings; everyone else holds the rank stored here.
+    const owner = uuid === String(this.env.ADMIN_UUID ?? '').replace(/-/g, '');
+    const rank = owner ? 'owner' : this.ranks.get(uuid)?.rank ?? 'snowball';
+    const member = { name: profile.name, uuid, owner, rank, times: [] };
     this.sockets.set(server, member);
     this.see(member);
 
-    server.send(JSON.stringify({ type: 'you', tier: member.tier, owner: admin, flags: this.flags }));
+    server.send(JSON.stringify({ type: 'you', rank: member.rank, permissions: permissionsOf(member.rank), owner, flags: this.flags }));
     server.send(JSON.stringify({ type: 'history', messages: this.history }));
     server.send(JSON.stringify({ type: 'announce', text: this.announcement }));
     this.broadcastPresence();
@@ -156,9 +190,12 @@ export class ChatRoom {
     }
     if (payload.type === 'msg') return this.onChat(socket, member, payload);
     if (payload.type === 'bug') return this.onBug(socket, member, payload);
-    if (payload.type === 'announce' && member.admin) return this.onAnnounce(payload);
-    if (payload.type === 'admin' && member.admin) return this.onAdmin(payload, socket);
-    socket.send(JSON.stringify({ type: 'error', message: 'Only the Snowball account can do that.' }));
+    if (payload.type === 'announce') {
+      if (!can(member, 'chat.announce')) return this.refuse(socket);
+      return this.onAnnounce(payload);
+    }
+    if (payload.type === 'admin') return this.onAdmin(payload, socket, member);
+    this.refuse(socket);
   }
 
   async onChat(socket, member, payload) {
@@ -177,11 +214,15 @@ export class ChatRoom {
     const check = moderate(payload.text);
     if (!check.ok) return socket.send(JSON.stringify({ type: 'error', message: check.reason }));
 
-    const message = { type: 'msg', id: crypto.randomUUID(), name: member.name, uuid: member.uuid, text: check.text, at: new Date().toISOString(), staff: member.admin, tier: member.tier };
+    const message = { type: 'msg', id: crypto.randomUUID(), name: member.name, uuid: member.uuid, text: check.text, at: new Date().toISOString(), staff: member.owner, rank: member.rank };
     this.history.push(message);
     if (this.history.length > HISTORY) this.history.splice(0, this.history.length - HISTORY);
     await this.state.storage.put('history', this.history);
     this.broadcast(message);
+  }
+
+  refuse(socket) {
+    socket.send(JSON.stringify({ type: 'error', message: 'Your rank does not allow that.' }));
   }
 
   /** Keeps a light record of each account: enough to count players and to list them for the owner. */
@@ -189,7 +230,7 @@ export class ChatRoom {
     const known = this.people.get(member.uuid) ?? { first: Date.now() };
     known.name = member.name;
     known.last = Date.now();
-    known.tier = member.tier;
+    known.rank = member.rank;
     this.people.set(member.uuid, known);
     void this.state.storage.put('people', [...this.people]);
   }
@@ -245,7 +286,39 @@ export class ChatRoom {
     this.broadcast({ type: 'announce', text: this.announcement });
   }
 
-  async onAdmin(payload, socket) {
+  async onAdmin(payload, socket, member) {
+    const needed = {
+      people: 'users.view', bugs: 'bugs.report', 'bug-status': 'bugs.triage', flag: 'flags.manage',
+      clear: 'chat.moderate', mute: 'chat.moderate', unmute: 'chat.moderate',
+      'rank-set': 'ranks.manage', 'rank-clear': 'ranks.manage', grant: 'ranks.manage', ungrant: 'ranks.manage',
+      history: 'users.view', lookup: 'users.view',
+    }[payload.action];
+    if (!needed || !can(member, needed)) return this.refuse(socket);
+
+    if (payload.action === 'lookup') {
+      // A username becomes an account id through Mojang, so a rank is never given to a typo.
+      const wanted = String(payload.name ?? '').trim();
+      if (!/^[A-Za-z0-9_]{3,16}$/.test(wanted)) return socket.send(JSON.stringify({ type: 'lookup', found: false, name: wanted }));
+      const response = await fetch('https://api.mojang.com/users/profiles/minecraft/' + encodeURIComponent(wanted));
+      if (response.status !== 200) return socket.send(JSON.stringify({ type: 'lookup', found: false, name: wanted }));
+      const profile = await response.json();
+      const id = String(profile.id ?? '').replace(/-/g, '');
+      const isOwner = id === String(this.env.ADMIN_UUID ?? '').replace(/-/g, '');
+      return socket.send(JSON.stringify({
+        type: 'lookup',
+        found: true,
+        name: profile.name,
+        uuid: id,
+        rank: isOwner ? 'owner' : this.ranks.get(id)?.rank ?? 'snowball',
+        given: this.ranks.get(id) ?? null,
+        history: this.rankLog.get(id) ?? [],
+        seen: this.people.get(id) ?? null,
+      }));
+    }
+    if (payload.action === 'history') {
+      const id = String(payload.uuid ?? '').replace(/-/g, '');
+      return socket.send(JSON.stringify({ type: 'history', uuid: id, history: this.rankLog.get(id) ?? [] }));
+    }
     if (payload.action === 'people') {
       const people = [...this.people].map(([uuid, person]) => ({ uuid, ...person, muted: (this.mutes.get(uuid) ?? 0) > Date.now() }));
       people.sort((a, b) => b.last - a.last);
@@ -279,16 +352,32 @@ export class ChatRoom {
     }
     const uuid = String(payload.uuid ?? '').replace(/-/g, '');
     if (!/^[a-f0-9]{32}$/.test(uuid)) return;
-    if (payload.action === 'grant' || payload.action === 'ungrant') {
-      if (payload.action === 'grant') this.tiers.set(uuid, 'plus');
-      else this.tiers.delete(uuid);
-      await this.state.storage.put('tiers', [...this.tiers]);
-      // Anyone already connected under that account is told straight away.
-      for (const [socket, member] of this.sockets) {
-        if (member.uuid !== uuid) continue;
-        member.tier = payload.action === 'grant' ? 'plus' : 'snowball';
-        socket.send(JSON.stringify({ type: 'you', tier: member.tier, owner: member.admin }));
+    if (payload.action === 'rank-set' || payload.action === 'rank-clear' || payload.action === 'grant' || payload.action === 'ungrant') {
+      if (uuid === String(this.env.ADMIN_UUID ?? '').replace(/-/g, '')) {
+        return socket.send(JSON.stringify({ type: 'error', message: 'The owner account is set in the worker settings, not here.' }));
       }
+      let rank = 'snowball';
+      if (payload.action === 'rank-set') rank = RANKS.includes(payload.rank) ? payload.rank : 'snowball';
+      else if (payload.action === 'grant') rank = 'plus';
+      if (rank === 'owner') return socket.send(JSON.stringify({ type: 'error', message: 'Owner cannot be handed out.' }));
+
+      const entry = { rank, at: Date.now(), by: member.uuid, byName: member.name };
+      if (rank === 'snowball') this.ranks.delete(uuid);
+      else this.ranks.set(uuid, entry);
+      const log = this.rankLog.get(uuid) ?? [];
+      log.unshift(entry);
+      if (log.length > 50) log.length = 50;
+      this.rankLog.set(uuid, log);
+      await this.state.storage.put('ranks', [...this.ranks]);
+      await this.state.storage.put('rankLog', [...this.rankLog]);
+
+      // Anyone connected under that account hears at once, so nothing needs reinstalling.
+      for (const [other, person] of this.sockets) {
+        if (person.uuid !== uuid) continue;
+        person.rank = rank;
+        other.send(JSON.stringify({ type: 'you', rank, permissions: permissionsOf(rank), owner: person.owner, flags: this.flags }));
+      }
+      socket.send(JSON.stringify({ type: 'rank-set', uuid, rank, history: this.rankLog.get(uuid) ?? [] }));
       return;
     }
     if (payload.action === 'unmute') {
