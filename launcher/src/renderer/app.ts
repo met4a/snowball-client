@@ -235,12 +235,10 @@
    */
   function rankChip(id: string | undefined, extra = ''): HTMLElement {
     const rank = rankInfo(id);
-    // The same two marks the player list draws: the snowball, then the rank's own logo.
-    const marks: Child[] = [h('img', { class: 'rank-mark', src: `assets/ranks/${rank.id}-ball.png`, alt: '' })];
-    if (rank.id !== 'snowball' && rank.id !== 'plus') {
-      marks.push(h('img', { class: 'rank-mark', src: `assets/ranks/${rank.id}.png`, alt: '' }));
-    }
-    const chip = h('span', { class: 'rank-chip' + (extra ? ' ' + extra : '') }, ...marks, rank.tag);
+    // The same badge the player list draws, from the same file.
+    const chip = h('span', { class: 'rank-chip' + (extra ? ' ' + extra : '') },
+      h('img', { class: 'rank-mark', src: `assets/ranks/${rank.id}.png`, alt: '' }),
+      rank.tag);
     chip.style.setProperty('--rank', rank.color);
     return chip;
   }

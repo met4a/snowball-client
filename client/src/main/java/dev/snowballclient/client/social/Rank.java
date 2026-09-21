@@ -10,21 +10,16 @@ import java.util.Locale;
  * <p>Ranks are listed from least to most: {@link #outranks} compares them by that order.
  */
 public enum Rank {
-	// Two glyphs: the snowball every Snowball player wears, then the rank's own logo beside it.
-	// Squeezing a crown inside a snowball leaves neither readable at the size TAB draws them.
-	SNOWBALL("snowball", "Snowball", "Snowball", '\uE000', '\u0000', 0xFFC7D2DD),
-	PLUS("plus", "Snowball+", "Snowball+", '\uE001', '\u0000', 0xFF9FD8FF),
-	TESTER("tester", "Snowball Tester", "Tester", '\uE000', '\uE002', 0xFF5CD6A8),
-	BUG_HUNTER("bug_hunter", "Snowball Bug Hunter", "Bug Hunter", '\uE000', '\uE003', 0xFFFFD166),
-	PARTNER("partner", "Snowball Partner", "Partner", '\uE000', '\uE004', 0xFFFFA24D),
-	STAFF("staff", "Snowball Staff", "Staff", '\uE000', '\uE005', 0xFF5C8CFF),
-	DEVELOPER("developer", "Snowball Developer", "Developer", '\uE000', '\uE006', 0xFFB57BFF),
-	OWNER("owner", "Snowball Owner", "Owner", '\uE000', '\uE007', 0xFF7FCBFF);
-
-	/** Ranks that are only the snowball carry no second glyph. */
-	private static final char NO_LOGO = 0;
-	// Written as a literal 0 above: an enum constant may not refer to a field declared after it.
-	// (spelled as a literal 0 above: an enum constant may not refer to a field declared after it)
+	// Each badge is the snowball with this rank's logo set into it, drawn from Snowball's own
+	// icon font. The glyphs are published by client/tools/make-rank-badges.mjs in this order.
+	SNOWBALL("snowball", "Snowball", "Snowball", '\uE000', 0xFFC7D2DD),
+	PLUS("plus", "Snowball+", "Snowball+", '\uE001', 0xFF9FD8FF),
+	TESTER("tester", "Snowball Tester", "Tester", '\uE002', 0xFF5CD6A8),
+	BUG_HUNTER("bug_hunter", "Snowball Bug Hunter", "Bug Hunter", '\uE003', 0xFFFFD166),
+	PARTNER("partner", "Snowball Partner", "Partner", '\uE004', 0xFFFFA24D),
+	STAFF("staff", "Snowball Staff", "Staff", '\uE005', 0xFF5C8CFF),
+	DEVELOPER("developer", "Snowball Developer", "Developer", '\uE006', 0xFFB57BFF),
+	OWNER("owner", "Snowball Owner", "Owner", '\uE007', 0xFF7FCBFF);
 
 	/** What the backend calls this rank. */
 	private final String id;
@@ -32,18 +27,15 @@ public enum Rank {
 	private final String name;
 	/** The short name that goes in square brackets in the player list. */
 	private final String tag;
-	/** The snowball glyph, from Snowball's own icon font. */
-	private final char mark;
-	/** The rank logo glyph, or {@link #NO_LOGO} when this rank is just the snowball. */
-	private final char logo;
+	/** The glyph of Snowball's own icon font that draws this rank's badge. */
+	private final char badge;
 	private final int color;
 
-	Rank(String id, String name, String tag, char mark, char logo, int color) {
+	Rank(String id, String name, String tag, char badge, int color) {
 		this.id = id;
 		this.name = name;
 		this.tag = tag;
-		this.mark = mark;
-		this.logo = logo;
+		this.badge = badge;
 		this.color = color;
 	}
 
@@ -59,23 +51,8 @@ public enum Rank {
 		return tag;
 	}
 
-	/** The snowball this rank wears. Every rank has one. */
-	public char mark() {
-		return mark;
-	}
-
-	/** The rank logo drawn after the snowball, or 0 when there is none. */
-	public char logo() {
-		return logo;
-	}
-
-	public boolean hasLogo() {
-		return logo != NO_LOGO;
-	}
-
-	/** The glyphs this rank wears in the player list, in order. */
-	public String badge() {
-		return hasLogo() ? "" + mark + logo : String.valueOf(mark);
+	public char badge() {
+		return badge;
 	}
 
 	public int color() {

@@ -9,11 +9,17 @@ It contains no ESP, X-ray, combat automation, reach, aim assistance, player trac
 bypasses.
 
 ```
-wow client/
-├── client/      Snowball Client (Fabric; one source tree built for Minecraft 26.2 and 1.21.11 with Stonecutter,
-│               and client/legacy for Minecraft 1.8.9 on Legacy Fabric, sharing the same menus and settings)
-├── launcher/    Electron + TypeScript launcher (builds the Windows .exe)
-├── Snowball.png Source artwork for the logo
+snowball-client/
+├── client/        Snowball Client (Fabric; one source tree built for Minecraft 26.2 and 1.21.11
+│                  with Stonecutter, and client/legacy for Minecraft 1.8.9 on Legacy Fabric,
+│                  sharing the same menus and settings). client/tools publishes the rank badges.
+├── launcher/      Electron + TypeScript launcher (builds the Windows .exe)
+├── server/        Cloudflare Worker behind global chat, ranks and bug reports
+├── website/       The public site, published with GitHub Pages
+├── store/         Microsoft Store listing copy
+├── CHANGELOG.md   What changed in each release, written for players
+├── SECURITY.md    Reporting a security problem, and how updates are trusted
+├── Snowball.png   Source artwork for the logo
 └── README.md
 ```
 
@@ -30,8 +36,12 @@ npm run dist
 
 Output (Windows):
 
-- `launcher/release/SnowballClient-1.1.2-setup.exe` - installer
-- `launcher/release/SnowballClient-1.1.2-portable.exe` - single-file portable build
+- `launcher/release/SnowballClient-<version>-setup.exe` - installer
+- `launcher/release/SnowballClient-<version>-portable.exe` - single-file portable build
+
+Then `npm run verify:signature`, which prints the Authenticode status of everything in
+`release/` and refuses anything signed badly or by an unexpected publisher. Snowball has no
+certificate yet, so local builds report NotSigned - set `SNOWBALL_ALLOW_UNSIGNED=1` for those.
 
 ## Requirements
 

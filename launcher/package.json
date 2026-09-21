@@ -60,10 +60,13 @@
         }
       ],
       "artifactName": "SnowballClient-${version}-win.${ext}",
-      "publisherName": [
-        "Snowball Client"
-      ],
-      "signAndEditExecutable": true
+      "signAndEditExecutable": true,
+      "signtoolOptions": {
+        "publisherName": [
+          "Snowball Client"
+        ]
+      },
+      "verifyUpdateCodeSignature": true
     },
     "portable": {
       "artifactName": "SnowballClient-${version}-portable.exe"
@@ -121,5 +124,9 @@
   },
   "dependencies": {
     "electron-updater": "^6.8.9"
+  },
+  "author": {
+    "name": "Snowball Client",
+    "email": "ataghvaei@outlook.com"
   }
 }
