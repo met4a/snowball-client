@@ -26,6 +26,8 @@ export interface SnowballStats {
   today: number;
   week: number;
   total: number;
+  /** The banner everyone sees. Served here too, so it shows before anyone joins chat. */
+  announcement?: string | null;
 }
 
 export interface BugReport {
@@ -99,6 +101,10 @@ export class ChatClient extends EventEmitter {
   private state: ChatState;
   private closedByUs = false;
   private retryMs = 3000;
+  /** A connect already in flight. Without this, two callers open two sockets. */
+  private connecting: Promise<ChatState> | null = null;
+  /** The pending automatic reconnect, so joining by hand can cancel it. */
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly baseUrl: string, private readonly adminUuid: string) {
     super();
@@ -114,6 +120,17 @@ export class ChatClient extends EventEmitter {
     if (!this.state.configured) return this.state;
     if (session.type !== 'msa') return this.set({ status: 'error', message: 'Global chat needs a Microsoft account, so that names cannot be faked.' });
     if (this.socket && this.state.status === 'online') return this.state;
+    // Joining by hand while a reconnect is pending, or twice in quick succession, used to open a
+    // second socket and deliver every message twice. One attempt at a time, always.
+    if (this.connecting) return this.connecting;
+    this.connecting = this.runConnect(session).finally(() => {
+      this.connecting = null;
+    });
+    return this.connecting;
+  }
+
+  private async runConnect(session: SessionLike): Promise<ChatState> {
+    this.clearRetry();
     this.closedByUs = false;
     this.set({ status: 'connecting', message: undefined });
     try {
@@ -130,8 +147,14 @@ export class ChatClient extends EventEmitter {
     }
   }
 
+  private clearRetry(): void {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+  }
+
   disconnect(): void {
     this.closedByUs = true;
+    this.clearRetry();
     this.socket?.close();
     this.socket = null;
     this.set({ status: 'offline', online: 0 });
@@ -151,7 +174,7 @@ export class ChatClient extends EventEmitter {
   /** Admin only, and the server checks that too: sets or clears the banner everyone sees. */
   announce(text: string | null): { ok: boolean; reason?: string } {
     if (!this.socket || this.state.status !== 'online') return { ok: false, reason: 'You are not connected to chat.' };
-    if (!this.state.admin) return { ok: false, reason: 'Only the Snowball account can post announcements.' };
+    if (!this.can('chat.announce')) return { ok: false, reason: 'Your rank cannot post announcements.' };
     this.socket.send(JSON.stringify({ type: 'announce', text: text && text.trim() ? text.trim().slice(0, 300) : null }));
     return { ok: true };
   }
@@ -171,6 +194,8 @@ export class ChatClient extends EventEmitter {
         today: Number(body.today) || 0,
         week: Number(body.week) || 0,
         total: Number(body.total) || 0,
+        // Carried here so the announcement can be shown without joining chat first.
+        announcement: typeof body.announcement === 'string' && body.announcement ? body.announcement : null,
       };
     } catch {
       return null;
@@ -205,10 +230,33 @@ export class ChatClient extends EventEmitter {
     }
   }
 
-  /** Admin only: ask for the people list, the bug list, or change a bug's state or a feature flag. */
+  /**
+   * The permission each admin action needs. It mirrors the map the chat server checks, so the
+   * launcher refuses what would be refused anyway instead of sending it and showing an error.
+   * The server remains the authority; this is only there to keep the panel honest.
+   */
+  private static readonly ADMIN_NEEDS: Record<string, string> = {
+    people: 'users.view',
+    lookup: 'users.view',
+    history: 'users.view',
+    bugs: 'bugs.triage',
+    'bug-status': 'bugs.triage',
+    flag: 'flags.manage',
+    clear: 'chat.moderate',
+    mute: 'chat.moderate',
+    unmute: 'chat.moderate',
+    'rank-set': 'ranks.manage',
+    'rank-clear': 'ranks.manage',
+    grant: 'ranks.manage',
+    ungrant: 'ranks.manage',
+  };
+
+  /** Asks for the people list, the bug list, or changes a bug's state or a feature flag. */
   admin(action: string, extra: Record<string, unknown> = {}): { ok: boolean; reason?: string } {
     if (!this.socket || this.state.status !== 'online') return { ok: false, reason: 'You are not connected to chat.' };
-    if (!this.state.admin) return { ok: false, reason: 'Only the Snowball owner can do that.' };
+    const needed = ChatClient.ADMIN_NEEDS[action];
+    if (!needed) return { ok: false, reason: 'That is not something the panel can do.' };
+    if (!this.can(needed)) return { ok: false, reason: `Your rank cannot do that (needs ${needed}).` };
     this.socket.send(JSON.stringify({ type: 'admin', action, ...extra }));
     return { ok: true };
   }
@@ -231,10 +279,10 @@ export class ChatClient extends EventEmitter {
     return this.setRank(uuid, on ? 'plus' : 'snowball');
   }
 
-  /** Admin only: mute a player for a while, or clear the chat for everyone. */
+  /** Mutes a player for a while, or clears the chat for everyone. */
   moderateChat(action: 'mute' | 'unmute' | 'clear', uuid?: string, minutes?: number): { ok: boolean; reason?: string } {
     if (!this.socket || this.state.status !== 'online') return { ok: false, reason: 'You are not connected to chat.' };
-    if (!this.state.admin) return { ok: false, reason: 'Only the Snowball account can moderate chat.' };
+    if (!this.can('chat.moderate')) return { ok: false, reason: 'Your rank cannot moderate chat.' };
     this.socket.send(JSON.stringify({ type: 'admin', action, uuid, minutes }));
     return { ok: true };
   }
@@ -298,20 +346,42 @@ export class ChatClient extends EventEmitter {
   }
 
   private open(url: string, session: SessionLike): void {
+    // Never leave an old socket behind: it would keep its listeners and keep delivering every
+    // broadcast alongside the new one.
+    if (this.socket) {
+      const stale = this.socket;
+      this.socket = null;
+      try {
+        stale.close();
+      } catch {
+        /* already closing */
+      }
+    }
     const socket = new WebSocket(url);
     this.socket = socket;
     socket.addEventListener('open', () => {
+      if (this.socket !== socket) return;
       this.retryMs = 3000;
       this.set({ status: 'online', admin: session.uuid.replace(/-/g, '') === this.adminUuid.replace(/-/g, ''), message: undefined });
     });
-    socket.addEventListener('message', (event: MessageEvent) => this.receive(String(event.data)));
-    socket.addEventListener('error', () => this.set({ status: 'error', message: 'Lost the connection to chat.' }));
+    // Only the current socket is listened to, so a socket being replaced cannot deliver anything.
+    socket.addEventListener('message', (event: MessageEvent) => {
+      if (this.socket !== socket) return;
+      this.receive(String(event.data));
+    });
+    socket.addEventListener('error', () => {
+      if (this.socket !== socket) return;
+      this.set({ status: 'error', message: 'Lost the connection to chat.' });
+    });
     socket.addEventListener('close', () => {
+      // A stale socket closing is expected and must not schedule a reconnect of its own.
+      if (this.socket !== socket) return;
       this.socket = null;
       if (this.closedByUs) return;
       this.set({ status: 'offline', online: 0 });
       // Come back quietly: chat is never the reason the launcher looks busy.
-      setTimeout(() => void this.connect(session), this.retryMs);
+      this.clearRetry();
+      this.retryTimer = setTimeout(() => void this.connect(session), this.retryMs);
       this.retryMs = Math.min(60_000, this.retryMs * 2);
     });
   }
@@ -337,7 +407,11 @@ export class ChatClient extends EventEmitter {
         break;
       }
       case 'history':
+        // The server uses one name for two things: chat history carries `messages`, a rank
+        // history carries `uuid`. They are told apart here because the second `case 'history'`
+        // that used to handle ranks was unreachable, so rank history never arrived at all.
         if (Array.isArray(payload.messages)) this.emit('history', payload.messages as ChatMessage[]);
+        else if (payload.uuid) this.emit('rank-history', payload);
         break;
       case 'you': {
         const rank = (RANKS as readonly string[]).includes(payload.rank) ? (payload.rank as SnowballRank) : 'snowball';
@@ -351,9 +425,7 @@ export class ChatClient extends EventEmitter {
       case 'rank-set':
         this.emit('rank-set', payload);
         break;
-      case 'history':
-        this.emit('history', payload);
-        break;
+
       case 'flags':
         this.set({ flags: payload.flags ?? {} });
         break;

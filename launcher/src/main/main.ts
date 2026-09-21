@@ -87,10 +87,19 @@ async function createWindow(): Promise<void> {
       const session = id ? await launcher.auth.session(id) : null;
       note(`account ${session ? session.name + " " + session.uuid : "none"}`);
       if (session) {
-        const state = await chat.connect({ name: session.name, uuid: session.uuid, accessToken: session.accessToken, type: "msa" });
-        note(`connect returned ${JSON.stringify(state)}`);
+        const who = { name: session.name, uuid: session.uuid, accessToken: session.accessToken, type: "msa" as const };
+        let received = 0;
+        chat.on("message", () => (received += 1));
+        // Two connects at once, which is what a manual join racing the automatic reconnect used to
+        // do. It opened a second socket and every message then arrived twice.
+        const [a, b] = await Promise.all([chat.connect(who), chat.connect(who)]);
+        note(`connect x2 returned ${a.status} / ${b.status}`);
         await new Promise((done) => setTimeout(done, 8000));
         note(`state now ${JSON.stringify(chat.current())}`);
+        // The server counts sockets, so a second connection would show up here as an extra player.
+        const stats = await chat.stats();
+        note(`stats ${JSON.stringify(stats)}`);
+        note(`messages received since connecting: ${received}`);
       }
     } catch (err) {
       note(`failed: ${err instanceof Error ? err.message : String(err)}`);

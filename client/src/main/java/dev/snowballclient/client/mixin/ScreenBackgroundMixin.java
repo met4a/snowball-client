@@ -17,7 +17,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(Screen.class)
 public class ScreenBackgroundMixin {
-	@Inject(method = "extractBlurredBackground", at = @At("HEAD"), cancellable = true)
+	// The full descriptor, not the bare name: Stonecutter's rename rules match on "name(", so a
+	// selector without the parenthesis is never rewritten for 1.21.x and the mixin then fails to
+	// apply against a method that does not exist there.
+	@Inject(method = "extractBlurredBackground(Lnet/minecraft/client/gui/GuiGraphicsExtractor;)V", at = @At("HEAD"), cancellable = true)
 	private void snowball$clearTheBlur(GuiGraphicsExtractor graphics, CallbackInfo ci) {
 		GlassGui glass = ModuleRegistry.GLASS_GUI;
 		if (glass == null || !glass.takesOver(Minecraft.getInstance().level != null)) return;

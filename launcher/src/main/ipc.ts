@@ -64,7 +64,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
   });
   chat?.on('lookup', (result) => toRenderer('chat-lookup', result));
   chat?.on('rank-set', (result) => toRenderer('chat-rank-set', result));
-  chat?.on('history', (result) => toRenderer('chat-history-ranks', result));
+  chat?.on('rank-history', (result) => toRenderer('chat-history-ranks', result));
   chat?.on('message', (message) => toRenderer('chat-message', message));
   chat?.on('history', (messages) => toRenderer('chat-history', messages));
   chat?.on('people', (people) => toRenderer('chat-people', people));

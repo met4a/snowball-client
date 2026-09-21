@@ -30,4 +30,12 @@ if (result.status !== 0 || jars.length === 0) {
   console.error('Client build failed; the launcher cannot be packaged without the Snowball Client jars.');
   process.exit(result.status || 1);
 }
+
+// A mixin selector that Stonecutter failed to rewrite still compiles and still packages - it only
+// fails when Minecraft starts. Check the generated sources before the jars go into an installer.
+const check = spawnSync(process.execPath, [join(clientDir, 'tools', 'check-generated.mjs')], { stdio: 'inherit' });
+if (check.status !== 0) {
+  console.error('Refusing to package: the generated sources are not right for every Minecraft version.');
+  process.exit(check.status || 1);
+}
 console.log(`Snowball Client builds ready in ${outDir}:\n${jars.map((j) => `  ${j}`).join('\n')}`);

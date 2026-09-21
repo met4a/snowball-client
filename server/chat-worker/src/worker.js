@@ -118,7 +118,9 @@ export class ChatRoom {
   async fetch(request) {
     await this.ready;
     const url = new URL(request.url);
-    if (url.pathname.endsWith('/stats')) return Response.json(this.stats(), { headers: { 'cache-control': 'no-store' } });
+    if (url.pathname.endsWith('/stats')) {
+      return Response.json({ ...this.stats(), announcement: this.announcement ?? null }, { headers: { 'cache-control': 'no-store' } });
+    }
     if (url.pathname.endsWith('/flags')) return Response.json(this.flags, { headers: { 'cache-control': 'no-store' } });
     if (url.pathname.endsWith('/nonce')) {
       const nonce = crypto.randomUUID().replace(/-/g, '');

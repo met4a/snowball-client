@@ -9,6 +9,25 @@ restart. You only download an installer once.
 
 ---
 
+## 1.6.1
+
+### Fixed
+- Minecraft crashed on startup with 1.6.0 on Minecraft 1.21.11: the Snowball
+  client mod failed to load, so the game stopped about twelve seconds in. The
+  glass-menu code was looking for a method under its 26.2 name on a version that
+  calls it something else.
+- The Mods page showed the client as 1.5.1 while the launcher said 1.6.0. They
+  are the same number again.
+- Every chat message appeared twice. Joining chat while a reconnect was already
+  on its way opened a second connection, and both delivered everything.
+- The announcement banner only appeared once you had joined chat. It now shows
+  wherever you are in the launcher, without joining.
+- The admin panel showed tabs to Staff and Developer but refused every button on
+  them. It now allows exactly what your rank allows.
+- Rank history never loaded in the admin panel.
+
+---
+
 ## 1.6.0
 
 ### What's new

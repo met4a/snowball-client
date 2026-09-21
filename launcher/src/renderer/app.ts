@@ -302,9 +302,13 @@
     content.replaceChildren(...banners, views[ui.view]());
   }
 
-  /** The Snowball team's message of the day, when there is one. */
+  /**
+   * The Snowball team's message of the day, when there is one. It comes over the chat socket once
+   * you have joined, and from the public stats endpoint before that — an announcement is for
+   * everyone, so it should not wait until somebody opens Chat.
+   */
   function announcementBanner(): HTMLElement | null {
-    const text = ui.chat?.announcement;
+    const text = ui.chat?.announcement ?? ui.stats?.announcement ?? null;
     if (!text) return null;
     return h('div', { class: 'update-bar announce' },
       h('div', { class: 'update-dot' }),
@@ -758,8 +762,12 @@
     void api.snowballStats().then((stats) => {
       if (!stats) return;
       const changed = JSON.stringify(stats) !== JSON.stringify(ui.stats);
+      // The banner shows on every page, so a new announcement has to repaint wherever you are.
+      // The counts only show on Home, and repainting elsewhere would take focus out of whatever
+      // the person was typing in.
+      const announcementChanged = (stats.announcement ?? null) !== (ui.stats?.announcement ?? null);
       ui.stats = stats;
-      if (changed && ui.view === 'home') render();
+      if (announcementChanged || (changed && ui.view === 'home')) render();
     }).catch(() => undefined);
   }
 

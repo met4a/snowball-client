@@ -280,6 +280,8 @@ declare namespace Snowball {
   }
 
   interface SnowballStats {
+    /** The banner everyone sees, served without needing a chat connection. */
+    announcement?: string | null;
     online: number;
     today: number;
     week: number;
