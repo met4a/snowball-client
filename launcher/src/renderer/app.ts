@@ -1,4 +1,4 @@
-///[[[[[[[['settings', 'Settings']java', 'Java']admin', 'Admin']chat', 'Chat']browse', 'Browse']mods', 'Mods']instances', 'Instances']home', 'Home']<reference path="../shared/api.d.ts" />
+///[[[[[[[['settings', 'SETTINGS']java', 'Java']admin', 'Admin']chat', 'Chat']browse', 'Browse']mods', 'Mods']instances', 'Instances']home', 'Home']<reference path="../shared/api.d.ts" />
 // Renderer for the Snowball Client launcher. Plain DOM + the preload bridge; no Node access.
 
 (() => {
@@ -250,6 +250,31 @@
 
   const adminTabs = () => ADMIN_TABS.filter(([, , permission]) => can(permission));
 
+  /**
+   * A labelled field. The label is a real <label> wrapping the control, so clicking it focuses
+   * the field and a screen reader announces the two together - which a placeholder never does,
+   * since it disappears the moment anyone types.
+   */
+  function field(label: string, control: HTMLElement, hint?: string): HTMLElement {
+    return h('label', { class: 'admin-field' },
+      h('span', { class: 'admin-field-label' }, label),
+      control,
+      hint ? h('span', { class: 'admin-field-hint' }, hint) : null);
+  }
+
+  /**
+   * Announces what just happened. Visible, and marked as a live region so it is read out
+   * rather than changing the page silently for anyone who cannot see it.
+   */
+  function statusLine(): HTMLElement {
+    return h('div', { class: 'admin-status', role: 'status', 'aria-live': 'polite' });
+  }
+
+  function say(line: HTMLElement, message: string, kind: 'ok' | 'bad' = 'ok'): void {
+    line.className = `admin-status show ${kind}`;
+    line.textContent = message;
+  }
+
   /** Whether this account can administer anything at all, which is what the nav item needs. */
   const canAdminister = () => adminTabs().length > 0;
 
@@ -268,14 +293,14 @@
   }
 
   const NAV: Array<[View, string]> = [
-    ['home', 'Home'],
-    ['instances', 'Instances'],
-    ['mods', 'Mods'],
-    ['browse', 'Browse'],
-    ['chat', 'Chat'],
-    ['admin', 'Admin'],
-    ['java', 'Java'],
-    ['settings', 'Settings'],
+    ['home', 'HOME'],
+    ['instances', 'INSTANCES'],
+    ['mods', 'MODS'],
+    ['browse', 'BROWSE'],
+    ['chat', 'CHAT'],
+    ['admin', 'ADMIN'],
+    ['java', 'JAVA'],
+    ['settings', 'SETTINGS'],
   ];
 
   function render(): void {
@@ -551,7 +576,7 @@
   function emptyState(message: string): HTMLElement {
     return h('div', { class: 'card empty' },
       h('img', { src: 'assets/logo.png', alt: '' }),
-      h('h2', { class: 'page-title', style: 'margin-top:16px' }, 'No instances yet'),
+      h('h2', { class: 'page-title', style: 'margin-top:16px' }, 'NO INSTANCES'),
       h('p', { class: 'muted' }, message),
       h('div', { class: 'row', style: 'justify-content:center' },
         h('button', { class: 'btn primary', onClick: () => createInstanceDialog() }, 'Create instance'),
@@ -622,7 +647,7 @@
   function homeView(): Node {
     const state = ui.state!;
     const inst = selected();
-    if (!inst) return h('div', {}, header('Home', 'Welcome to Snowball Client'), emptyState('Create an instance to install and play Minecraft.'));
+    if (!inst) return h('div', {}, header('HOME', 'Welcome to Snowball Client'), emptyState('Create an instance to install and play Minecraft.'));
 
     const picker = h('select', { class: 'input picker', onChange: (e: Event) => select((e.target as HTMLSelectElement).value) },
       ...state.instances.map((i) => h('option', { value: i.id, selected: i.id === inst.id }, i.name)));
@@ -666,7 +691,7 @@
     });
 
     return h('div', { class: 'page-home' },
-      header('Home', 'Selected instance', picker),
+      header('HOME', 'Selected instance', picker),
       inst.error ? h('div', { class: 'issue' }, `This instance could not be loaded: ${inst.error}`) : null,
       h('div', { class: 'home-grid' },
         h('div', { class: 'home-main' },
@@ -692,7 +717,7 @@
               verifyButton),
             progressBar(inst.id)),
           h('div', { class: 'card output-card' },
-            h('div', { class: 'row log-head' }, h('div', { class: 'section-title' }, 'Output'), h('div', { class: 'spacer' }), logTabs),
+            h('div', { class: 'row log-head' }, h('div', { class: 'section-title' }, 'OUTPUT'), h('div', { class: 'spacer' }), logTabs),
             logView)),
         h('div', { class: 'home-aside' },
           snowballCard(inst),
@@ -715,7 +740,7 @@
     return h('div', { class: 'mini-card' },
       h('div', { class: 'mini-head' },
         h('img', { class: 'core-logo', src: 'assets/logo.png', alt: '' }),
-        h('div', { class: 'section-title' }, 'Snowball')),
+        h('div', { class: 'section-title' }, 'SNOWBALL')),
       row('Client', inst.snowball.supported ? inst.snowball.version ?? 'Bundled' : 'Not on this version', inst.snowball.supported ? '' : 'muted'),
       row('Launcher', ui.version ? `v${ui.version}` : '-'),
       row('Updates', updateText, update?.status === 'error' ? 'danger-text' : ''),
@@ -729,7 +754,7 @@
     const action = (name: string, label: string, onClick: () => void, disabled = false) =>
       h('button', { class: 'mini-action', disabled, onClick }, icon(name), label);
     return h('div', { class: 'mini-card' },
-      h('div', { class: 'section-title' }, 'Quick actions'),
+      h('div', { class: 'section-title' }, 'QUICK ACTIONS'),
       h('div', { class: 'mini-actions' },
         action('folder', 'Open game folder', () => void guard(() => api.openInstanceFolder(inst.id, 'root'))),
         action('mods', 'Manage mods', () => { ui.view = 'mods'; render(); }),
@@ -747,7 +772,7 @@
     const number = (value: number, label: string) => h('div', { class: 'count-item grow' },
       h('div', { class: 'n' }, value.toLocaleString()), h('div', { class: 'l' }, label));
     return h('div', { class: 'mini-card count-card' },
-      h('div', { class: 'section-title' }, 'Snowball players'),
+      h('div', { class: 'section-title' }, 'SNOWBALL PLAYERS'),
       h('div', { class: 'count-now' },
         h('div', { class: 'count-dot' }),
         h('div', { class: 'count-value' }, stats.online.toLocaleString())),
@@ -797,9 +822,9 @@
     const state = ui.state!;
     const newButton = h('button', { class: 'btn primary', onClick: () => createInstanceDialog() }, '+ New instance');
     const importButton = h('button', { class: 'btn', onClick: () => importDialog() }, 'Import from another launcher');
-    if (state.instances.length === 0) return h('div', {}, header('Instances', 'Isolated game installations'), emptyState('Each instance has its own version, mods, settings and worlds.'));
+    if (state.instances.length === 0) return h('div', {}, header('INSTANCES', 'Isolated game installations'), emptyState('Each instance has its own version, mods, settings and worlds.'));
     return h('div', {},
-      header('Instances', `${state.instances.length} isolated installation${state.instances.length === 1 ? '' : 's'}`, importButton, newButton),
+      header('INSTANCES', `${state.instances.length} isolated installation${state.instances.length === 1 ? '' : 's'}`, importButton, newButton),
       h('div', { class: 'grid cards' }, ...state.instances.map((inst) =>
         h('div', { class: `card instance-card${inst.id === ui.selectedId ? ' selected' : ''}`, onClick: () => select(inst.id) },
           h('div', { class: 'row' },
@@ -816,7 +841,7 @@
   function modsView(): Node {
     const state = ui.state!;
     const inst = selected();
-    if (!inst) return h('div', {}, header('Mods', 'Per-instance mod management'), emptyState('Create an instance first.'));
+    if (!inst) return h('div', {}, header('MODS', 'Per-instance mod management'), emptyState('Create an instance first.'));
     const picker = h('select', { class: 'input picker', onChange: (e: Event) => select((e.target as HTMLSelectElement).value) },
       ...state.instances.map((i) => h('option', { value: i.id, selected: i.id === inst.id }, i.name)));
     const listEl = h('div', { class: 'list' }, h('div', { class: 'muted' }, 'Loading mods...'));
@@ -976,12 +1001,12 @@
     }, 'Check for updates');
 
     return h('div', { class: 'stack' },
-      header('Mods', 'Install, toggle and check compatibility', picker,
+      header('MODS', 'Install, toggle and check compatibility', picker,
         h('button', { class: 'btn', disabled: inst.running || inst.loader === 'vanilla', onClick: async () => { const r = await guard(() => api.addMods(inst.id)); if (r) { if (r.added) toast(`Added ${r.added} mod${r.added === 1 ? '' : 's'}`); r.errors.forEach((e) => toast(e, 'error')); await load(); } } }, '+ Add mods'),
         h('button', { class: 'btn', disabled: inst.loader === 'vanilla', onClick: () => scanDialog(inst.id) }, 'Check mods'),
         h('button', { class: 'btn ghost', onClick: () => void guard(() => api.openInstanceFolder(inst.id, 'mods')) }, 'Open folder')),
       h('div', { class: 'card' },
-        h('div', { class: 'section-title' }, 'Performance profile'),
+        h('div', { class: 'section-title' }, 'PERFORMANCE PROFILE'),
         h('div', { class: 'row' }, h('div', { style: 'flex:1' }, profileSelect), applyButton),
         profileInfo),
       coreEl,
@@ -998,7 +1023,7 @@
   function browseView(): Node {
     const state = ui.state!;
     const inst = selected();
-    if (!inst) return h('div', {}, header('Browse', 'Find and install mods'), emptyState('Create an instance first.'));
+    if (!inst) return h('div', {}, header('BROWSE', 'Find and install mods'), emptyState('Create an instance first.'));
     const b = ui.browse;
     if (b.instanceId !== inst.id) {
       // Filters start at the instance's own version and loader so every result can be installed.
@@ -1138,7 +1163,7 @@
     void loadInstalled();
 
     return h('div', { class: 'stack' },
-      header('Browse', `Mods from Modrinth for ${inst.minecraftVersion} ${inst.loaderName}`, picker,
+      header('BROWSE', `Mods from Modrinth for ${inst.minecraftVersion} ${inst.loaderName}`, picker,
         h('button', { class: 'btn ghost', onClick: () => { ui.view = 'mods'; render(); } }, 'Installed mods')),
       inst.loader === 'vanilla' ? h('div', { class: 'issue warning' }, 'This instance has no mod loader. Choose Fabric, Quilt, Forge or NeoForge in the instance editor to install mods.') : null,
       h('div', { class: 'browse-toolbar' }, search, sortSelect, loaderSelect, versionSelect),
@@ -1149,7 +1174,7 @@
     const state = ui.chat;
     if (!state || !state.configured) {
       return h('div', { class: 'stack' },
-        header('Chat', 'Talk to other Snowball players'),
+        header('CHAT', 'Talk to other Snowball players'),
         h('div', { class: 'card empty' },
           h('h2', { class: 'page-title' }, 'CHAT IS NOT SWITCHED ON'),
           h('p', { class: 'muted' }, 'This build has no chat server set, so there is nothing to join yet.')));
@@ -1178,7 +1203,7 @@
       : state.status === 'connecting' ? 'Connecting...' : state.message ?? 'Not connected';
 
     return h('div', { class: 'stack' },
-      header('Chat', status,
+      header('CHAT', status,
         state.status === 'online'
           ? h('button', { class: 'btn', onClick: () => void api.leaveChat() }, 'Leave')
           : h('button', { class: 'btn primary', onClick: () => void guard(() => api.joinChat()) }, 'Join chat')),
@@ -1215,7 +1240,7 @@
       toast('Thank you - the report went straight to the Snowball team.');
     };
     return h('div', { class: 'card' },
-      h('div', { class: 'section-title' }, 'Report a bug'),
+      h('div', { class: 'section-title' }, 'REPORT A BUG'),
       h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 10px' }, 'Your Minecraft version, Snowball version and loader are attached automatically.'),
       h('div', { class: 'stack' }, title, detail, steps),
       h('div', { class: 'row', style: 'margin-top:10px' },
@@ -1231,14 +1256,14 @@
     const state = ui.chat;
     if (!state?.configured) {
       return h('div', { class: 'stack' },
-        header('Admin', 'Snowball owner tools'),
+        header('ADMIN', 'Snowball owner tools'),
         h('div', { class: 'card empty' },
           h('h2', { class: 'page-title' }, 'NO SNOWBALL SERVER'),
           h('p', { class: 'muted' }, 'This build has no Snowball server set, so there is nothing to administer.')));
     }
     if (!canAdminister()) {
       return h('div', { class: 'stack' },
-        header('Admin', 'Snowball staff tools'),
+        header('ADMIN', 'Snowball staff tools'),
         h('div', { class: 'card empty' },
           h('h2', { class: 'page-title' }, state.status === 'online' ? 'Not your rank' : 'Join chat first'),
           h('p', { class: 'muted' }, state.status === 'online'
@@ -1248,155 +1273,330 @@
     }
     const rank = rankInfo(state.rank);
     return h('div', { class: 'stack' },
-      header('Admin', `Signed in as ${rank.name}  \u00b7  ${state.online} online`),
+      header('ADMIN', `Signed in as ${rank.name}  \u00b7  ${state.online} online`),
       adminCard());
   }
 
   /** Only an account the server trusts sees this, and the server checks that again for every action. */
   function adminCard(): HTMLElement {
-    const announcement = h('input', { class: 'input', placeholder: 'Announcement everyone sees', maxlength: '300', value: ui.chat?.announcement ?? '' }) as HTMLInputElement;
-    const muteUuid = h('input', { class: 'input', placeholder: 'UUID to mute' }) as HTMLInputElement;
-    const plusUuid = h('input', { class: 'input', placeholder: 'UUID to give Snowball+' }) as HTMLInputElement;
-    const muteMinutes = h('input', { class: 'input', type: 'number', min: '1', max: '1440', value: '10', style: 'max-width:110px' }) as HTMLInputElement;
-    const run = async (fn: () => Promise<{ ok: boolean; reason?: string }>) => {
-      const result = await guard(fn);
-      if (result && !result.ok) toast(result.reason ?? 'That did not work.', 'error');
-      else if (result) toast('Done');
-    };
-    const tab = (id: typeof ui.adminTab, label: string) =>
-      h('button', { class: `log-tab${ui.adminTab === id ? ' active' : ''}`, onClick: () => {
-        ui.adminTab = id;
-        if (id === 'people') void api.chatAdmin('people');
-        if (id === 'bugs') void api.chatAdmin('bugs');
-        render();
-      } }, label);
-
     const allowed = adminTabs();
     // A rank that cannot use the tab it last had open lands on the first one it can.
     if (!allowed.some(([id]) => id === ui.adminTab)) ui.adminTab = allowed[0][0];
-    const tabStrip = () => h('div', { class: 'log-tabs' }, ...allowed.map(([id, label]) => tab(id, label)));
 
-    if (ui.adminTab !== 'chat') {
-      return h('div', { class: 'card' },
-        h('div', { class: 'row' }, h('div', { class: 'section-title' }, 'Admin'), h('div', { class: 'spacer' }), tabStrip()),
-        ui.adminTab === 'ranks' ? rankManager() : ui.adminTab === 'people' ? peopleList() : ui.adminTab === 'bugs' ? bugList() : flagList());
-    }
+    const open = (id: typeof ui.adminTab) => {
+      ui.adminTab = id;
+      if (id === 'people') void api.chatAdmin('people');
+      if (id === 'bugs') void api.chatAdmin('bugs');
+      render();
+      // Focus follows the tab, so the keyboard does not jump back to the top of the page.
+      setTimeout(() => document.querySelector<HTMLElement>(`#admin-tab-${id}`)?.focus(), 0);
+    };
+
+    /**
+     * A real tablist. Left/Right move between tabs, Home/End jump to the ends, and
+     * aria-selected tells a screen reader which one is showing - none of which plain buttons do.
+     */
+    const tab = ([id, label]: [typeof ui.adminTab, string, string], index: number) => {
+      const current = ui.adminTab === id;
+      const button = h('button', {
+        id: `admin-tab-${id}`,
+        class: `log-tab${current ? ' active' : ''}`,
+        role: 'tab',
+        'aria-selected': String(current),
+        'aria-controls': 'admin-panel',
+        tabindex: current ? '0' : '-1',
+        onClick: () => open(id),
+      }, label);
+      button.addEventListener('keydown', (e: KeyboardEvent) => {
+        const last = allowed.length - 1;
+        const to =
+          e.key === 'ArrowRight' ? (index === last ? 0 : index + 1)
+          : e.key === 'ArrowLeft' ? (index === 0 ? last : index - 1)
+          : e.key === 'Home' ? 0
+          : e.key === 'End' ? last
+          : -1;
+        if (to < 0) return;
+        e.preventDefault();
+        open(allowed[to][0]);
+      });
+      return button;
+    };
+
+    const tabStrip = h('div', { class: 'log-tabs', role: 'tablist', 'aria-label': 'Admin sections' }, ...allowed.map(tab));
+
+    const body =
+      ui.adminTab === 'ranks' ? rankManager()
+      : ui.adminTab === 'people' ? peopleList()
+      : ui.adminTab === 'bugs' ? bugList()
+      : ui.adminTab === 'flags' ? flagList()
+      : chatTools();
 
     return h('div', { class: 'card' },
-      h('div', { class: 'row' }, h('div', { class: 'section-title' }, 'Admin'), h('div', { class: 'spacer' }), tabStrip()),
-      h('div', { class: 'list' },
-        can('chat.announce') ? h('div', { class: 'list-row' },
-          h('div', { class: 'grow' }, announcement),
-          h('button', { class: 'btn small primary', onClick: () => void run(() => api.announce(announcement.value)) }, 'Post'),
-          h('button', { class: 'btn small', onClick: () => { announcement.value = ''; void run(() => api.announce(null)); } }, 'Clear')) : null,
-        h('div', { class: 'list-row' },
-          h('div', { class: 'grow' }, muteUuid),
-          muteMinutes,
-          h('button', { class: 'btn small', onClick: () => void run(() => api.moderateChat('mute', muteUuid.value.trim(), Number(muteMinutes.value))) }, 'Mute'),
-          h('button', { class: 'btn small', onClick: () => void run(() => api.moderateChat('unmute', muteUuid.value.trim())) }, 'Unmute')),
-        can('ranks.manage') ? h('div', { class: 'list-row' },
-          h('div', { class: 'grow' }, plusUuid),
-          h('button', { class: 'btn small primary', onClick: () => void run(() => api.setSnowballPlus(plusUuid.value.trim(), true)) }, 'Give Snowball+'),
-          h('button', { class: 'btn small', onClick: () => void run(() => api.setSnowballPlus(plusUuid.value.trim(), false)) }, 'Remove')) : null,
-        h('div', { class: 'list-row' },
-          h('div', { class: 'grow' }, h('div', {}, 'Clear the chat for everyone'), h('div', { class: 'muted', style: 'font-size:12px' }, 'Wipes the recent messages the server keeps.')),
-          h('button', { class: 'btn small danger', onClick: () => void run(() => api.moderateChat('clear')) }, 'Clear chat'))));
+      h('div', { class: 'row' }, h('div', { class: 'section-title' }, 'ADMIN'), h('div', { class: 'spacer' }), tabStrip),
+      h('div', { id: 'admin-panel', role: 'tabpanel', 'aria-labelledby': `admin-tab-${ui.adminTab}` }, body));
   }
 
+  /** Announcements, muting and clearing chat. */
+  function chatTools(): HTMLElement {
+    const line = statusLine();
+    const run = async (fn: () => Promise<{ ok: boolean; reason?: string }>, done: string) => {
+      const result = await guard(fn);
+      if (!result) return;
+      if (result.ok) say(line, done);
+      else say(line, result.reason ?? 'That did not work.', 'bad');
+    };
+
+    const announcement = h('input', { class: 'input', maxlength: '300', value: ui.chat?.announcement ?? '' }) as HTMLInputElement;
+    const muteName = h('input', { class: 'input', placeholder: 'Minecraft name or account id' }) as HTMLInputElement;
+    const muteMinutes = h('input', { class: 'input', type: 'number', min: '1', max: '1440', value: '10', style: 'max-width:120px' }) as HTMLInputElement;
+
+    /** Accepts a name as well as an id, because nobody reads ids off the people list by hand. */
+    const muteTarget = async (): Promise<string | null> => {
+      const typed = muteName.value.trim();
+      if (/^[a-f0-9-]{32,36}$/i.test(typed)) return typed;
+      if (!typed) { say(line, 'Type who to mute first.', 'bad'); return null; }
+      const found = ui.people.find((p) => p.name.toLowerCase() === typed.toLowerCase());
+      if (found) return found.uuid;
+      say(line, `Nobody called ${typed} in the people list. Open People, or paste their account id.`, 'bad');
+      return null;
+    };
+
+    const rows: Child[] = [];
+    if (can('chat.announce')) {
+      rows.push(h('div', { class: 'admin-block' },
+        field('Announcement', announcement, 'Shown to everyone in the launcher, whether or not they have joined chat.'),
+        h('div', { class: 'row' },
+          h('button', { class: 'btn small primary', onClick: () => void run(() => api.announce(announcement.value), 'Announcement posted.') }, 'Post'),
+          h('button', { class: 'btn small', onClick: () => { announcement.value = ''; void run(() => api.announce(null), 'Announcement cleared.'); } }, 'Take it down'))));
+    }
+    if (can('chat.moderate')) {
+      rows.push(h('div', { class: 'admin-block' },
+        field('Mute somebody', muteName, 'A Minecraft name from the People tab, or an account id.'),
+        h('div', { class: 'row' },
+          field('For how long', muteMinutes, 'Minutes'),
+          h('div', { class: 'spacer' }),
+          h('button', { class: 'btn small', onClick: async () => { const id = await muteTarget(); if (id) void run(() => api.moderateChat('mute', id, Number(muteMinutes.value)), `Muted for ${muteMinutes.value} minutes.`); } }, 'Mute'),
+          h('button', { class: 'btn small', onClick: async () => { const id = await muteTarget(); if (id) void run(() => api.moderateChat('unmute', id), 'Unmuted.'); } }, 'Unmute'))));
+
+      rows.push(h('div', { class: 'admin-block danger-block' },
+        h('div', { class: 'row' },
+          h('div', { class: 'grow' },
+            h('div', {}, 'Clear the chat for everyone'),
+            h('div', { class: 'muted', style: 'font-size:12px' }, 'Wipes every recent message the server keeps. It cannot be undone.')),
+          h('button', {
+            class: 'btn small danger',
+            onClick: () => confirmDialog(
+              'Clear the chat?',
+              'Every recent message is deleted for everyone, and nobody can get them back. Are you sure?',
+              'Clear it',
+              async () => { await run(() => api.moderateChat('clear'), 'Chat cleared.'); }),
+          }, 'Clear chat'))));
+    }
+
+    return h('div', { class: 'admin-body' }, ...rows, line);
+  }
   /**
    * Look a player up by their Minecraft name, see the rank they hold and who gave it, and change
    * it. The server checks the permission again and tells the player at once, so nobody reinstalls.
    */
   function rankManager(): HTMLElement {
-    const search = h('input', { class: 'input', placeholder: 'Minecraft username', maxlength: '16' }) as HTMLInputElement;
-    const find = () => {
-      const name = search.value.trim();
-      if (!name) return;
-      void guard(() => api.lookupPlayer(name));
-    };
-    search.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.key === 'Enter') find();
-    });
-    const found = ui.lookup;
+    const search = h('input', { class: 'input', maxlength: '16', value: ui.lookup?.name ?? '', autocomplete: 'off', spellcheck: 'false' }) as HTMLInputElement;
+    const line = statusLine();
+    const findButton = h('button', { class: 'btn small primary' }, 'Find') as HTMLButtonElement;
 
-    const result: Node[] = [];
+    const find = async () => {
+      const name = search.value.trim();
+      if (!name) { say(line, 'Type a Minecraft name first.', 'bad'); return; }
+      findButton.disabled = true;
+      findButton.textContent = 'Looking...';
+      say(line, `Looking up ${name}...`);
+      const result = await guard(() => api.lookupPlayer(name));
+      findButton.disabled = false;
+      findButton.textContent = 'Find';
+      if (result && !result.ok) say(line, result.reason ?? 'That did not work.', 'bad');
+    };
+    findButton.addEventListener('click', () => void find());
+    search.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter') { e.preventDefault(); void find(); }
+    });
+
+    const found = ui.lookup;
+    const result: Child[] = [];
+
     if (found && !found.found) {
-      result.push(h('p', { class: 'muted' }, 'Mojang has no account called ' + found.name + '.'));
+      result.push(h('p', { class: 'muted' }, `Mojang has no account called ${found.name}.`));
     } else if (found) {
-      const current = rankInfo(found.rank);
-      const picker = h('select', { class: 'input', style: 'max-width:190px' },
+      const picker = h('select', { class: 'input', style: 'max-width:200px', 'aria-label': `Rank for ${found.name}` },
         ...RANKS.filter((r) => r.id !== 'owner').map((r) => h('option', { value: r.id, selected: r.id === found.rank }, r.name))) as HTMLSelectElement;
-      result.push(h('div', { class: 'list-row' },
-        h('div', { class: 'grow' },
-          h('div', {}, found.name, ' ', rankChip(found.rank)),
-          h('div', { class: 'muted', style: 'font-size:11px' }, found.uuid ?? ''),
-          found.given ? h('div', { class: 'muted', style: 'font-size:11px' }, 'Given by ' + found.given.byName + ' ' + fmtWhen(found.given.at)) : null,
-          found.seen ? h('div', { class: 'muted', style: 'font-size:11px' }, 'Last seen ' + fmtWhen(found.seen.last)) : null),
-        can('ranks.manage') ? picker : null,
-        can('ranks.manage') ? h('button', { class: 'btn small primary', onClick: () => void applyRank(found.uuid!, picker.value) }, 'Set rank') : null,
-        can('ranks.manage') ? h('button', { class: 'btn small', onClick: () => void applyRank(found.uuid!, 'snowball') }, 'Revoke') : null));
+
+      result.push(h('div', { class: 'admin-person' },
+        h('div', { class: 'admin-person-head' },
+          h('div', { class: 'grow' },
+            h('div', { class: 'admin-person-name' }, found.name, ' ', rankChip(found.rank)),
+            h('div', { class: 'muted', style: 'font-size:11px;user-select:text' }, found.uuid ?? '')),
+          found.seen ? h('div', { class: 'muted', style: 'font-size:11px' }, `Last seen ${fmtWhen(found.seen.last)}`) : null),
+        found.given
+          ? h('div', { class: 'muted', style: 'font-size:12px' }, `${rankInfo(found.given.rank).name} given by ${found.given.byName} ${fmtWhen(found.given.at)}`)
+          : h('div', { class: 'muted', style: 'font-size:12px' }, 'No rank has ever been given to this account.'),
+        can('ranks.manage')
+          ? h('div', { class: 'row', style: 'margin-top:12px' },
+              picker,
+              h('button', { class: 'btn small primary', onClick: () => void applyRank(found.uuid!, picker.value, line) }, 'Set rank'),
+              found.rank && found.rank !== 'snowball'
+                ? h('button', {
+                    class: 'btn small danger',
+                    onClick: () => confirmDialog(
+                      `Take ${found.name}'s rank away?`,
+                      `${found.name} goes back to plain Snowball and loses everything that rank allowed. You can give it back at any time.`,
+                      'Revoke it',
+                      async () => { await applyRank(found.uuid!, 'snowball', line); }),
+                  }, 'Revoke')
+                : null)
+          : h('p', { class: 'muted', style: 'font-size:12px;margin:8px 0 0' }, 'Your rank can look people up, but not change what they hold.')));
+
       if (found.history?.length) {
-        result.push(h('div', { class: 'section-title', style: 'margin-top:12px' }, 'HISTORY'));
-        result.push(h('div', { class: 'list' }, ...found.history.slice(0, 12).map((entry) =>
-          h('div', { class: 'list-row' },
-            h('div', { class: 'grow' }, rankChip(entry.rank), ' ', h('span', { class: 'muted', style: 'font-size:12px' }, 'by ' + entry.byName)),
-            h('div', { class: 'muted', style: 'font-size:11px' }, fmtWhen(entry.at))))));
-      } else if (current.id === 'snowball') {
-        result.push(h('p', { class: 'muted' }, 'No rank has ever been given to this account.'));
+        result.push(h('div', { class: 'section-title', style: 'margin-top:16px' }, 'HISTORY'));
+        result.push(h('ol', { class: 'admin-history' }, ...found.history.slice(0, 12).map((entry) =>
+          h('li', {},
+            rankChip(entry.rank),
+            h('span', { class: 'muted' }, ` by ${entry.byName}, ${fmtWhen(entry.at)}`)))));
       }
     }
 
-    return h('div', { class: 'stack' },
-      h('div', { class: 'row' },
-        h('div', { class: 'grow' }, search),
-        h('button', { class: 'btn small primary', onClick: find }, 'Find')),
+    return h('div', { class: 'admin-body' },
+      h('div', { class: 'admin-block' },
+        field('Find a player', search, 'Their Minecraft name. Press Enter to search.'),
+        h('div', { class: 'row' }, findButton)),
+      line,
       ...result);
   }
-
-  async function applyRank(uuid: string, rank: string): Promise<void> {
+  async function applyRank(uuid: string, rank: string, line?: HTMLElement): Promise<void> {
     const result = await guard(() => api.setRank(uuid, rank));
     if (!result) return;
     if (!result.ok) {
-      toast(result.reason ?? 'That rank was not changed.', 'error');
+      if (line) say(line, result.reason ?? 'That rank was not changed.', 'bad');
+      else toast(result.reason ?? 'That rank was not changed.', 'error');
       return;
     }
-    toast('Rank set to ' + rankInfo(rank).name);
+    const message = `Rank set to ${rankInfo(rank).name}. They see it straight away - nothing to reinstall.`;
+    if (line) say(line, message);
+    else toast(message);
   }
-
-  /** Everyone the Snowball server has seen, newest first. */
+  /** Everyone the Snowball server has seen, newest first, with a filter for finding one. */
   function peopleList(): HTMLElement {
-    if (!ui.people.length) return h('p', { class: 'muted' }, 'Nobody has joined yet, or the list is still coming.');
-    return h('div', { class: 'list' }, ...ui.people.slice(0, 60).map((person) =>
-      h('div', { class: 'list-row' },
-        h('div', { class: 'grow' },
-          h('div', {}, person.name, ' ', person.rank && person.rank !== 'snowball' ? rankChip(person.rank) : null),
-          h('div', { class: 'muted', style: 'font-size:11px' }, `last seen ${fmtWhen(person.last)}${person.muted ? ' - muted' : ''}`)),
-        can('ranks.manage') ? h('button', { class: 'btn small', onClick: () => void api.setSnowballPlus(person.uuid, person.rank === 'snowball').then(() => setTimeout(() => void api.chatAdmin('people'), 400)) },
-          person.rank === 'snowball' ? 'Give Snowball+' : 'Remove rank') : null,
-        can('chat.moderate') ? h('button', { class: 'btn small', onClick: () => void api.moderateChat(person.muted ? 'unmute' : 'mute', person.uuid, 10).then(() => setTimeout(() => void api.chatAdmin('people'), 400)) },
-          person.muted ? 'Unmute' : 'Mute 10m') : null)));
-  }
+    const line = statusLine();
+    const list = h('div', { class: 'list' });
+    const filter = h('input', { class: 'input', placeholder: 'Start typing a name', autocomplete: 'off' }) as HTMLInputElement;
+    const count = h('div', { class: 'muted', style: 'font-size:12px', role: 'status', 'aria-live': 'polite' });
 
-  /** Bug reports, with the states the owner can move them through. */
+    const paint = () => {
+      const wanted = filter.value.trim().toLowerCase();
+      const people = ui.people.filter((p) => !wanted || p.name.toLowerCase().includes(wanted));
+      count.textContent = ui.people.length
+        ? `${people.length} of ${ui.people.length} ${ui.people.length === 1 ? 'person' : 'people'}`
+        : 'Nobody has joined yet, or the list is still coming.';
+      list.replaceChildren(...people.slice(0, 80).map((person) =>
+        h('div', { class: 'list-row' },
+          h('div', { class: 'grow' },
+            h('div', {}, person.name, ' ', person.rank && person.rank !== 'snowball' ? rankChip(person.rank) : null),
+            h('div', { class: 'muted', style: 'font-size:11px' }, `last seen ${fmtWhen(person.last)}${person.muted ? ' \u00b7 muted' : ''}`)),
+          can('ranks.manage')
+            ? h('button', {
+                class: 'btn small',
+                'aria-label': `${person.rank === 'snowball' ? 'Give Snowball+ to' : 'Remove the rank from'} ${person.name}`,
+                onClick: async () => {
+                  await applyRank(person.uuid, person.rank === 'snowball' ? 'plus' : 'snowball', line);
+                  setTimeout(() => void api.chatAdmin('people'), 400);
+                },
+              }, person.rank === 'snowball' ? 'Give Snowball+' : 'Remove rank')
+            : null,
+          can('chat.moderate')
+            ? h('button', {
+                class: 'btn small',
+                'aria-label': `${person.muted ? 'Unmute' : 'Mute'} ${person.name}`,
+                onClick: async () => {
+                  const r = await guard(() => api.moderateChat(person.muted ? 'unmute' : 'mute', person.uuid, 10));
+                  if (r?.ok) say(line, `${person.name} ${person.muted ? 'can talk again' : 'is muted for 10 minutes'}.`);
+                  else if (r) say(line, r.reason ?? 'That did not work.', 'bad');
+                  setTimeout(() => void api.chatAdmin('people'), 400);
+                },
+              }, person.muted ? 'Unmute' : 'Mute 10m')
+            : null)));
+    };
+    filter.addEventListener('input', paint);
+    paint();
+
+    return h('div', { class: 'admin-body' },
+      h('div', { class: 'admin-block' },
+        field('Filter', filter),
+        count),
+      line,
+      list);
+  }
+  /**
+   * Bug reports. Each one is a disclosure rather than a wall: the title and state are always
+   * visible, and the detail, steps and versions open when you ask for them.
+   */
   function bugList(): HTMLElement {
-    if (!ui.bugs.length) return h('p', { class: 'muted' }, 'No bug reports yet.');
+    const line = statusLine();
+    if (!ui.bugs.length) return h('div', { class: 'admin-body' }, h('p', { class: 'muted' }, 'No bug reports yet.'));
     const states: Snowball.BugReport['status'][] = ['open', 'investigating', 'fixed', 'duplicate', 'invalid'];
-    return h('div', { class: 'list' }, ...ui.bugs.map((bug) =>
-      h('div', { class: 'list-row bug-row' },
-        h('div', { class: 'grow' },
-          h('div', {}, h('span', { class: `bug-state ${bug.status}` }, bug.status.toUpperCase()), ' ', bug.title),
-          h('div', { class: 'muted', style: 'font-size:12px' }, bug.detail),
-          h('div', { class: 'muted', style: 'font-size:11px' },
-            `${bug.by} - ${fmtWhen(Date.parse(bug.at))}${bug.minecraft ? ` - Minecraft ${bug.minecraft}` : ''}${bug.loader ? ` - ${bug.loader}` : ''}${bug.snowball ? ` - Snowball ${bug.snowball}` : ''}`),
-          bug.steps ? h('div', { class: 'muted', style: 'font-size:11px' }, `Steps: ${bug.steps}`) : null),
-        can('bugs.triage')
-          ? h('select', { class: 'input', style: 'max-width:150px', onChange: (e: Event) => void api.chatAdmin('bug-status', { id: bug.id, status: (e.target as HTMLSelectElement).value }) },
-              ...states.map((state) => h('option', { value: state, selected: state === bug.status }, state)))
-          : null)));
-  }
 
-  /** Feature switches: the launcher and the client ask the server what is on. */
+    const open = ui.bugs.filter((b) => b.status === 'open').length;
+    const summary = h('div', { class: 'muted', style: 'font-size:12px' },
+      `${ui.bugs.length} report${ui.bugs.length === 1 ? '' : 's'}, ${open} still open`);
+
+    const rows = ui.bugs.map((bug) => {
+      const detail = h('div', { class: 'admin-bug-detail' },
+        h('p', { style: 'margin:0 0 8px;white-space:pre-wrap' }, bug.detail),
+        bug.steps ? h('div', { class: 'muted', style: 'font-size:12px;white-space:pre-wrap' }, `Steps: ${bug.steps}`) : null,
+        h('div', { class: 'muted', style: 'font-size:11px;margin-top:8px' },
+          [bug.minecraft && `Minecraft ${bug.minecraft}`, bug.loader, bug.snowball && `Snowball ${bug.snowball}`].filter(Boolean).join(' \u00b7 ')));
+      detail.hidden = true;
+
+      const toggle = h('button', {
+        class: 'btn small ghost',
+        'aria-expanded': 'false',
+        'aria-label': `Details of ${bug.title}`,
+        onClick: (e: MouseEvent) => {
+          detail.hidden = !detail.hidden;
+          const b = e.currentTarget as HTMLButtonElement;
+          b.setAttribute('aria-expanded', String(!detail.hidden));
+          b.textContent = detail.hidden ? 'Details' : 'Hide';
+        },
+      }, 'Details');
+
+      const status = h('select', {
+        class: 'input',
+        style: 'max-width:150px',
+        'aria-label': `State of ${bug.title}`,
+        onChange: async (e: Event) => {
+          const value = (e.target as HTMLSelectElement).value;
+          const r = await guard(() => api.chatAdmin('bug-status', { id: bug.id, status: value }));
+          if (r?.ok) say(line, `"${bug.title}" marked ${value}.`);
+          else if (r) say(line, r.reason ?? 'That did not work.', 'bad');
+        },
+      }, ...states.map((state) => h('option', { value: state, selected: state === bug.status }, state)));
+
+      return h('div', { class: 'admin-bug' },
+        h('div', { class: 'row' },
+          h('span', { class: `bug-state ${bug.status}` }, bug.status.toUpperCase()),
+          h('div', { class: 'grow' },
+            h('div', {}, bug.title),
+            h('div', { class: 'muted', style: 'font-size:11px' }, `${bug.by} \u00b7 ${fmtWhen(Date.parse(bug.at))}`)),
+          toggle,
+          can('bugs.triage') ? status : null),
+        detail);
+    });
+
+    return h('div', { class: 'admin-body' }, summary, line, h('div', { class: 'list' }, ...rows));
+  }
+  /**
+   * Feature switches. Each one uses the same toggle as the rest of the launcher, so its state
+   * is visible at a glance rather than having to be read off a button label.
+   */
   function flagList(): HTMLElement {
+    const line = statusLine();
     const known: [string, string][] = [
       ['chat', 'Global chat'],
       ['bug_reports', 'Bug reporting'],
@@ -1404,21 +1604,40 @@
       ['beta', 'Beta builds'],
     ];
     const flags = ui.chat?.flags ?? {};
-    const custom = h('input', { class: 'input', placeholder: 'Another feature key' }) as HTMLInputElement;
+    const custom = h('input', { class: 'input', placeholder: 'another_feature_key', autocomplete: 'off' }) as HTMLInputElement;
+
     const row = (key: string, label: string) => {
       const on = flags[key] !== false;
       return h('div', { class: 'list-row' },
-        h('div', { class: 'grow' }, h('div', {}, label), h('div', { class: 'muted', style: 'font-size:11px' }, key)),
-        h('button', { class: `btn small${on ? '' : ' primary'}`, onClick: () => void api.chatAdmin('flag', { key, value: !on }) }, on ? 'Turn off' : 'Turn on'));
+        h('div', { class: 'grow' },
+          h('div', {}, label),
+          h('div', { class: 'muted', style: 'font-size:11px' }, `${key} \u00b7 ${on ? 'on for everyone' : 'off for everyone'}`)),
+        toggle(on, async (value) => {
+          const r = await guard(() => api.chatAdmin('flag', { key, value }));
+          if (r?.ok) say(line, `${label} turned ${value ? 'on' : 'off'} for everyone.`);
+          else if (r) say(line, r.reason ?? 'That did not work.', 'bad');
+        }));
     };
-    return h('div', { class: 'list' },
-      ...known.map(([key, label]) => row(key, label)),
-      ...Object.keys(flags).filter((key) => !known.some(([k]) => k === key)).map((key) => row(key, key)),
-      h('div', { class: 'list-row' },
-        h('div', { class: 'grow' }, custom),
-        h('button', { class: 'btn small', onClick: () => void api.chatAdmin('flag', { key: custom.value.trim(), value: false }) }, 'Add, switched off')));
-  }
 
+    return h('div', { class: 'admin-body' },
+      line,
+      h('div', { class: 'list' },
+        ...known.map(([key, label]) => row(key, label)),
+        ...Object.keys(flags).filter((key) => !known.some(([k]) => k === key)).map((key) => row(key, key))),
+      h('div', { class: 'admin-block', style: 'margin-top:16px' },
+        field('Add a switch', custom, 'For a feature that is not listed yet. It starts turned on.'),
+        h('div', { class: 'row' },
+          h('button', {
+            class: 'btn small',
+            onClick: async () => {
+              const key = custom.value.trim();
+              if (!key) { say(line, 'Type a key first.', 'bad'); return; }
+              const r = await guard(() => api.chatAdmin('flag', { key, value: true }));
+              if (r?.ok) { say(line, `${key} added and turned on.`); custom.value = ''; }
+              else if (r) say(line, r.reason ?? 'That did not work.', 'bad');
+            },
+          }, 'Add'))));
+  }
   function paintChat(view: HTMLElement): void {
     if (!ui.chatMessages.length) {
       view.replaceChildren(h('div', { class: 'muted' }, 'Nothing said yet.'));
@@ -1455,22 +1674,22 @@
     const pathInput = h('input', { class: 'input', placeholder: 'Path to java executable' }) as HTMLInputElement;
     const result = h('div', { class: 'muted', style: 'margin-top:8px' });
     return h('div', { class: 'stack' },
-      header('Java', 'Runtimes and memory', h('button', { class: 'btn', onClick: () => void detect() }, 'Rescan')),
+      header('JAVA', 'Runtimes and memory', h('button', { class: 'btn', onClick: () => void detect() }, 'Rescan')),
       h('div', { class: 'grid', style: 'grid-template-columns:1fr 1fr' },
         h('div', { class: 'card' },
-          h('div', { class: 'section-title' }, 'Memory'),
+          h('div', { class: 'section-title' }, 'MEMORY'),
           h('div', { class: 'stats', style: 'margin:0' },
             h('div', { class: 'stat' }, h('div', { class: 'stat-label' }, 'System'), h('div', { class: 'stat-value' }, fmtMemory(state.memory.totalMb))),
             h('div', { class: 'stat' }, h('div', { class: 'stat-label' }, 'Recommended'), h('div', { class: 'stat-value' }, fmtMemory(state.memory.recommendedMaxMb))),
             h('div', { class: 'stat' }, h('div', { class: 'stat-label' }, 'Safe maximum'), h('div', { class: 'stat-value' }, fmtMemory(state.memory.safeUpperLimitMb))))),
         h('div', { class: 'card' },
-          h('div', { class: 'section-title' }, 'Check a Java executable'),
+          h('div', { class: 'section-title' }, 'CHECK A JAVA EXECUTABLE'),
           h('div', { class: 'row' }, pathInput,
             h('button', { class: 'btn', onClick: async () => { const p = await guard(() => api.browseJava()); if (p) pathInput.value = p; } }, 'Browse'),
             h('button', { class: 'btn primary', onClick: async () => { const r = await guard(() => api.validateJava(pathInput.value, null)); if (r) result.textContent = r.java ? `Java ${r.java.version} (${r.java.vendor})${r.message ? ` - ${r.message}` : ''}` : r.message ?? 'Not a Java executable'; } }, 'Check')),
           result)),
       h('div', { class: 'card' },
-        h('div', { class: 'section-title' }, 'Detected installations'),
+        h('div', { class: 'section-title' }, 'DETECTED INSTALLATIONS'),
         h('p', { class: 'muted', style: 'margin-top:0' }, 'Each instance picks the Java version its Minecraft version requires, or the executable you choose in the instance editor.'),
         listEl));
   }
@@ -1504,7 +1723,7 @@
           }, 'Check now');
 
     return h('div', { class: 'card' },
-      h('div', { class: 'section-title' }, 'Updates'),
+      h('div', { class: 'section-title' }, 'UPDATES'),
       h('div', { class: 'list' },
         h('div', { class: 'list-row' },
           h('div', { class: 'grow' },
@@ -1575,7 +1794,7 @@
     const list = h('div', { class: 'list' }, h('div', { class: 'muted' }, 'Reading every mod in this instance...'));
     const summary = h('p', { class: 'muted' }, 'Nothing is uploaded: each jar is read here and compared with what stealers and loaders do.');
     body.append(summary, list);
-    modal('Mod check', body, [{ label: 'Close', kind: 'ghost', onClick: (c) => c() }]);
+    modal('MOD CHECK', body, [{ label: 'Close', kind: 'ghost', onClick: (c) => c() }]);
 
     void api.scanMods(instanceId).then((results) => {
       if (!results.length) {
@@ -1623,16 +1842,16 @@
     const maxMemory = h('input', { class: 'input', type: 'number', min: '512', step: '256', value: s.java.defaultMaxMemoryMb ?? '', placeholder: `Recommended (${state.memory.recommendedMaxMb} MB)` }) as HTMLInputElement;
 
     return h('div', { class: 'stack' },
-      header('Settings', `Launcher ${state.launcherVersion}`),
+      header('SETTINGS', `Launcher ${state.launcherVersion}`),
       h('div', { class: 'card' },
-        h('div', { class: 'section-title' }, 'Accounts'),
+        h('div', { class: 'section-title' }, 'ACCOUNTS'),
         accounts,
         h('div', { class: 'row', style: 'margin-top:12px' },
           h('button', { class: 'btn primary', onClick: () => microsoftSignIn() }, 'Sign in with Microsoft'),
           h('button', { class: 'btn', disabled: !state.canAddOffline, title: state.canAddOffline ? '' : 'Requires a Microsoft account first', onClick: () => offlineDialog() }, 'Add offline profile'))),
       updatesCard(s, update),
       h('div', { class: 'card' },
-        h('div', { class: 'section-title' }, 'Launcher'),
+        h('div', { class: 'section-title' }, 'LAUNCHER'),
         h('div', { class: 'list' },
           settingRow('Reduce motion', 'Turn off interface animations.', toggle(s.appearance.reduceMotion, (v) => void update({ appearance: { ...s.appearance, reduceMotion: v } }))),
           settingRow('Minimize when the game starts', 'Keeps the launcher out of the way while playing.', toggle(s.game.closeLauncherOnLaunch, (v) => void update({ game: { ...s.game, closeLauncherOnLaunch: v } }))),
@@ -1641,7 +1860,7 @@
           settingRow('Parallel downloads', `${s.downloads.concurrency} at a time`, h('div', { style: 'width:200px;flex:none' }, h('input', { type: 'range', min: '1', max: '16', value: String(s.downloads.concurrency), onChange: (e: Event) => void update({ downloads: { ...s.downloads, concurrency: Number((e.target as HTMLInputElement).value) } }) }))),
           settingRow('Debug logging', 'Write detailed diagnostics to the launcher log.', toggle(s.logs.debug, (v) => void update({ logs: { ...s.logs, debug: v } }))))),
       h('div', { class: 'card' },
-        h('div', { class: 'section-title' }, 'Data'),
+        h('div', { class: 'section-title' }, 'DATA'),
         h('div', { class: 'list' },
           settingRow('Launcher folder', state.dataRoot, h('button', { class: 'btn', onClick: () => void guard(() => api.openLauncherFolder('root')) }, 'Open')),
           settingRow('Logs', 'Everything Snowball did, with account tokens always redacted.',

@@ -9,6 +9,17 @@ restart. You only download an installer once.
 
 ---
 
+## 1.6.3
+
+### Fixed
+- Snowball could not check for updates at all. Every installed copy failed the
+  moment it looked, with an error about `autoDownload`, which means automatic
+  updating has never actually run for anyone - it only ever worked while the
+  launcher was being developed. This is the last version you have to install by
+  hand.
+
+---
+
 ## 1.6.2
 
 ### What's new

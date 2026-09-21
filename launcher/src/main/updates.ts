@@ -8,6 +8,29 @@ export { compareVersions, describeUpdateFailure, isValidVersion };
 
 const log = getLogger('updates');
 
+type AutoUpdater = typeof import('electron-updater').autoUpdater;
+
+/**
+ * Gets electron-updater's autoUpdater, whichever shape the module arrives in.
+ *
+ * electron-updater is CommonJS. Reached through a dynamic import(), Node decides whether it can
+ * expose named exports by statically reading the file; when it cannot, everything lands under
+ * `default` instead and `autoUpdater` is undefined. That detection does not survive being packed
+ * into an asar, which is why this worked in development and threw
+ * "Cannot set properties of undefined (setting 'autoDownload')" in every installed build.
+ *
+ * Both shapes are accepted, and a module that has neither fails with a sentence that says so
+ * rather than a TypeError from three frames deeper.
+ */
+export async function loadAutoUpdater(
+  importer: () => Promise<unknown> = () => import('electron-updater'),
+): Promise<AutoUpdater> {
+  const mod = (await importer()) as { autoUpdater?: AutoUpdater; default?: { autoUpdater?: AutoUpdater } };
+  const updater = mod?.autoUpdater ?? mod?.default?.autoUpdater;
+  if (!updater) throw new Error('The update component could not be loaded from this build.');
+  return updater;
+}
+
 /**
  * Where the launcher records an update it is about to apply. On the next start we compare the
  * version that is actually running against what was expected, which is the only honest way to
@@ -232,7 +255,7 @@ export class UpdateService {
 
   private async load(): Promise<typeof import('electron-updater').autoUpdater> {
     if (this.updater) return this.updater;
-    const { autoUpdater } = await import('electron-updater');
+    const autoUpdater = await loadAutoUpdater();
     autoUpdater.autoDownload = true;
     // The swap happens when the user agrees to it, not silently behind them on quit.
     autoUpdater.autoInstallOnAppQuit = true;

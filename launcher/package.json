@@ -1,7 +1,7 @@
 {
   "name": "snowball-client-launcher",
   "productName": "Snowball Client Launcher",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "description": "Instance-based Minecraft launcher for Snowball Client",
   "license": "MIT",
   "main": "dist/main/main.js",
