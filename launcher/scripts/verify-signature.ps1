@@ -26,7 +26,9 @@ if (-not (Test-Path $release)) {
   exit 1
 }
 
-$artefacts = Get-ChildItem -Path $release -Include *.exe, *.appx -Recurse -File
+# Only what actually gets published. Recursing would also pick up win-unpacked/, which holds
+# electron-builder's own helper binaries rather than anything Snowball ships as a download.
+$artefacts = Get-ChildItem -Path (Join-Path $release '*') -Include *.exe, *.appx -File
 if ($artefacts.Count -eq 0) {
   Write-Host "No .exe or .appx artefacts found in $release." -ForegroundColor Yellow
   exit 1
