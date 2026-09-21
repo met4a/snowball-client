@@ -2,11 +2,14 @@
  * Snowball Client global chat.
  *
  * One Durable Object holds the room: the sockets, the last messages, the announcement and the mutes.
- * Identity is not taken on trust - a player joins by asking Mojang to vouch for them, exactly as they
- * would for a Minecraft server, and this worker checks that with Mojang before letting them speak.
+ * Identity is not taken on trust. Mojang blocks requests from workers, so instead of asking it, the
+ * launcher proves itself with the key pair Mojang issued to that account and this room checks both
+ * signatures offline - see identity.js.
  *
  * Deploy: npx wrangler deploy   (see README.md)
  */
+
+import { verifyPlayerProof } from './identity.js';
 
 const HISTORY = 60;
 const MAX_MESSAGE_LENGTH = 240;
@@ -99,6 +102,7 @@ export class ChatRoom {
     this.bugs = [];
     this.flags = {};
     this.nonces = new Map();
+    this.tickets = new Map();
     this.ready = state.blockConcurrencyWhile(async () => {
       this.history = (await state.storage.get('history')) ?? [];
       this.announcement = (await state.storage.get('announcement')) ?? null;
@@ -117,21 +121,39 @@ export class ChatRoom {
     if (url.pathname.endsWith('/stats')) return Response.json(this.stats(), { headers: { 'cache-control': 'no-store' } });
     if (url.pathname.endsWith('/flags')) return Response.json(this.flags, { headers: { 'cache-control': 'no-store' } });
     if (url.pathname.endsWith('/nonce')) {
-      const serverId = crypto.randomUUID().replace(/-/g, '');
-      this.nonces.set(serverId, Date.now());
+      const nonce = crypto.randomUUID().replace(/-/g, '');
+      this.nonces.set(nonce, Date.now());
       this.sweepNonces();
-      return Response.json({ serverId });
+      return Response.json({ nonce });
+    }
+    if (url.pathname.endsWith('/auth') && request.method === 'POST') {
+      const proof = await request.json().catch(() => ({}));
+      const name = String(proof.name ?? '');
+      const uuid = String(proof.uuid ?? '').replace(/-/g, '');
+      const failure = await this.verify(name, uuid, String(proof.nonce ?? ''), proof);
+      if (typeof failure === 'string') {
+        console.log('auth refused:', failure, name);
+        return Response.json({ error: failure }, { status: 403 });
+      }
+      // A ticket the socket presents in its place, good for one connection and one minute.
+      const ticket = crypto.randomUUID().replace(/-/g, '');
+      this.tickets.set(ticket, { name, uuid, at: Date.now() });
+      for (const [id, held] of this.tickets) if (Date.now() - held.at > 60_000) this.tickets.delete(id);
+      return Response.json({ ticket });
     }
     if (!url.pathname.endsWith('/ws')) return new Response('Not found', { status: 404 });
     if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected a WebSocket', { status: 426 });
 
-    const name = url.searchParams.get('name') ?? '';
-    const uuid = (url.searchParams.get('uuid') ?? '').replace(/-/g, '');
-    const serverId = url.searchParams.get('serverId') ?? '';
-    const profile = await this.verify(name, serverId);
-    if (!profile || profile.id.replace(/-/g, '') !== uuid) {
-      return new Response('Minecraft did not vouch for that account.', { status: 403 });
+    const ticket = url.searchParams.get('ticket') ?? '';
+    const held = this.tickets.get(ticket);
+    this.tickets.delete(ticket);
+    if (!held || Date.now() - held.at > 60_000) {
+      return new Response('That ticket is not valid any more. Join again.', { status: 403 });
     }
+    const name = held.name;
+    const uuid = held.uuid;
+    const profile = { id: uuid, name };
+    console.log('join', JSON.stringify({ name, uuid }));
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
@@ -156,24 +178,28 @@ export class ChatRoom {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  /** Mojang's own answer to "is this really them?" - valid only for the id this room just handed out. */
-  async verify(name, serverId) {
-    if (!/^[A-Za-z0-9_]{3,16}$/.test(name) || !/^[a-f0-9]{40}$/.test(serverId)) return null;
-    const issued = [...this.nonces.keys()];
-    // The launcher sends the SHA-1 of the id, so every outstanding id is tried.
-    let matched = false;
-    for (const id of issued) {
-      const hash = await sha1(id);
-      if (hash === serverId) {
-        matched = true;
-        this.nonces.delete(id);
-        break;
-      }
-    }
-    if (!matched) return null;
-    const response = await fetch(`https://sessionserver.mojang.com/session/minecraft/hasJoined?username=${encodeURIComponent(name)}&serverId=${serverId}`);
-    if (response.status !== 200) return null;
-    return response.json();
+  /**
+   * Who is connecting, proved with the key pair Mojang issued to that account. Mojang blocks
+   * requests from workers, so nothing is asked of it here: the signatures are checked offline.
+   *
+   * @returns the profile when it checks out, or a short reason why it did not
+   */
+  async verify(name, uuid, nonce, proof) {
+    if (!/^[A-Za-z0-9_]{3,16}$/.test(name)) return 'that is not a Minecraft name';
+    if (!/^[a-f0-9]{32}$/.test(uuid)) return 'that is not an account id';
+    if (!this.nonces.has(nonce)) return 'that one-time id is not one we issued';
+    this.nonces.delete(nonce);
+    if (!proof || typeof proof !== 'object') return 'the proof was missing';
+    const failure = await verifyPlayerProof(this.env, {
+      uuid,
+      publicKey: proof.publicKey,
+      keySignature: proof.keySignature,
+      expiresAt: proof.expiresAt,
+      nonce,
+      nonceSignature: proof.signature,
+    });
+    if (failure) return failure;
+    return { id: uuid, name };
   }
 
   sweepNonces() {
@@ -296,18 +322,15 @@ export class ChatRoom {
     if (!needed || !can(member, needed)) return this.refuse(socket);
 
     if (payload.action === 'lookup') {
-      // A username becomes an account id through Mojang, so a rank is never given to a typo.
+      // The launcher resolved the name with Mojang, which refuses requests from here.
       const wanted = String(payload.name ?? '').trim();
-      if (!/^[A-Za-z0-9_]{3,16}$/.test(wanted)) return socket.send(JSON.stringify({ type: 'lookup', found: false, name: wanted }));
-      const response = await fetch('https://api.mojang.com/users/profiles/minecraft/' + encodeURIComponent(wanted));
-      if (response.status !== 200) return socket.send(JSON.stringify({ type: 'lookup', found: false, name: wanted }));
-      const profile = await response.json();
-      const id = String(profile.id ?? '').replace(/-/g, '');
+      const id = String(payload.uuid ?? '').replace(/-/g, '');
+      if (!/^[a-f0-9]{32}$/.test(id)) return socket.send(JSON.stringify({ type: 'lookup', found: false, name: wanted }));
       const isOwner = id === String(this.env.ADMIN_UUID ?? '').replace(/-/g, '');
       return socket.send(JSON.stringify({
         type: 'lookup',
         found: true,
-        name: profile.name,
+        name: wanted,
         uuid: id,
         rank: isOwner ? 'owner' : this.ranks.get(id)?.rank ?? 'snowball',
         given: this.ranks.get(id) ?? null,
@@ -403,11 +426,6 @@ export class ChatRoom {
   broadcastPresence() {
     this.broadcast({ type: 'presence', online: this.sockets.size });
   }
-}
-
-async function sha1(text) {
-  const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 export default {

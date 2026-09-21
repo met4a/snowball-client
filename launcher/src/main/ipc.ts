@@ -102,6 +102,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
   ipcMain.handle('chat:admin', (_e, action: unknown, extra: unknown) =>
     chat?.admin(str(action, 'action', 20), (extra ?? {}) as Record<string, unknown>) ?? { ok: false, reason: 'Chat is not available.' });
   ipcMain.handle('chat:set-plus', (_e, uuid: unknown, on: unknown) => chat?.setPlus(str(uuid, 'uuid', 40), on !== false) ?? { ok: false, reason: 'Chat is not available.' });
+  ipcMain.handle('chat:lookup', (_e, name: unknown) => chat?.lookup(str(name, 'name', 16)) ?? { ok: false, reason: 'Chat is not available.' });
   ipcMain.handle('chat:set-rank', (_e, uuid: unknown, rank: unknown) =>
     chat?.setRank(str(uuid, 'uuid', 40), str(rank, 'rank', 20) as never) ?? { ok: false, reason: 'Chat is not available.' });
   ipcMain.handle('chat:moderate', (_e, action: unknown, uuid: unknown, minutes: unknown) =>
@@ -180,7 +181,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
       snowballBuilds: launcher.core.registry.builds.map((b) => ({ version: b.version, minecraft: b.label })),
       canAddOffline: launcher.auth.canAddOffline(),
       microsoftSignInConfigured: launcher.microsoftSignInConfigured,
-      launcherVersion: process.env.npm_package_version ?? '1.5.0',
+      launcherVersion: process.env.npm_package_version ?? '1.5.1',
     };
   });
 

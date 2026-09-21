@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { createHash } from 'node:crypto';
+import { createSign } from 'node:crypto';
 import { getLogger } from '../logging/Logger.js';
 import { moderate, RateLimit } from './moderation.js';
 
@@ -74,6 +74,20 @@ interface SessionLike {
   type: 'msa' | 'offline';
 }
 
+
+/** Turns Mojang's refusal into a sentence that says what to do about it. */
+function describeJoinFailure(status: number, body: string): string {
+  const text = body.toLowerCase();
+  if (text.includes('insufficientprivileges') || text.includes('multiplayer')) {
+    return 'This Microsoft account is not allowed to play multiplayer, so Minecraft will not vouch for it. Turn multiplayer on in the Xbox privacy settings for the account and try again.';
+  }
+  if (text.includes('userbanned')) return 'This account is banned from Minecraft multiplayer, so it cannot join Snowball chat.';
+  if (status === 401 || text.includes('invalid token') || text.includes('forbiddenoperation')) {
+    return 'Minecraft did not accept the sign-in. Sign out of the account in Settings and sign in again.';
+  }
+  return `Minecraft would not vouch for this account (${status}). Sign in again and retry.`;
+}
+
 /**
  * The launcher's side of Snowball's global chat. Identity is proven the way a Minecraft server does
  * it: the launcher asks Mojang to vouch for the account, and the chat server checks that with Mojang
@@ -103,12 +117,10 @@ export class ChatClient extends EventEmitter {
     this.closedByUs = false;
     this.set({ status: 'connecting', message: undefined });
     try {
-      const serverId = await this.proveIdentity(session);
+      const ticket = await this.proveIdentity(session);
       const url = new URL(this.baseUrl.replace(/^http/, 'ws'));
       url.pathname = `${url.pathname.replace(/\/$/, '')}/ws`;
-      url.searchParams.set('name', session.name);
-      url.searchParams.set('uuid', session.uuid);
-      url.searchParams.set('serverId', serverId);
+      url.searchParams.set('ticket', ticket);
       this.open(url.toString(), session);
       return this.state;
     } catch (err) {
@@ -173,6 +185,26 @@ export class ChatClient extends EventEmitter {
     return { ok: true };
   }
 
+  /**
+   * Turns a Minecraft name into an account id. This runs in the launcher because Mojang refuses
+   * requests from the chat server's host, then asks the server what it knows about that account.
+   */
+  async lookup(name: string): Promise<{ ok: boolean; reason?: string }> {
+    const wanted = name.trim();
+    if (!/^[A-Za-z0-9_]{3,16}$/.test(wanted)) return { ok: false, reason: 'That is not a Minecraft name.' };
+    try {
+      const response = await fetch(`https://api.mojang.com/users/profiles/minecraft/${encodeURIComponent(wanted)}`);
+      if (response.status !== 200) {
+        this.emit('lookup', { found: false, name: wanted });
+        return { ok: true };
+      }
+      const profile = (await response.json()) as { id?: string; name?: string };
+      return this.admin('lookup', { uuid: String(profile.id ?? ''), name: profile.name ?? wanted });
+    } catch (err) {
+      return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
   /** Admin only: ask for the people list, the bug list, or change a bug's state or a feature flag. */
   admin(action: string, extra: Record<string, unknown> = {}): { ok: boolean; reason?: string } {
     if (!this.socket || this.state.status !== 'online') return { ok: false, reason: 'You are not connected to chat.' };
@@ -208,22 +240,61 @@ export class ChatClient extends EventEmitter {
   }
 
   /**
-   * Asks Mojang to vouch for this account against a one-time id from the chat server - the same
-   * handshake a Minecraft server uses. Only the id travels; the token stays here.
+   * Proves which account this is, using the key pair Mojang issues for signed chat. Mojang blocks
+   * requests coming from Cloudflare, so the chat server cannot ask it anything; instead it checks
+   * Mojang's signature over this account's public key, and our signature over its one-time id.
+   * The Minecraft token is only ever sent to Mojang, never to Snowball.
+   *
+   * @returns a ticket the socket presents in place of all of this
    */
   private async proveIdentity(session: SessionLike): Promise<string> {
-    const nonce = await fetch(`${this.baseUrl.replace(/\/$/, '')}/nonce`, { method: 'GET' });
-    if (!nonce.ok) throw new Error(`The chat server did not answer (${nonce.status}).`);
-    const { serverId } = (await nonce.json()) as { serverId?: string };
-    if (!serverId || !/^[a-zA-Z0-9-]{8,64}$/.test(serverId)) throw new Error('The chat server sent something unexpected.');
-    const hash = createHash('sha1').update(serverId, 'utf8').digest('hex');
-    const join = await fetch('https://sessionserver.mojang.com/session/minecraft/join', {
+    const base = this.baseUrl.replace(/\/$/, '');
+    const answer = await fetch(`${base}/nonce`);
+    if (!answer.ok) throw new Error(`The chat server did not answer (${answer.status}).`);
+    const { nonce } = (await answer.json()) as { nonce?: string };
+    if (!nonce || !/^[a-f0-9]{16,64}$/.test(nonce)) throw new Error('The chat server sent something unexpected.');
+
+    const certificates = await fetch('https://api.minecraftservices.com/player/certificates', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${session.accessToken}`, accept: 'application/json' },
+    });
+    if (!certificates.ok) {
+      const body = await certificates.text().catch(() => '');
+      log.warn('Minecraft would not issue a chat key', { status: certificates.status, body: body.slice(0, 200) });
+      throw new Error(describeJoinFailure(certificates.status, body));
+    }
+    const certificate = (await certificates.json()) as {
+      keyPair?: { privateKey?: string; publicKey?: string };
+      publicKeySignatureV2?: string;
+      expiresAt?: string;
+    };
+    const privateKey = certificate.keyPair?.privateKey;
+    const publicKey = certificate.keyPair?.publicKey;
+    if (!privateKey || !publicKey || !certificate.publicKeySignatureV2 || !certificate.expiresAt) {
+      throw new Error('Minecraft did not return a usable chat key.');
+    }
+
+    const signature = createSign('RSA-SHA256').update(nonce).sign(privateKey, 'base64');
+    const ticketed = await fetch(`${base}/auth`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ accessToken: session.accessToken, selectedProfile: session.uuid.replace(/-/g, ''), serverId: hash }),
+      body: JSON.stringify({
+        name: session.name,
+        uuid: session.uuid.replace(/-/g, ''),
+        nonce,
+        publicKey,
+        keySignature: certificate.publicKeySignatureV2,
+        expiresAt: Date.parse(certificate.expiresAt),
+        signature,
+      }),
     });
-    if (join.status !== 204) throw new Error('Minecraft would not vouch for this account. Sign in again and retry.');
-    return hash;
+    if (!ticketed.ok) {
+      const body = (await ticketed.json().catch(() => ({}))) as { error?: string };
+      throw new Error(`Snowball could not confirm the account: ${body.error ?? ticketed.status}.`);
+    }
+    const { ticket } = (await ticketed.json()) as { ticket?: string };
+    if (!ticket) throw new Error('The chat server did not hand out a ticket.');
+    return ticket;
   }
 
   private open(url: string, session: SessionLike): void {

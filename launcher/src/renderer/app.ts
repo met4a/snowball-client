@@ -4,7 +4,7 @@
 (() => {
   const api = window.snowball;
 
-  type View = 'home' | 'instances' | 'mods' | 'browse' | 'chat' | 'java' | 'settings';
+  type View = 'home' | 'instances' | 'mods' | 'browse' | 'chat' | 'admin' | 'java' | 'settings';
 
   const ui = {
     state: null as Snowball.AppState | null,
@@ -71,6 +71,7 @@
   const ICONS: Record<string, string> = {
     home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
     chat: '<path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/>',
+    admin: '<path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6z"/>',
     instances: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
     mods: '<path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M12 22V12M21 7l-9 5-9-5"/>',
     browse: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
@@ -236,13 +237,16 @@
     ['mods', 'MODS'],
     ['browse', 'BROWSE'],
     ['chat', 'CHAT'],
+    ['admin', 'ADMIN'],
     ['java', 'JAVA'],
     ['settings', 'SETTINGS'],
   ];
 
   function render(): void {
     const nav = document.getElementById('nav')!;
-    nav.replaceChildren(...NAV.map(([view, label]) => h('button', { class: `nav-item${ui.view === view ? ' active' : ''}`, onClick: () => { ui.view = view; render(); } }, icon(view), label)));
+    // Admin only appears for an account the Snowball server says may use it.
+    const entries = NAV.filter(([view]) => view !== 'admin' || Boolean(ui.chat?.admin));
+    nav.replaceChildren(...entries.map(([view, label]) => h('button', { class: `nav-item${ui.view === view ? ' active' : ''}`, onClick: () => { ui.view = view; render(); } }, icon(view), label)));
 
     const state = ui.state;
     const account = state?.accounts.find((a) => a.id === state.settings.accounts.selectedAccountId) ?? state?.accounts[0];
@@ -257,7 +261,7 @@
       content.replaceChildren(h('div', { class: 'empty muted' }, 'Loading...'));
       return;
     }
-    const views: Record<View, () => Node> = { home: homeView, instances: instancesView, mods: modsView, browse: browseView, chat: chatView, java: javaView, settings: settingsView };
+    const views: Record<View, () => Node> = { home: homeView, instances: instancesView, mods: modsView, browse: browseView, chat: chatView, admin: adminView, java: javaView, settings: settingsView };
     const banners = [announcementBanner(), updateBanner()].filter((b): b is HTMLElement => b !== null);
     content.replaceChildren(...banners, views[ui.view]());
   }
@@ -885,7 +889,6 @@
         state.status === 'online'
           ? h('button', { class: 'btn', onClick: () => void api.leaveChat() }, 'Leave')
           : h('button', { class: 'btn primary', onClick: () => void guard(() => api.joinChat()) }, 'Join chat')),
-      state.admin ? adminCard() : null,
       h('div', { class: 'card chat-card' },
         messages,
         h('div', { class: 'row chat-input' }, input, h('button', { class: 'btn primary', disabled: state.status !== 'online', onClick: () => void send() }, 'Send')),
@@ -927,7 +930,35 @@
         h('button', { class: 'btn primary', onClick: () => void send() }, 'Send report')));
   }
 
-  /** Only the Snowball account sees this, and the server checks that again for every action. */
+  /**
+   * The owner's own screen: ranks, people, bug reports and feature switches. It is only reachable
+   * when the server says this account may use it, and every button is checked there again.
+   */
+  function adminView(): Node {
+    const state = ui.chat;
+    if (!state?.configured) {
+      return h('div', { class: 'stack' },
+        header('ADMIN', 'Snowball owner tools'),
+        h('div', { class: 'card empty' },
+          h('h2', { class: 'page-title' }, 'NO SNOWBALL SERVER'),
+          h('p', { class: 'muted' }, 'This build has no Snowball server set, so there is nothing to administer.')));
+    }
+    if (!state.admin) {
+      return h('div', { class: 'stack' },
+        header('ADMIN', 'Snowball owner tools'),
+        h('div', { class: 'card empty' },
+          h('h2', { class: 'page-title' }, state.status === 'online' ? 'NOT YOUR RANK' : 'JOIN CHAT FIRST'),
+          h('p', { class: 'muted' }, state.status === 'online'
+            ? 'Your account does not hold a rank that can administer Snowball.'
+            : 'Join chat so the Snowball server can confirm which account you are, then come back.'),
+          state.status === 'online' ? null : h('button', { class: 'btn primary', onClick: () => void guard(() => api.joinChat()) }, 'Join chat')));
+    }
+    return h('div', { class: 'stack' },
+      header('ADMIN', `Signed in as the owner  \u00b7  ${state.online} online`),
+      adminCard());
+  }
+
+  /** Only an account the server trusts sees this, and the server checks that again for every action. */
   function adminCard(): HTMLElement {
     const announcement = h('input', { class: 'input', placeholder: 'Announcement everyone sees', maxlength: '300', value: ui.chat?.announcement ?? '' }) as HTMLInputElement;
     const muteUuid = h('input', { class: 'input', placeholder: 'UUID to mute' }) as HTMLInputElement;
@@ -984,7 +1015,7 @@
     const find = () => {
       const name = search.value.trim();
       if (!name) return;
-      void api.chatAdmin('lookup', { name });
+      void guard(() => api.lookupPlayer(name));
     };
     search.addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.key === 'Enter') find();

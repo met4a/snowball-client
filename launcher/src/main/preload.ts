@@ -51,6 +51,7 @@ const api = {
   moderateChat: invoke('chat:moderate'),
   setSnowballPlus: invoke('chat:set-plus'),
   setRank: invoke('chat:set-rank'),
+  lookupPlayer: invoke('chat:lookup'),
   snowballStats: invoke('chat:stats'),
   reportBug: invoke('chat:report-bug'),
   chatAdmin: invoke('chat:admin'),

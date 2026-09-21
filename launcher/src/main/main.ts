@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, Menu, safeStorage } from 'electron';
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { SecretCipher } from '../core/auth/AuthManager.js';
 import { Launcher } from '../core/Launcher.js';
@@ -77,6 +77,26 @@ async function createWindow(): Promise<void> {
   await win.loadFile(join(__dirname, '..', 'renderer', 'index.html'));
   scheduleStartupCheck(updates, win, launcher.settings.get().updates.checkOnStartup);
   if (process.env.SNOWBALLCLIENT_CAPTURE_DIR) await captureViews(win, process.env.SNOWBALLCLIENT_CAPTURE_DIR);
+  // A development hook for checking the chat handshake end to end without clicking through the UI.
+  if (process.env.SNOWBALLCLIENT_CHAT_CHECK) {
+    const note = (line: string) => appendFileSync(process.env.SNOWBALLCLIENT_CHAT_CHECK!, `${new Date().toISOString()} ${line}
+`);
+    try {
+      const accounts = launcher.auth.list();
+      const id = launcher.settings.get().accounts.selectedAccountId ?? accounts[0]?.id;
+      const session = id ? await launcher.auth.session(id) : null;
+      note(`account ${session ? session.name + " " + session.uuid : "none"}`);
+      if (session) {
+        const state = await chat.connect({ name: session.name, uuid: session.uuid, accessToken: session.accessToken, type: "msa" });
+        note(`connect returned ${JSON.stringify(state)}`);
+        await new Promise((done) => setTimeout(done, 8000));
+        note(`state now ${JSON.stringify(chat.current())}`);
+      }
+    } catch (err) {
+      note(`failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    app.quit();
+  }
 }
 
 /** Development aid (env-gated): renders each launcher page to a PNG and exits, for UI review. */
