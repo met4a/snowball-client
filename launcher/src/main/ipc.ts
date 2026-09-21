@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { join } from 'node:path';
 import { LOADER_IDS, PERFORMANCE_PROFILES as PROFILE_IDS, type InstanceConfig, type InstanceSummary } from '../core/instance/InstanceManager.js';
 import { recommendMemory } from '../core/java/JavaManager.js';
@@ -125,6 +125,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
       options: pick('options'),
     });
   });
+  ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('updates:state', () => updates?.current() ?? { status: 'unsupported', version: '', reason: 'Updates are not available in this build.' });
   ipcMain.handle('updates:check', () => updates?.check(true) ?? null);
   ipcMain.handle('updates:install', () => updates?.install());

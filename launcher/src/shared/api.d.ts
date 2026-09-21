@@ -384,6 +384,7 @@ declare namespace Snowball {
     snowballStats(): Promise<SnowballStats | null>;
     reportBug(report: Record<string, string>): Promise<{ ok: boolean; reason?: string }>;
     chatAdmin(action: string, extra?: Record<string, unknown>): Promise<{ ok: boolean; reason?: string }>;
+    appVersion(): Promise<string>;
     updateState(): Promise<UpdateState>;
     checkForUpdates(): Promise<UpdateState | null>;
     installUpdate(): Promise<void>;

@@ -1132,3 +1132,8 @@ textarea.input {
   resize: vertical;
   font: inherit;
 }
+.brand-version {
+  margin-left: 6px;
+  color: var(--accent);
+  opacity: 0.75;
+}

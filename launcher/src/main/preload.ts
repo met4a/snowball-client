@@ -55,6 +55,7 @@ const api = {
   snowballStats: invoke('chat:stats'),
   reportBug: invoke('chat:report-bug'),
   chatAdmin: invoke('chat:admin'),
+  appVersion: invoke('app:version'),
   updateState: invoke('updates:state'),
   checkForUpdates: invoke('updates:check'),
   installUpdate: invoke('updates:install'),

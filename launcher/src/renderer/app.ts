@@ -36,6 +36,7 @@
     activity: new Map<string, Snowball.ActivityEvent[]>(),
     logMode: 'activity' as 'activity' | 'technical',
     update: null as Snowball.UpdateState | null,
+    version: '',
     chat: null as Snowball.ChatState | null,
     chatMessages: [] as Snowball.ChatMessage[],
     stats: null as Snowball.SnowballStats | null,
@@ -1201,6 +1202,9 @@
             h('div', { class: 'muted', style: 'font-size:13px' }, 'New versions install in the background, so you never run the installer again.')),
           toggle(s.updates.checkOnStartup, (v) => void update({ updates: { ...s.updates, checkOnStartup: v } }))),
         h('div', { class: 'list-row' },
+          h('div', { class: 'grow' }, h('div', {}, 'This launcher'), h('div', { class: 'muted', style: 'font-size:13px' }, ui.version ? `Version ${ui.version}` : 'Reading the version...')),
+          h('span', { class: 'tag accent' }, ui.version ? `v${ui.version}` : '...')),
+        h('div', { class: 'list-row' },
           h('div', { class: 'grow' }, h('div', {}, 'Status'), status),
           state?.status === 'ready'
             ? h('button', { class: 'btn small primary', onClick: () => void api.installUpdate() }, 'Restart now')
@@ -1646,6 +1650,11 @@
     ui.chat = state;
     if (state.configured) render();
   }).catch(() => {});
+  void api.appVersion().then((version) => {
+    ui.version = version;
+    const label = document.getElementById('app-version');
+    if (label) label.textContent = `v${version}`;
+  }).catch(() => undefined);
   void api.updateState().then((state) => {
     ui.update = state;
     render();
