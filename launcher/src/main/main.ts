@@ -49,8 +49,8 @@ async function createWindow(): Promise<void> {
   const win = new BrowserWindow({
     width: 1200,
     height: 760,
-    minWidth: 980,
-    minHeight: 620,
+    minWidth: 880,
+    minHeight: 540,
     title: 'Snowball Client',
     backgroundColor: '#05070a',
     icon: join(__dirname, '..', 'renderer', 'assets', 'logo.png'),
@@ -99,19 +99,39 @@ async function createWindow(): Promise<void> {
   }
 }
 
-/** Development aid (env-gated): renders each launcher page to a PNG and exits, for UI review. */
+/**
+ * Development aid (env-gated): renders each launcher page to a PNG and exits, for UI review.
+ * SNOWBALLCLIENT_CAPTURE_SIZE ("1280x720,1920x1080") sweeps window sizes so layout regressions
+ * at the resolutions people actually use show up as pictures rather than as guesses.
+ */
 async function captureViews(win: BrowserWindow, dir: string): Promise<void> {
   const { mkdir, writeFile } = await import('node:fs/promises');
   await mkdir(dir, { recursive: true });
   win.show();
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-  await wait(1500);
+  const sizes = (process.env.SNOWBALLCLIENT_CAPTURE_SIZE ?? '')
+    .split(',')
+    .map((s) => s.trim().match(/^(\d+)x(\d+)$/))
+    .filter((m): m is RegExpMatchArray => m !== null)
+    .map((m) => ({ width: Number(m[1]), height: Number(m[2]) }));
+  if (!sizes.length) sizes.push({ width: 1200, height: 760 });
+
+  const only = process.env.SNOWBALLCLIENT_CAPTURE_PAGES?.split(',').map((p) => p.trim()).filter(Boolean);
   const pages = ['home', 'instances', 'mods', 'browse', 'chat', 'java', 'settings'];
-  for (let i = 0; i < pages.length; i++) {
-    await win.webContents.executeJavaScript(`document.querySelectorAll('.nav-item')[${i}].click()`);
-    await wait(1500);
-    const image = await win.webContents.capturePage();
-    await writeFile(join(dir, `${i}_${pages[i]}.png`), image.toPNG());
+  await wait(1500);
+  for (const size of sizes) {
+    win.setContentSize(size.width, size.height);
+    const zoom = Number(process.env.SNOWBALLCLIENT_CAPTURE_ZOOM ?? '1');
+    if (Number.isFinite(zoom) && zoom > 0 && zoom !== 1) win.webContents.setZoomFactor(zoom);
+    await wait(500);
+    const tag = sizes.length > 1 ? `${size.width}x${size.height}_` : '';
+    for (let i = 0; i < pages.length; i++) {
+      if (only && !only.includes(pages[i])) continue;
+      await win.webContents.executeJavaScript(`document.querySelectorAll('.nav-item')[${i}].click()`);
+      await wait(900);
+      const image = await win.webContents.capturePage();
+      await writeFile(join(dir, `${tag}${i}_${pages[i]}.png`), image.toPNG());
+    }
   }
   app.quit();
 }

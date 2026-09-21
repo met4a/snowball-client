@@ -126,9 +126,10 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
     });
   });
   ipcMain.handle('app:version', () => app.getVersion());
-  ipcMain.handle('updates:state', () => updates?.current() ?? { status: 'unsupported', version: '', reason: 'Updates are not available in this build.' });
+  ipcMain.handle('updates:state', () => updates?.current() ?? { status: 'manual', version: app.getVersion(), message: 'Updates are not available in this build.' });
   ipcMain.handle('updates:check', () => updates?.check(true) ?? null);
   ipcMain.handle('updates:install', () => updates?.install());
+  ipcMain.handle('updates:diagnostics', () => updates?.diagnostics() ?? 'No update service in this build.');
   const send = (event: string, payload: unknown) => {
     if (!win.isDestroyed()) win.webContents.send(`evt:${event}`, payload);
   };

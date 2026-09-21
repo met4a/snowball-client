@@ -59,6 +59,8 @@ const api = {
   updateState: invoke('updates:state'),
   checkForUpdates: invoke('updates:check'),
   installUpdate: invoke('updates:install'),
+  updateDiagnostics: invoke('updates:diagnostics'),
+  openLogFolder: () => ipcRenderer.invoke('app:open-folder', 'logs'),
   on(event: string, listener: (payload: unknown) => void): () => void {
     if (!EVENTS.has(event)) throw new Error(`Unknown event ${event}`);
     const wrapped = (_e: unknown, payload: unknown) => listener(payload);

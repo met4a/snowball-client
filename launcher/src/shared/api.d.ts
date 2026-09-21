@@ -321,14 +321,29 @@ declare namespace Snowball {
     message?: string;
   }
 
-  type UpdateState =
-    | { status: 'idle'; version: string }
-    | { status: 'checking'; version: string }
-    | { status: 'downloading'; version: string; newVersion: string; percent: number }
-    | { status: 'ready'; version: string; newVersion: string }
-    | { status: 'up-to-date'; version: string; checkedAt: string }
-    | { status: 'unsupported'; version: string; reason: string }
-    | { status: 'error'; version: string; message: string };
+  type UpdateStatus = 'idle' | 'checking' | 'up-to-date' | 'downloading' | 'verifying' | 'ready' | 'installing' | 'manual' | 'error';
+
+  interface UpdateState {
+    status: UpdateStatus;
+    /** The version running right now. */
+    version: string;
+    newVersion?: string;
+    percent?: number;
+    transferred?: number;
+    total?: number;
+    bytesPerSecond?: number;
+    checkedAt?: string;
+    /** Set once after an update lands, so the launcher can say what changed. */
+    justUpdatedFrom?: string;
+    /** Where to get the build by hand, for the portable copy that cannot replace itself. */
+    downloadUrl?: string;
+    /** A failure in plain language, with the raw text kept separately for bug reports. */
+    title?: string;
+    message?: string;
+    hints?: string[];
+    detail?: string;
+    canRetry?: boolean;
+  }
 
   type EventName = 'progress' | 'game-log' | 'game-exit' | 'launch-error' | 'launcher-log' | 'state' | 'activity' | 'update' | 'chat-state' | 'chat-message' | 'chat-history' | 'chat-people' | 'chat-bugs' | 'chat-bug-filed' | 'chat-lookup' | 'chat-rank-set' | 'chat-history-ranks';
 
@@ -388,6 +403,8 @@ declare namespace Snowball {
     updateState(): Promise<UpdateState>;
     checkForUpdates(): Promise<UpdateState | null>;
     installUpdate(): Promise<void>;
+    updateDiagnostics(): Promise<string>;
+    openLogFolder(): Promise<void>;
     on(event: EventName, listener: (payload: any) => void): () => void;
   }
 }

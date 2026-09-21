@@ -1,4 +1,4 @@
-/// <reference path="../shared/api.d.ts" />
+///[[[[[[[['settings', 'Settings']java', 'Java']admin', 'Admin']chat', 'Chat']browse', 'Browse']mods', 'Mods']instances', 'Instances']home', 'Home']<reference path="../shared/api.d.ts" />
 // Renderer for the Snowball Client launcher. Plain DOM + the preload bridge; no Node access.
 
 (() => {
@@ -78,6 +78,11 @@
     browse: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
     lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
     java: '<path d="M6 8h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17M9 2v3M13 2v3"/>',
+    folder: '<path d="M3 7a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.6.8l1 1.2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    check: '<path d="M20 6L9 17l-5-5"/>',
+    refresh: '<path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 4v5h-5"/>',
+    download: '<path d="M12 3v12"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M4 20h16"/>',
+    alert: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.5h.01"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   };
 
@@ -233,14 +238,14 @@
   }
 
   const NAV: Array<[View, string]> = [
-    ['home', 'HOME'],
-    ['instances', 'INSTANCES'],
-    ['mods', 'MODS'],
-    ['browse', 'BROWSE'],
-    ['chat', 'CHAT'],
-    ['admin', 'ADMIN'],
-    ['java', 'JAVA'],
-    ['settings', 'SETTINGS'],
+    ['home', 'Home'],
+    ['instances', 'Instances'],
+    ['mods', 'Mods'],
+    ['browse', 'Browse'],
+    ['chat', 'Chat'],
+    ['admin', 'Admin'],
+    ['java', 'Java'],
+    ['settings', 'Settings'],
   ];
 
   function render(): void {
@@ -276,27 +281,157 @@
       h('div', { class: 'grow' }, h('div', { class: 'muted', style: 'font-size:11px;letter-spacing:2px' }, 'SNOWBALL'), h('div', {}, text)));
   }
 
-  /** Shown while a new launcher version downloads and once it is ready to take over. */
+  const fmtBytes = (n: number) => (n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+
+  /**
+   * A problem explained the way a person would explain it: what happened, why, what to try, and a
+   * way to hand the technical text to somebody who can read it. Used for updates and for launches.
+   */
+  function errorPanel(opts: { title: string; message: string; hints?: string[]; detail?: string; onRetry?: () => void; retryLabel?: string }): HTMLElement {
+    const actions = h('div', { class: 'row', style: 'margin-top:14px;flex-wrap:wrap' });
+    if (opts.onRetry) actions.append(h('button', { class: 'btn small primary', onClick: opts.onRetry }, opts.retryLabel ?? 'Retry'));
+    if (opts.detail) {
+      actions.append(h('button', {
+        class: 'btn small',
+        onClick: (e: MouseEvent) => {
+          void navigator.clipboard.writeText(`${opts.title}\n${opts.message}\n\n${opts.detail}`)
+            .then(() => ((e.target as HTMLElement).textContent = 'Copied'))
+            .catch(() => toast('Could not copy to the clipboard.', 'error'));
+        },
+      }, 'Copy details'));
+    }
+    actions.append(h('button', { class: 'btn small ghost', onClick: () => void guard(() => api.openLogFolder()) }, 'Open logs'));
+
+    return h('div', { class: 'error-panel' },
+      h('div', { class: 'error-head' }, icon('alert'), h('div', { class: 'error-title' }, opts.title)),
+      h('p', { class: 'error-message' }, opts.message),
+      opts.hints?.length
+        ? h('ul', { class: 'error-hints' }, ...opts.hints.map((hint) => h('li', {}, hint)))
+        : null,
+      actions);
+  }
+
+  /** One line describing whatever the updater is doing, in the order a person experiences it. */
+  function updateLine(state: Snowball.UpdateState): string {
+    switch (state.status) {
+      case 'checking': return 'Looking for a new version';
+      case 'downloading': return `Downloading Snowball Client ${state.newVersion}`;
+      case 'verifying': return `Checking Snowball Client ${state.newVersion}`;
+      case 'ready': return `Snowball Client ${state.newVersion} is ready`;
+      case 'installing': return 'Restarting Snowball';
+      case 'up-to-date': return 'Snowball is up to date';
+      case 'manual': return state.newVersion ? `Snowball Client ${state.newVersion} is available` : 'Updates are handled manually in this build';
+      case 'error': return state.title ?? 'The update could not be checked';
+      default: return 'No update has been checked for yet';
+    }
+  }
+
+  async function retryUpdate(): Promise<void> {
+    const next = await guard(() => api.checkForUpdates());
+    if (next) {
+      ui.update = next;
+      render();
+    }
+  }
+
+  /** The full update view, opened from the banner. Shows the stage, never raw updater output. */
+  function updateDialog(): void {
+    const state = ui.update;
+    if (!state) return;
+    const body = h('div', { class: 'stack' });
+
+    if (state.status === 'error') {
+      body.append(errorPanel({
+        title: state.title ?? 'The update could not be checked',
+        message: state.message ?? 'Something went wrong while looking for a new version.',
+        hints: state.hints,
+        detail: state.detail,
+        onRetry: state.canRetry === false ? undefined : () => void retryUpdate(),
+      }));
+    } else {
+      const pct = state.percent ?? 0;
+      const done = state.status === 'ready' || state.status === 'installing';
+      const rows: Child[] = [
+        h('div', { class: 'update-versions' },
+          h('div', {}, h('div', { class: 'k' }, 'Current version'), h('div', { class: 'v' }, `v${state.version}`)),
+          h('div', { class: 'update-arrow' }, '→'),
+          h('div', {}, h('div', { class: 'k' }, 'New version'), h('div', { class: 'v accent' }, state.newVersion ? `v${state.newVersion}` : '-'))),
+        h('div', { class: 'update-stage' }, updateLine(state)),
+        h('div', { class: `progress${state.status === 'checking' || state.status === 'verifying' || state.status === 'installing' ? ' indeterminate' : ''}` },
+          h('div', { style: done ? 'width:100%' : `width:${pct}%` })),
+        state.status === 'downloading' && state.total
+          ? h('div', { class: 'muted', style: 'font-size:12px' }, `${fmtBytes(state.transferred ?? 0)} of ${fmtBytes(state.total)}${state.bytesPerSecond ? ` · ${fmtBytes(state.bytesPerSecond)}/s` : ''}`)
+          : null,
+        state.status === 'ready'
+          ? h('p', { class: 'muted', style: 'font-size:13px;margin:0' }, 'Snowball restarts to finish, which takes a few seconds. Your instances, mods and worlds are untouched.')
+          : null,
+        state.status === 'manual' && state.downloadUrl
+          ? h('p', { class: 'muted', style: 'font-size:13px;margin:0' }, state.message ?? '')
+          : null,
+      ];
+      body.append(...rows.filter((r): r is Node => r instanceof Node));
+    }
+
+    const actions: ModalAction[] = [{ label: 'Close', kind: 'ghost', onClick: (c) => c() }];
+    if (state.status === 'ready') actions.push({ label: 'Restart now', kind: 'primary', onClick: (c) => { c(); void api.installUpdate(); } });
+    else if (state.status === 'up-to-date' || state.status === 'idle') actions.push({ label: 'Check again', kind: 'primary', onClick: () => void retryUpdate() });
+    modal('Snowball Client update', body, actions);
+  }
+
+  /** Shown across the top while an update is in flight, or when one needs a decision. */
   function updateBanner(): HTMLElement | null {
     const state = ui.update;
     if (!state) return null;
-    if (state.status === 'downloading') {
-      return h('div', { class: 'update-bar' },
+
+    if (state.justUpdatedFrom && state.status !== 'error') {
+      return h('div', { class: 'update-bar ready' },
         h('div', { class: 'update-dot' }),
         h('div', { class: 'grow' },
-          h('div', {}, `Downloading Snowball Client ${state.newVersion}`),
-          h('div', { class: 'progress thin' }, h('div', { style: `width:${state.percent}%` }))),
-        h('div', { class: 'muted' }, `${state.percent}%`));
+          h('div', {}, `Updated to Snowball Client ${state.version}`),
+          h('div', { class: 'muted', style: 'font-size:12px' }, `You were on ${state.justUpdatedFrom}.`)),
+        h('button', { class: 'btn small ghost', onClick: () => { if (ui.update) ui.update = { ...ui.update, justUpdatedFrom: undefined }; render(); } }, 'Dismiss'));
+    }
+    if (state.status === 'downloading' || state.status === 'verifying') {
+      return h('div', { class: 'update-bar', onClick: () => updateDialog(), style: 'cursor:pointer' },
+        h('div', { class: 'update-dot' }),
+        h('div', { class: 'grow' },
+          h('div', {}, updateLine(state)),
+          h('div', { class: 'progress thin' }, h('div', { style: `width:${state.percent ?? 0}%` }))),
+        h('div', { class: 'muted', style: 'font-variant-numeric:tabular-nums' }, state.status === 'verifying' ? 'Checking' : `${state.percent ?? 0}%`));
     }
     if (state.status === 'ready') {
       return h('div', { class: 'update-bar ready' },
         h('div', { class: 'update-dot' }),
         h('div', { class: 'grow' },
-          h('div', {}, `Snowball Client ${state.newVersion} is ready`),
-          h('div', { class: 'muted', style: 'font-size:13px' }, 'It takes a few seconds, and your instances are untouched.')),
+          h('div', {}, updateLine(state)),
+          h('div', { class: 'muted', style: 'font-size:12px' }, 'It takes a few seconds, and your instances are untouched.')),
+        h('button', { class: 'btn small ghost', onClick: () => updateDialog() }, 'Details'),
         h('button', { class: 'btn small primary', onClick: () => void api.installUpdate() }, 'Restart now'));
     }
+    if (state.status === 'manual' && state.newVersion) {
+      return h('div', { class: 'update-bar' },
+        h('div', { class: 'update-dot' }),
+        h('div', { class: 'grow' }, h('div', {}, updateLine(state)), h('div', { class: 'muted', style: 'font-size:12px' }, state.message ?? '')),
+        h('button', { class: 'btn small', onClick: () => updateDialog() }, 'How to update'));
+    }
+    if (state.status === 'error' && state.title) {
+      return h('div', { class: 'update-bar failed' },
+        h('div', { class: 'update-dot' }),
+        h('div', { class: 'grow' }, h('div', {}, state.title), h('div', { class: 'muted', style: 'font-size:12px' }, 'Snowball is still working normally.')),
+        h('button', { class: 'btn small', onClick: () => updateDialog() }, 'What happened?'));
+    }
     return null;
+  }
+
+  /** While the launcher is handing over to the new build, nothing else should be clickable. */
+  function installingOverlay(): void {
+    if (document.getElementById('installing')) return;
+    const el = h('div', { class: 'boot', id: 'installing' },
+      h('img', { src: 'assets/logo.png', alt: '' }),
+      h('div', { class: 'boot-name' }, 'UPDATING'),
+      h('div', { class: 'boot-bar' }, h('div', {})),
+      h('div', { class: 'boot-sub' }, 'Restarting Snowball'));
+    document.body.append(el);
   }
 
   function header(title: string, subtitle: string, ...actions: Child[]): HTMLElement {
@@ -308,7 +443,7 @@
   function emptyState(message: string): HTMLElement {
     return h('div', { class: 'card empty' },
       h('img', { src: 'assets/logo.png', alt: '' }),
-      h('h2', { class: 'page-title', style: 'margin-top:16px' }, 'NO INSTANCES'),
+      h('h2', { class: 'page-title', style: 'margin-top:16px' }, 'No instances yet'),
       h('p', { class: 'muted' }, message),
       h('div', { class: 'row', style: 'justify-content:center' },
         h('button', { class: 'btn primary', onClick: () => createInstanceDialog() }, 'Create instance'),
@@ -379,7 +514,7 @@
   function homeView(): Node {
     const state = ui.state!;
     const inst = selected();
-    if (!inst) return h('div', {}, header('HOME', 'Welcome to Snowball Client'), emptyState('Create an instance to install and play Minecraft.'));
+    if (!inst) return h('div', {}, header('Home', 'Welcome to Snowball Client'), emptyState('Create an instance to install and play Minecraft.'));
 
     const picker = h('select', { class: 'input picker', onChange: (e: Event) => select((e.target as HTMLSelectElement).value) },
       ...state.instances.map((i) => h('option', { value: i.id, selected: i.id === inst.id }, i.name)));
@@ -422,33 +557,76 @@
       if (result) toast('Game files checked. Anything missing or damaged was downloaded again.');
     });
 
-    return h('div', {},
-      header('HOME', 'Selected instance', picker),
-      playerCount(),
+    return h('div', { class: 'page-home' },
+      header('Home', 'Selected instance', picker),
       inst.error ? h('div', { class: 'issue' }, `This instance could not be loaded: ${inst.error}`) : null,
-      h('div', { class: 'hero' },
-        h('div', { class: 'card hero-main' },
-          h('div', { class: 'row' },
-            h('span', { class: 'tag accent' }, inst.loaderName),
-            inst.snowball.supported ? h('span', { class: 'tag accent' }, `SNOWBALL CLIENT ${inst.snowball.version}`) : null,
-            inst.running ? h('span', { class: 'tag running' }, 'RUNNING') : null),
-          h('div', { class: 'hero-name' }, inst.name),
-          h('div', { class: 'stats' },
-            stat('Minecraft', inst.minecraftVersion),
-            stat('Loader', inst.loader === 'vanilla' ? 'Vanilla' : `${inst.loaderName} ${inst.loaderVersion ?? '(latest)'}`),
-            stat('Mods', modsValue),
-            stat('Memory', fmtMemory(inst.memory.maxMb)),
-            stat('Last played', fmtDate(inst.lastPlayed)),
-            stat('Play time', fmtDuration(inst.totalPlayMs))),
-          h('div', { class: 'row' },
-            playButton(inst, true),
-            h('button', { class: 'btn', onClick: () => editInstanceDialog(inst) }, 'Edit'),
-            h('button', { class: 'btn ghost', onClick: () => void guard(() => api.openInstanceFolder(inst.id, 'root')) }, 'Open folder'),
-            verifyButton),
-          progressBar(inst.id)),
-        h('div', { class: 'card output-card' },
-          h('div', { class: 'row log-head' }, h('div', { class: 'section-title' }, 'OUTPUT'), h('div', { class: 'spacer' }), logTabs),
-          logView)));
+      h('div', { class: 'home-grid' },
+        h('div', { class: 'home-main' },
+          h('div', { class: 'card hero-main' },
+            h('div', { class: 'hero-top' },
+              h('div', { class: 'grow' },
+                h('div', { class: 'hero-name' }, inst.name),
+                h('div', { class: 'hero-tags' },
+                  h('span', { class: 'tag' }, inst.minecraftVersion),
+                  h('span', { class: 'tag' }, inst.loaderName),
+                  inst.snowball.supported ? h('span', { class: 'tag accent' }, `Snowball ${inst.snowball.version}`) : null,
+                  inst.running ? h('span', { class: 'tag running' }, 'Running') : null))),
+            h('div', { class: 'stats' },
+              stat('Minecraft', inst.minecraftVersion),
+              stat('Loader', inst.loader === 'vanilla' ? 'Vanilla' : `${inst.loaderName} ${inst.loaderVersion ?? 'latest'}`),
+              stat('Mods', modsValue),
+              stat('Memory', fmtMemory(inst.memory.maxMb)),
+              stat('Last played', fmtDate(inst.lastPlayed)),
+              stat('Play time', fmtDuration(inst.totalPlayMs))),
+            h('div', { class: 'hero-actions' },
+              playButton(inst, true),
+              h('button', { class: 'btn', onClick: () => editInstanceDialog(inst) }, 'Edit'),
+              verifyButton),
+            progressBar(inst.id)),
+          h('div', { class: 'card output-card' },
+            h('div', { class: 'row log-head' }, h('div', { class: 'section-title' }, 'Output'), h('div', { class: 'spacer' }), logTabs),
+            logView)),
+        h('div', { class: 'home-aside' },
+          snowballCard(inst),
+          playerCount(),
+          quickActions(inst))));
+  }
+
+  /** What this build of Snowball is, and whether anything newer is waiting. */
+  function snowballCard(inst: Snowball.Instance): HTMLElement {
+    const update = ui.update;
+    const updateText =
+      update?.status === 'downloading' ? `Downloading ${update.newVersion}` :
+      update?.status === 'ready' ? `${update.newVersion} ready` :
+      update?.status === 'checking' ? 'Checking...' :
+      update?.status === 'up-to-date' ? 'Up to date' :
+      update?.status === 'error' ? 'Check failed' :
+      update?.status === 'manual' ? 'Manual' : '-';
+    const row = (key: string, value: string, tone = '') =>
+      h('div', { class: 'mini-row' }, h('span', { class: 'k' }, key), h('span', { class: `v${tone ? ' ' + tone : ''}` }, value));
+    return h('div', { class: 'mini-card' },
+      h('div', { class: 'mini-head' },
+        h('img', { class: 'core-logo', src: 'assets/logo.png', alt: '' }),
+        h('div', { class: 'section-title' }, 'Snowball')),
+      row('Client', inst.snowball.supported ? inst.snowball.version ?? 'Bundled' : 'Not on this version', inst.snowball.supported ? '' : 'muted'),
+      row('Launcher', ui.version ? `v${ui.version}` : '-'),
+      row('Updates', updateText, update?.status === 'error' ? 'danger-text' : ''),
+      update?.status === 'ready'
+        ? h('button', { class: 'btn small primary', style: 'width:100%;margin-top:12px', onClick: () => void api.installUpdate() }, 'Restart to finish')
+        : null);
+  }
+
+  /** The four things people actually reach for, as a list rather than loose buttons. */
+  function quickActions(inst: Snowball.Instance): HTMLElement {
+    const action = (name: string, label: string, onClick: () => void, disabled = false) =>
+      h('button', { class: 'mini-action', disabled, onClick }, icon(name), label);
+    return h('div', { class: 'mini-card' },
+      h('div', { class: 'section-title' }, 'Quick actions'),
+      h('div', { class: 'mini-actions' },
+        action('folder', 'Open game folder', () => void guard(() => api.openInstanceFolder(inst.id, 'root'))),
+        action('mods', 'Manage mods', () => { ui.view = 'mods'; render(); }),
+        action('admin', 'Check mods for malware', () => scanDialog(inst.id), inst.loader === 'vanilla'),
+        action('refresh', 'Check for updates', () => void guard(() => api.checkForUpdates()))));
   }
 
   /**
@@ -458,16 +636,18 @@
   function playerCount(): HTMLElement | null {
     const stats = ui.stats;
     if (!stats || (!stats.online && !stats.week && !stats.total)) return null;
-    const number = (value: number, label: string) => h('div', { class: 'count-item' },
-      h('div', { class: 'count-value' }, value.toLocaleString()), h('div', { class: 'count-label' }, label));
-    return h('div', { class: 'card count-card' },
-      h('div', { class: 'count-dot' }),
-      h('div', { class: 'grow' },
-        h('div', { class: 'section-title' }, 'SNOWBALL PLAYERS'),
-        h('div', { class: 'muted', style: 'font-size:12px' }, stats.online === 1 ? 'One person is playing right now' : `${stats.online.toLocaleString()} people are playing right now`)),
-      number(stats.today, 'TODAY'),
-      number(stats.week, 'THIS WEEK'),
-      number(stats.total, 'ALL TIME'));
+    const number = (value: number, label: string) => h('div', { class: 'count-item grow' },
+      h('div', { class: 'n' }, value.toLocaleString()), h('div', { class: 'l' }, label));
+    return h('div', { class: 'mini-card count-card' },
+      h('div', { class: 'section-title' }, 'Snowball players'),
+      h('div', { class: 'count-now' },
+        h('div', { class: 'count-dot' }),
+        h('div', { class: 'count-value' }, stats.online.toLocaleString())),
+      h('div', { class: 'count-label' }, stats.online === 1 ? 'playing right now' : 'playing right now'),
+      h('div', { class: 'count-split' },
+        number(stats.today, 'Today'),
+        number(stats.week, 'This week'),
+        number(stats.total, 'All time')));
   }
 
   function refreshStats(): void {
@@ -505,9 +685,9 @@
     const state = ui.state!;
     const newButton = h('button', { class: 'btn primary', onClick: () => createInstanceDialog() }, '+ New instance');
     const importButton = h('button', { class: 'btn', onClick: () => importDialog() }, 'Import from another launcher');
-    if (state.instances.length === 0) return h('div', {}, header('INSTANCES', 'Isolated game installations'), emptyState('Each instance has its own version, mods, settings and worlds.'));
+    if (state.instances.length === 0) return h('div', {}, header('Instances', 'Isolated game installations'), emptyState('Each instance has its own version, mods, settings and worlds.'));
     return h('div', {},
-      header('INSTANCES', `${state.instances.length} isolated installation${state.instances.length === 1 ? '' : 's'}`, importButton, newButton),
+      header('Instances', `${state.instances.length} isolated installation${state.instances.length === 1 ? '' : 's'}`, importButton, newButton),
       h('div', { class: 'grid cards' }, ...state.instances.map((inst) =>
         h('div', { class: `card instance-card${inst.id === ui.selectedId ? ' selected' : ''}`, onClick: () => select(inst.id) },
           h('div', { class: 'row' },
@@ -524,7 +704,7 @@
   function modsView(): Node {
     const state = ui.state!;
     const inst = selected();
-    if (!inst) return h('div', {}, header('MODS', 'Per-instance mod management'), emptyState('Create an instance first.'));
+    if (!inst) return h('div', {}, header('Mods', 'Per-instance mod management'), emptyState('Create an instance first.'));
     const picker = h('select', { class: 'input picker', onChange: (e: Event) => select((e.target as HTMLSelectElement).value) },
       ...state.instances.map((i) => h('option', { value: i.id, selected: i.id === inst.id }, i.name)));
     const listEl = h('div', { class: 'list' }, h('div', { class: 'muted' }, 'Loading mods...'));
@@ -684,12 +864,12 @@
     }, 'Check for updates');
 
     return h('div', { class: 'stack' },
-      header('MODS', 'Install, toggle and check compatibility', picker,
+      header('Mods', 'Install, toggle and check compatibility', picker,
         h('button', { class: 'btn', disabled: inst.running || inst.loader === 'vanilla', onClick: async () => { const r = await guard(() => api.addMods(inst.id)); if (r) { if (r.added) toast(`Added ${r.added} mod${r.added === 1 ? '' : 's'}`); r.errors.forEach((e) => toast(e, 'error')); await load(); } } }, '+ Add mods'),
         h('button', { class: 'btn', disabled: inst.loader === 'vanilla', onClick: () => scanDialog(inst.id) }, 'Check mods'),
         h('button', { class: 'btn ghost', onClick: () => void guard(() => api.openInstanceFolder(inst.id, 'mods')) }, 'Open folder')),
       h('div', { class: 'card' },
-        h('div', { class: 'section-title' }, 'PERFORMANCE PROFILE'),
+        h('div', { class: 'section-title' }, 'Performance profile'),
         h('div', { class: 'row' }, h('div', { style: 'flex:1' }, profileSelect), applyButton),
         profileInfo),
       coreEl,
@@ -706,7 +886,7 @@
   function browseView(): Node {
     const state = ui.state!;
     const inst = selected();
-    if (!inst) return h('div', {}, header('BROWSE', 'Find and install mods'), emptyState('Create an instance first.'));
+    if (!inst) return h('div', {}, header('Browse', 'Find and install mods'), emptyState('Create an instance first.'));
     const b = ui.browse;
     if (b.instanceId !== inst.id) {
       // Filters start at the instance's own version and loader so every result can be installed.
@@ -846,7 +1026,7 @@
     void loadInstalled();
 
     return h('div', { class: 'stack' },
-      header('BROWSE', `Mods from Modrinth for ${inst.minecraftVersion} ${inst.loaderName}`, picker,
+      header('Browse', `Mods from Modrinth for ${inst.minecraftVersion} ${inst.loaderName}`, picker,
         h('button', { class: 'btn ghost', onClick: () => { ui.view = 'mods'; render(); } }, 'Installed mods')),
       inst.loader === 'vanilla' ? h('div', { class: 'issue warning' }, 'This instance has no mod loader. Choose Fabric, Quilt, Forge or NeoForge in the instance editor to install mods.') : null,
       h('div', { class: 'browse-toolbar' }, search, sortSelect, loaderSelect, versionSelect),
@@ -857,7 +1037,7 @@
     const state = ui.chat;
     if (!state || !state.configured) {
       return h('div', { class: 'stack' },
-        header('CHAT', 'Talk to other Snowball players'),
+        header('Chat', 'Talk to other Snowball players'),
         h('div', { class: 'card empty' },
           h('h2', { class: 'page-title' }, 'CHAT IS NOT SWITCHED ON'),
           h('p', { class: 'muted' }, 'This build has no chat server set, so there is nothing to join yet.')));
@@ -886,7 +1066,7 @@
       : state.status === 'connecting' ? 'Connecting...' : state.message ?? 'Not connected';
 
     return h('div', { class: 'stack' },
-      header('CHAT', status,
+      header('Chat', status,
         state.status === 'online'
           ? h('button', { class: 'btn', onClick: () => void api.leaveChat() }, 'Leave')
           : h('button', { class: 'btn primary', onClick: () => void guard(() => api.joinChat()) }, 'Join chat')),
@@ -923,7 +1103,7 @@
       toast('Thank you - the report went straight to the Snowball team.');
     };
     return h('div', { class: 'card' },
-      h('div', { class: 'section-title' }, 'REPORT A BUG'),
+      h('div', { class: 'section-title' }, 'Report a bug'),
       h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 10px' }, 'Your Minecraft version, Snowball version and loader are attached automatically.'),
       h('div', { class: 'stack' }, title, detail, steps),
       h('div', { class: 'row', style: 'margin-top:10px' },
@@ -939,14 +1119,14 @@
     const state = ui.chat;
     if (!state?.configured) {
       return h('div', { class: 'stack' },
-        header('ADMIN', 'Snowball owner tools'),
+        header('Admin', 'Snowball owner tools'),
         h('div', { class: 'card empty' },
           h('h2', { class: 'page-title' }, 'NO SNOWBALL SERVER'),
           h('p', { class: 'muted' }, 'This build has no Snowball server set, so there is nothing to administer.')));
     }
     if (!state.admin) {
       return h('div', { class: 'stack' },
-        header('ADMIN', 'Snowball owner tools'),
+        header('Admin', 'Snowball owner tools'),
         h('div', { class: 'card empty' },
           h('h2', { class: 'page-title' }, state.status === 'online' ? 'NOT YOUR RANK' : 'JOIN CHAT FIRST'),
           h('p', { class: 'muted' }, state.status === 'online'
@@ -955,7 +1135,7 @@
           state.status === 'online' ? null : h('button', { class: 'btn primary', onClick: () => void guard(() => api.joinChat()) }, 'Join chat')));
     }
     return h('div', { class: 'stack' },
-      header('ADMIN', `Signed in as the owner  \u00b7  ${state.online} online`),
+      header('Admin', `Signed in as the owner  \u00b7  ${state.online} online`),
       adminCard());
   }
 
@@ -980,13 +1160,13 @@
 
     if (ui.adminTab !== 'chat') {
       return h('div', { class: 'card' },
-        h('div', { class: 'row' }, h('div', { class: 'section-title' }, 'ADMIN'), h('div', { class: 'spacer' }),
+        h('div', { class: 'row' }, h('div', { class: 'section-title' }, 'Admin'), h('div', { class: 'spacer' }),
           h('div', { class: 'log-tabs' }, tab('chat', 'CHAT'), tab('ranks', 'RANKS'), tab('people', 'PEOPLE'), tab('bugs', 'BUGS'), tab('flags', 'FEATURES'))),
         ui.adminTab === 'ranks' ? rankManager() : ui.adminTab === 'people' ? peopleList() : ui.adminTab === 'bugs' ? bugList() : flagList());
     }
 
     return h('div', { class: 'card' },
-      h('div', { class: 'row' }, h('div', { class: 'section-title' }, 'ADMIN'), h('div', { class: 'spacer' }),
+      h('div', { class: 'row' }, h('div', { class: 'section-title' }, 'Admin'), h('div', { class: 'spacer' }),
         h('div', { class: 'log-tabs' }, tab('chat', 'CHAT'), tab('ranks', 'RANKS'), tab('people', 'PEOPLE'), tab('bugs', 'BUGS'), tab('flags', 'FEATURES'))),
       h('div', { class: 'list' },
         h('div', { class: 'list-row' },
@@ -1157,22 +1337,22 @@
     const pathInput = h('input', { class: 'input', placeholder: 'Path to java executable' }) as HTMLInputElement;
     const result = h('div', { class: 'muted', style: 'margin-top:8px' });
     return h('div', { class: 'stack' },
-      header('JAVA', 'Runtimes and memory', h('button', { class: 'btn', onClick: () => void detect() }, 'Rescan')),
+      header('Java', 'Runtimes and memory', h('button', { class: 'btn', onClick: () => void detect() }, 'Rescan')),
       h('div', { class: 'grid', style: 'grid-template-columns:1fr 1fr' },
         h('div', { class: 'card' },
-          h('div', { class: 'section-title' }, 'MEMORY'),
+          h('div', { class: 'section-title' }, 'Memory'),
           h('div', { class: 'stats', style: 'margin:0' },
             h('div', { class: 'stat' }, h('div', { class: 'stat-label' }, 'System'), h('div', { class: 'stat-value' }, fmtMemory(state.memory.totalMb))),
             h('div', { class: 'stat' }, h('div', { class: 'stat-label' }, 'Recommended'), h('div', { class: 'stat-value' }, fmtMemory(state.memory.recommendedMaxMb))),
             h('div', { class: 'stat' }, h('div', { class: 'stat-label' }, 'Safe maximum'), h('div', { class: 'stat-value' }, fmtMemory(state.memory.safeUpperLimitMb))))),
         h('div', { class: 'card' },
-          h('div', { class: 'section-title' }, 'CHECK A JAVA EXECUTABLE'),
+          h('div', { class: 'section-title' }, 'Check a Java executable'),
           h('div', { class: 'row' }, pathInput,
             h('button', { class: 'btn', onClick: async () => { const p = await guard(() => api.browseJava()); if (p) pathInput.value = p; } }, 'Browse'),
             h('button', { class: 'btn primary', onClick: async () => { const r = await guard(() => api.validateJava(pathInput.value, null)); if (r) result.textContent = r.java ? `Java ${r.java.version} (${r.java.vendor})${r.message ? ` - ${r.message}` : ''}` : r.message ?? 'Not a Java executable'; } }, 'Check')),
           result)),
       h('div', { class: 'card' },
-        h('div', { class: 'section-title' }, 'DETECTED INSTALLATIONS'),
+        h('div', { class: 'section-title' }, 'Detected installations'),
         h('p', { class: 'muted', style: 'margin-top:0' }, 'Each instance picks the Java version its Minecraft version requires, or the executable you choose in the instance editor.'),
         listEl));
   }
@@ -1183,39 +1363,42 @@
     const line = (): string => {
       if (!state) return 'No update has been checked for yet.';
       switch (state.status) {
-        case 'checking': return 'Looking for a new version...';
-        case 'downloading': return `Downloading ${state.newVersion} (${state.percent}%)`;
-        case 'ready': return `Version ${state.newVersion} is ready to install.`;
-        case 'up-to-date': return 'You have the newest version.';
-        case 'unsupported': return state.reason;
-        case 'error': return `Could not check: ${state.message}`;
-        default: return 'No update has been checked for yet.';
+        case 'downloading': return `${updateLine(state)} (${state.percent ?? 0}%)`;
+        case 'up-to-date': return state.checkedAt ? `You have the newest version. Last checked ${fmtAgo(state.checkedAt)}.` : 'You have the newest version.';
+        case 'manual': return state.message ?? 'Updates are handled manually in this build.';
+        case 'error': return state.message ?? 'The update could not be checked.';
+        default: return `${updateLine(state)}.`;
       }
     };
     const status = h('div', { class: 'muted', style: 'font-size:13px' }, line());
+    const action = state?.status === 'ready'
+      ? h('button', { class: 'btn small primary', onClick: () => void api.installUpdate() }, 'Restart now')
+      : state?.status === 'error'
+        ? h('button', { class: 'btn small', onClick: () => updateDialog() }, 'What happened?')
+        : h('button', {
+            class: 'btn small',
+            disabled: state?.status === 'checking' || state?.status === 'downloading',
+            onClick: async () => {
+              status.textContent = 'Looking for a new version...';
+              const r = await guard(() => api.checkForUpdates());
+              if (r) { ui.update = r; render(); }
+            },
+          }, 'Check now');
+
     return h('div', { class: 'card' },
-      h('div', { class: 'section-title' }, 'UPDATES'),
+      h('div', { class: 'section-title' }, 'Updates'),
       h('div', { class: 'list' },
         h('div', { class: 'list-row' },
           h('div', { class: 'grow' },
-            h('div', {}, 'Update by itself'),
-            h('div', { class: 'muted', style: 'font-size:13px' }, 'New versions install in the background, so you never run the installer again.')),
+            h('div', {}, 'Check for updates on startup'),
+            h('div', { class: 'muted', style: 'font-size:13px' }, 'New versions download in the background and install when you restart, so you never run the installer again.')),
           toggle(s.updates.checkOnStartup, (v) => void update({ updates: { ...s.updates, checkOnStartup: v } }))),
         h('div', { class: 'list-row' },
           h('div', { class: 'grow' }, h('div', {}, 'This launcher'), h('div', { class: 'muted', style: 'font-size:13px' }, ui.version ? `Version ${ui.version}` : 'Reading the version...')),
           h('span', { class: 'tag accent' }, ui.version ? `v${ui.version}` : '...')),
         h('div', { class: 'list-row' },
           h('div', { class: 'grow' }, h('div', {}, 'Status'), status),
-          state?.status === 'ready'
-            ? h('button', { class: 'btn small primary', onClick: () => void api.installUpdate() }, 'Restart now')
-            : h('button', {
-                class: 'btn small',
-                onClick: async () => {
-                  status.textContent = 'Looking for a new version...';
-                  const r = await guard(() => api.checkForUpdates());
-                  if (r) { ui.update = r; render(); }
-                },
-              }, 'Check now'))));
+          action)));
   }
 
   /** "Escaping from another launcher": finds instances elsewhere on this computer and copies one over. */
@@ -1273,7 +1456,7 @@
     const list = h('div', { class: 'list' }, h('div', { class: 'muted' }, 'Reading every mod in this instance...'));
     const summary = h('p', { class: 'muted' }, 'Nothing is uploaded: each jar is read here and compared with what stealers and loaders do.');
     body.append(summary, list);
-    modal('MOD CHECK', body, [{ label: 'Close', kind: 'ghost', onClick: (c) => c() }]);
+    modal('Mod check', body, [{ label: 'Close', kind: 'ghost', onClick: (c) => c() }]);
 
     void api.scanMods(instanceId).then((results) => {
       if (!results.length) {
@@ -1321,16 +1504,16 @@
     const maxMemory = h('input', { class: 'input', type: 'number', min: '512', step: '256', value: s.java.defaultMaxMemoryMb ?? '', placeholder: `Recommended (${state.memory.recommendedMaxMb} MB)` }) as HTMLInputElement;
 
     return h('div', { class: 'stack' },
-      header('SETTINGS', `Launcher ${state.launcherVersion}`),
+      header('Settings', `Launcher ${state.launcherVersion}`),
       h('div', { class: 'card' },
-        h('div', { class: 'section-title' }, 'ACCOUNTS'),
+        h('div', { class: 'section-title' }, 'Accounts'),
         accounts,
         h('div', { class: 'row', style: 'margin-top:12px' },
           h('button', { class: 'btn primary', onClick: () => microsoftSignIn() }, 'Sign in with Microsoft'),
           h('button', { class: 'btn', disabled: !state.canAddOffline, title: state.canAddOffline ? '' : 'Requires a Microsoft account first', onClick: () => offlineDialog() }, 'Add offline profile'))),
       updatesCard(s, update),
       h('div', { class: 'card' },
-        h('div', { class: 'section-title' }, 'LAUNCHER'),
+        h('div', { class: 'section-title' }, 'Launcher'),
         h('div', { class: 'list' },
           settingRow('Reduce motion', 'Turn off interface animations.', toggle(s.appearance.reduceMotion, (v) => void update({ appearance: { ...s.appearance, reduceMotion: v } }))),
           settingRow('Minimize when the game starts', 'Keeps the launcher out of the way while playing.', toggle(s.game.closeLauncherOnLaunch, (v) => void update({ game: { ...s.game, closeLauncherOnLaunch: v } }))),
@@ -1339,7 +1522,7 @@
           settingRow('Parallel downloads', `${s.downloads.concurrency} at a time`, h('div', { style: 'width:200px;flex:none' }, h('input', { type: 'range', min: '1', max: '16', value: String(s.downloads.concurrency), onChange: (e: Event) => void update({ downloads: { ...s.downloads, concurrency: Number((e.target as HTMLInputElement).value) } }) }))),
           settingRow('Debug logging', 'Write detailed diagnostics to the launcher log.', toggle(s.logs.debug, (v) => void update({ logs: { ...s.logs, debug: v } }))))),
       h('div', { class: 'card' },
-        h('div', { class: 'section-title' }, 'DATA'),
+        h('div', { class: 'section-title' }, 'Data'),
         h('div', { class: 'list' },
           settingRow('Launcher folder', state.dataRoot, h('button', { class: 'btn', onClick: () => void guard(() => api.openLauncherFolder('root')) }, 'Open')),
           settingRow('Logs', 'Launcher logs (tokens are always redacted).', h('button', { class: 'btn', onClick: () => void guard(() => api.openLauncherFolder('logs')) }, 'Open')),
@@ -1642,6 +1825,9 @@
   });
   api.on('update', (state: Snowball.UpdateState) => {
     ui.update = state;
+    // Once the handover starts the window is about to go away; block the UI so nothing is
+    // half-clicked on the way out.
+    if (state.status === 'installing') installingOverlay();
     render();
   });
   refreshStats();
