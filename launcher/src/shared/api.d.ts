@@ -321,6 +321,11 @@ declare namespace Snowball {
     message?: string;
   }
 
+  interface ReleaseNote {
+    version: string;
+    sections: Array<{ heading: string; items: string[] }>;
+  }
+
   type UpdateStatus = 'idle' | 'checking' | 'up-to-date' | 'downloading' | 'verifying' | 'ready' | 'installing' | 'manual' | 'error';
 
   interface UpdateState {
@@ -404,6 +409,8 @@ declare namespace Snowball {
     checkForUpdates(): Promise<UpdateState | null>;
     installUpdate(): Promise<void>;
     updateDiagnostics(): Promise<string>;
+    releaseNotes(version?: string): Promise<ReleaseNote | ReleaseNote[] | null>;
+    copyLogs(): Promise<string>;
     openLogFolder(): Promise<void>;
     on(event: EventName, listener: (payload: any) => void): () => void;
   }

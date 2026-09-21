@@ -1377,6 +1377,34 @@ body.reduce-motion .boot-bar > div {
   color: var(--text-2);
 }
 
+/* ============================ release notes ============================== */
+.notes-release + .notes-release {
+  margin-top: var(--s5);
+  padding-top: var(--s5);
+  border-top: 1px solid var(--border);
+}
+.notes-version {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: var(--s3);
+}
+.notes-section + .notes-section {
+  margin-top: var(--s4);
+}
+.notes-section .section-title {
+  margin-bottom: var(--s2);
+}
+.notes-list {
+  margin: 0;
+  padding-left: var(--s5);
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.55;
+}
+.notes-list li {
+  margin-bottom: 4px;
+}
+
 /* ============================ error panel ================================ */
 /* What happened, why, what to try — and the raw text kept one button away. */
 .error-panel {
@@ -1513,11 +1541,22 @@ body.reduce-motion .boot-bar > div {
 
 /* Rank badge. `--rank` is set from the rank table in app.ts, so the launcher,
    TAB and the admin panel all take their colour from one source. */
+/* Pixel art, so it is drawn at an exact multiple and never smoothed. */
+.rank-mark {
+  width: 12px;
+  height: 12px;
+  image-rendering: pixelated;
+  flex: none;
+}
+.rank-mark + .rank-mark {
+  margin-left: -1px;
+}
 .rank-chip {
   display: inline-flex;
   align-items: center;
+  gap: 3px;
   flex: none;
-  padding: 0 5px;
+  padding: 0 5px 0 3px;
   border-radius: 3px;
   font-size: 10px;
   font-weight: 700;

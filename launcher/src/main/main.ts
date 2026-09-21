@@ -129,6 +129,15 @@ async function captureViews(win: BrowserWindow, dir: string): Promise<void> {
       if (only && !only.includes(pages[i])) continue;
       await win.webContents.executeJavaScript(`document.querySelectorAll('.nav-item')[${i}].click()`);
       await wait(900);
+      // SNOWBALLCLIENT_CAPTURE_CLICK is a selector clicked once the page is up, so dialogs and
+      // other states can be reviewed as pictures too rather than only the bare pages.
+      const click = process.env.SNOWBALLCLIENT_CAPTURE_CLICK;
+      if (click) {
+        await win.webContents.executeJavaScript(
+          `(() => { const el = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(click)}); if (el) el.click(); return !!el; })()`,
+        );
+        await wait(700);
+      }
       const image = await win.webContents.capturePage();
       await writeFile(join(dir, `${tag}${i}_${pages[i]}.png`), image.toPNG());
     }
@@ -136,9 +145,25 @@ async function captureViews(win: BrowserWindow, dir: string): Promise<void> {
   app.quit();
 }
 
+/**
+ * A fault in the main process used to end the launcher with no explanation. It is logged with a
+ * stack for whoever reads the file, and the window stays up: most of these are recoverable, and
+ * killing a running game because a background task threw would be worse than carrying on.
+ */
+function installCrashHandlers(): void {
+  process.on('uncaughtException', (err) => {
+    log.error('Uncaught exception in the main process', { error: err.message, stack: err.stack });
+  });
+  process.on('unhandledRejection', (reason) => {
+    const err = reason instanceof Error ? reason : new Error(String(reason));
+    log.error('Unhandled promise rejection in the main process', { error: err.message, stack: err.stack });
+  });
+}
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
+  installCrashHandlers();
   app.on('second-instance', () => {
     const [win] = BrowserWindow.getAllWindows();
     if (win) {
@@ -148,7 +173,24 @@ if (!app.requestSingleInstanceLock()) {
   });
   app.whenReady().then(createWindow).catch((err: Error) => {
     log.fatal('Launcher failed to start', { error: err.message, stack: err.stack });
-    dialog.showErrorBox('Snowball Client failed to start', err.message);
+    // The only failure with no UI to report it in, so the dialog has to carry the whole
+    // explanation: what happened, the likely cause, and where the details are.
+    const code = (err as NodeJS.ErrnoException).code;
+    const cause =
+      code === 'EACCES' || code === 'EPERM'
+        ? 'Windows refused access to the Snowball folder. Antivirus software or folder permissions are the usual reason.'
+        : code === 'ENOSPC'
+          ? 'There is no free space left on the drive Snowball stores its files on.'
+          : 'A file Snowball needs could not be read or created.';
+    dialog.showErrorBox(
+      'Snowball Client could not start',
+      `${cause}\n\nWhat you can try:\n` +
+        `  1. Restart Snowball.\n` +
+        `  2. Restart your computer, in case a file is still in use.\n` +
+        `  3. Reinstall Snowball from the website — your instances and worlds are kept.\n\n` +
+        `The full details are in:\n${join(defaultDataRoot(), 'logs')}\n\n` +
+        `Technical detail: ${err.message}`,
+    );
     app.quit();
   });
   app.on('window-all-closed', () => app.quit());

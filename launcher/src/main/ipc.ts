@@ -8,6 +8,7 @@ import { modrinthLoaders, SEARCH_SORTS } from '../core/mods/Modrinth.js';
 import { PERFORMANCE_PROFILES } from '../core/performance/PerformanceProfiles.js';
 import { splitArgs } from '../core/process/LaunchArguments.js';
 import { safeJoin } from '../core/util/paths.js';
+import { loadChangelog, notesFor } from './releaseNotes.js';
 import { openMicrosoftLogin } from './microsoftLogin.js';
 import type { ChatClient } from '../core/social/ChatClient.js';
 import type { UpdateService } from './updates.js';
@@ -129,6 +130,27 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
   ipcMain.handle('updates:state', () => updates?.current() ?? { status: 'manual', version: app.getVersion(), message: 'Updates are not available in this build.' });
   ipcMain.handle('updates:check', () => updates?.check(true) ?? null);
   ipcMain.handle('updates:install', () => updates?.install());
+  ipcMain.handle('app:release-notes', (_e, version: unknown) => {
+    const notes = loadChangelog(join(app.getAppPath(), 'dist', 'CHANGELOG.md'));
+    return typeof version === 'string' && version ? notesFor(notes, version) : notes.slice(0, 8);
+  });
+  // Today's log file, tail-first, as readable lines rather than the JSON they are stored as.
+  // Everything on disk has already been through redaction, so this is safe to paste into a report.
+  ipcMain.handle('logs:copy', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const file = join(launcher.paths.logs, `launcher-${new Date().toISOString().slice(0, 10)}.log`);
+    const text = await readFile(file, 'utf8').catch(() => '');
+    if (!text) return 'No log entries have been written today.';
+    const lines = text.trimEnd().split('\n').slice(-400).map((line) => {
+      try {
+        const r = JSON.parse(line) as { time: string; level: string; scope: string; message: string; data?: unknown };
+        return `[${r.time}] ${r.level.padEnd(5)} ${r.scope}: ${r.message}${r.data ? ` ${JSON.stringify(r.data)}` : ''}`;
+      } catch {
+        return line;
+      }
+    });
+    return lines.join('\n');
+  });
   ipcMain.handle('updates:diagnostics', () => updates?.diagnostics() ?? 'No update service in this build.');
   const send = (event: string, payload: unknown) => {
     if (!win.isDestroyed()) win.webContents.send(`evt:${event}`, payload);

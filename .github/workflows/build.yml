@@ -44,6 +44,7 @@ jobs:
         run: npx electron-builder --win appx --publish never
 
       - name: Upload installers
+        id: upload
         uses: actions/upload-artifact@v4
         with:
           name: snowball-client-windows
@@ -53,6 +54,39 @@ jobs:
             launcher/release/SnowballClient-*.appx
           if-no-files-found: error
 
-      # Once SignPath Foundation approves the project, a signing step goes here: it submits the
-      # uploaded installers to SignPath and replaces them with signed copies. The organization id,
-      # project slug and signing policy slug come from the SignPath dashboard.
+      # Signing runs only once SignPath Foundation has approved the project and the two secrets
+      # exist. Until then the step is skipped and the build stays unsigned, which the verify step
+      # below reports honestly rather than hiding.
+      - name: Sign installers with SignPath
+        id: sign
+        if: ${{ env.SIGNPATH_API_TOKEN != '' }}
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: snowball-client
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.upload.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: launcher/release
+
+      # Always runs. It prints the signature status of every artefact and fails the build if
+      # anything is signed badly or by the wrong publisher. An unsigned build is allowed through
+      # only while no certificate exists, and only because it is stated explicitly here.
+      - name: Verify signatures
+        working-directory: launcher
+        shell: pwsh
+        env:
+          SNOWBALL_ALLOW_UNSIGNED: ${{ secrets.SIGNPATH_API_TOKEN == '' && '1' || '0' }}
+        run: npm run verify:signature
+
+      - name: Checksums
+        working-directory: launcher/release
+        shell: pwsh
+        run: |
+          # Published with the release so people can check what they downloaded.
+          Get-ChildItem -Include *.exe, *.appx -Recurse -File |
+            ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name } |
+            Tee-Object -FilePath SHA256SUMS.txt

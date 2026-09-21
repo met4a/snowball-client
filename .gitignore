@@ -32,3 +32,27 @@ website/downloads/
 
 # Wrangler keeps its login cache and build temp files here.
 server/chat-worker/.wrangler/
+
+# Anything that could carry a credential. None of these are used today; the rule
+# exists so that adding one later cannot commit it by accident.
+*.pem
+*.key
+*.pfx
+*.p12
+*.jks
+*.keystore
+.env
+.env.*
+!.env.example
+**/secrets.json
+launcher/app-config.local.json
+
+# Signing material and build receipts
+launcher/build-resources/*.pfx
+launcher/signing/
+
+# Scratch
+*.tmp
+*.bak
+tmp/
+scratch/

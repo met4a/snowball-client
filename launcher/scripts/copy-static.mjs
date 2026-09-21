@@ -8,6 +8,9 @@ const pairs = [
   ['src/renderer/index.html', 'dist/renderer/index.html'],
   ['src/renderer/styles.css', 'dist/renderer/styles.css'],
   ['src/renderer/assets', 'dist/renderer/assets'],
+  // The release notes ship with the build so "What's new" works offline and always
+  // describes the version that is actually running.
+  ['../CHANGELOG.md', 'dist/CHANGELOG.md'],
 ];
 for (const [from, to] of pairs) {
   mkdirSync(dirname(join(root, to)), { recursive: true });

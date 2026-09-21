@@ -1,7 +1,7 @@
 {
   "name": "snowball-client-launcher",
   "productName": "Snowball Client Launcher",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Instance-based Minecraft launcher for Snowball Client",
   "license": "MIT",
   "main": "dist/main/main.js",
@@ -13,7 +13,9 @@
     "test": "vitest run",
     "build:client": "node scripts/build-client.mjs",
     "dist": "npm run build:client && npm run build && electron-builder --win --publish never",
-    "dist:store": "npm run build:client && npm run build && electron-builder --win appx --publish never"
+    "dist:store": "npm run build:client && npm run build && electron-builder --win appx --publish never",
+    "verify:signature": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-signature.ps1",
+    "dist:verify": "npm run dist && npm run verify:signature"
   },
   "build": {
     "appId": "dev.snowballclient.launcher",
@@ -57,7 +59,11 @@
           ]
         }
       ],
-      "artifactName": "SnowballClient-${version}-win.${ext}"
+      "artifactName": "SnowballClient-${version}-win.${ext}",
+      "publisherName": [
+        "Snowball Client"
+      ],
+      "signAndEditExecutable": true
     },
     "portable": {
       "artifactName": "SnowballClient-${version}-portable.exe"
@@ -75,7 +81,9 @@
       "include": "build-resources/installer/installer.nsh",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "runAfterFinish": true
+      "runAfterFinish": true,
+      "warningsAsErrors": false,
+      "deleteAppDataOnUninstall": false
     },
     "mac": {
       "target": "dmg"

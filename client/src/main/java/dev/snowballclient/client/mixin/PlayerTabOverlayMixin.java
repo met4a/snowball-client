@@ -35,7 +35,7 @@ public class PlayerTabOverlayMixin {
 
 		Component prefix = Component.empty();
 		if (format.contains("badge")) {
-			prefix = Component.empty().append(Component.literal(String.valueOf(rank.badge())).setStyle(SNOWBALL_FONT)).append(" ");
+			prefix = Component.empty().append(Component.literal(rank.badge()).setStyle(SNOWBALL_FONT)).append(" ");
 		}
 		if (format.contains("tag")) {
 			prefix = Component.empty().append(prefix).append(Component.literal("[" + rank.tag() + "] ").withColor(rank.color()));

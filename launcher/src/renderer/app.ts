@@ -229,10 +229,18 @@
 
   const rankInfo = (id: string | undefined) => RANKS.find((r) => r.id === id) ?? RANKS[0];
 
-  /** The little [Tag] chip used in chat, the people list and profiles. */
+  /**
+   * The [Tag] chip used in chat, the people list and profiles. It wears the same nine-pixel mark
+   * the player list draws, from the same files, so a rank looks identical in-game and here.
+   */
   function rankChip(id: string | undefined, extra = ''): HTMLElement {
     const rank = rankInfo(id);
-    const chip = h('span', { class: 'rank-chip' + (extra ? ' ' + extra : '') }, rank.tag);
+    // The same two marks the player list draws: the snowball, then the rank's own logo.
+    const marks: Child[] = [h('img', { class: 'rank-mark', src: `assets/ranks/${rank.id}-ball.png`, alt: '' })];
+    if (rank.id !== 'snowball' && rank.id !== 'plus') {
+      marks.push(h('img', { class: 'rank-mark', src: `assets/ranks/${rank.id}.png`, alt: '' }));
+    }
+    const chip = h('span', { class: 'rank-chip' + (extra ? ' ' + extra : '') }, ...marks, rank.tag);
     chip.style.setProperty('--rank', rank.color);
     return chip;
   }
@@ -309,6 +317,54 @@
         ? h('ul', { class: 'error-hints' }, ...opts.hints.map((hint) => h('li', {}, hint)))
         : null,
       actions);
+  }
+
+  /**
+   * Launch failures in the same shape as update failures: what happened, what it means, what to
+   * try. The launcher's own message is kept as the detail, because it is often the useful part.
+   */
+  function describeLaunchFailure(raw: string): { title: string; message: string; hints: string[] } {
+    const text = raw.toLowerCase();
+    if (/java|jvm|jre|jdk/.test(text) && /not found|missing|could not|no such/.test(text)) {
+      return {
+        title: 'Java is missing',
+        message: 'This version of Minecraft needs a Java runtime that Snowball could not find or download.',
+        hints: ['Open the Java page and press Rescan.', 'Turn on "Download Java automatically" in Settings.', 'Check your internet connection if the download failed.'],
+      };
+    }
+    if (/out of memory|heap space|could not reserve|memory/.test(text)) {
+      return {
+        title: 'Not enough memory',
+        message: 'Minecraft asked for more memory than this computer could give it, so it stopped before starting.',
+        hints: ['Lower the memory for this instance in Edit.', 'Close other programs and try again.'],
+      };
+    }
+    if (/download|http|network|econn|etimedout|enotfound/.test(text)) {
+      return {
+        title: 'Some game files could not be downloaded',
+        message: 'Snowball could not fetch everything Minecraft needs, so it stopped rather than starting a broken game.',
+        hints: ['Check your internet connection and press Try again.', 'Use "Verify files" on the Home page to repair what is already there.'],
+      };
+    }
+    if (/eacces|eperm|access is denied|permission/.test(text)) {
+      return {
+        title: 'Windows blocked a file Snowball needed',
+        message: 'A game file could not be written or read, usually because antivirus or folder permissions got in the way.',
+        hints: ['Check whether your antivirus quarantined something in the Snowball folder.', 'Open the launcher folder from Settings to see what is there.'],
+      };
+    }
+    if (/mod|fabric|quilt|forge|neoforge|mixin/.test(text)) {
+      return {
+        title: 'A mod stopped the game from starting',
+        message: 'Minecraft refused to start with the mods currently installed. This is almost always one mod that does not match the game or loader version.',
+        hints: ['Open Mods and look for anything marked incompatible.', 'Turn off recently added mods and try again.', 'The technical output below names the mod in most cases.'],
+      };
+    }
+    return {
+      title: 'Minecraft could not start',
+      message: 'The game stopped before it finished loading. The technical detail below usually names the cause.',
+      hints: ['Press Try again — some failures are temporary.', 'Use "Verify files" on the Home page to repair the installation.', 'Copy the details if you want to report it.'],
+    };
   }
 
   /** One line describing whatever the updater is doing, in the order a person experiences it. */
@@ -389,6 +445,7 @@
         h('div', { class: 'grow' },
           h('div', {}, `Updated to Snowball Client ${state.version}`),
           h('div', { class: 'muted', style: 'font-size:12px' }, `You were on ${state.justUpdatedFrom}.`)),
+        h('button', { class: 'btn small', onClick: () => whatsNewDialog(state.version) }, "See what's new"),
         h('button', { class: 'btn small ghost', onClick: () => { if (ui.update) ui.update = { ...ui.update, justUpdatedFrom: undefined }; render(); } }, 'Dismiss'));
     }
     if (state.status === 'downloading' || state.status === 'verifying') {
@@ -421,6 +478,31 @@
         h('button', { class: 'btn small', onClick: () => updateDialog() }, 'What happened?'));
     }
     return null;
+  }
+
+  /**
+   * The release notes for a version, read from the changelog that ships with the build. Shown
+   * after an update lands and from Settings, so "what changed?" never needs a browser.
+   */
+  function whatsNewDialog(version?: string): void {
+    const body = h('div', { class: 'stack' }, h('div', { class: 'muted' }, 'Reading the release notes...'));
+    modal(version ? `What's new in ${version}` : "What's new", body, [{ label: 'Close', kind: 'ghost', onClick: (c) => c() }]);
+
+    void api.releaseNotes(version).then((result) => {
+      const notes = Array.isArray(result) ? result : result ? [result] : [];
+      if (!notes.length) {
+        body.replaceChildren(h('p', { class: 'muted' }, 'This build does not carry its release notes. The full list is on the Snowball website.'));
+        return;
+      }
+      body.replaceChildren(...notes.map((note) =>
+        h('div', { class: 'notes-release' },
+          // The dialog title already names the version when only one was asked for.
+          notes.length > 1 ? h('div', { class: 'notes-version' }, note.version) : null,
+          ...note.sections.map((section) =>
+            h('div', { class: 'notes-section' },
+              h('div', { class: 'section-title' }, section.heading),
+              h('ul', { class: 'notes-list' }, ...section.items.map((item) => h('li', {}, item))))))));
+    }).catch((err) => body.replaceChildren(h('p', { class: 'muted' }, errorMessage(err))));
   }
 
   /** While the launcher is handing over to the new build, nothing else should be clickable. */
@@ -1395,6 +1477,7 @@
           toggle(s.updates.checkOnStartup, (v) => void update({ updates: { ...s.updates, checkOnStartup: v } }))),
         h('div', { class: 'list-row' },
           h('div', { class: 'grow' }, h('div', {}, 'This launcher'), h('div', { class: 'muted', style: 'font-size:13px' }, ui.version ? `Version ${ui.version}` : 'Reading the version...')),
+          h('button', { class: 'btn small ghost', onClick: () => whatsNewDialog(ui.version || undefined) }, "What's new"),
           h('span', { class: 'tag accent' }, ui.version ? `v${ui.version}` : '...')),
         h('div', { class: 'list-row' },
           h('div', { class: 'grow' }, h('div', {}, 'Status'), status),
@@ -1491,8 +1574,8 @@
     const update = async (patch: Partial<Snowball.Settings>) => {
       if (await guard(() => api.updateSettings(patch))) await refresh();
     };
-    const settingRow = (label: string, description: string, control: Node) =>
-      h('div', { class: 'list-row' }, h('div', { class: 'grow' }, h('div', {}, label), h('div', { class: 'muted', style: 'font-size:13px' }, description)), control);
+    const settingRow = (label: string, description: string, ...controls: Child[]) =>
+      h('div', { class: 'list-row' }, h('div', { class: 'grow' }, h('div', {}, label), h('div', { class: 'muted', style: 'font-size:13px' }, description)), ...controls);
 
     const accounts = h('div', { class: 'list' }, ...(state.accounts.length ? state.accounts.map((a) =>
       h('div', { class: 'list-row' },
@@ -1525,7 +1608,23 @@
         h('div', { class: 'section-title' }, 'Data'),
         h('div', { class: 'list' },
           settingRow('Launcher folder', state.dataRoot, h('button', { class: 'btn', onClick: () => void guard(() => api.openLauncherFolder('root')) }, 'Open')),
-          settingRow('Logs', 'Launcher logs (tokens are always redacted).', h('button', { class: 'btn', onClick: () => void guard(() => api.openLauncherFolder('logs')) }, 'Open')),
+          settingRow('Logs', 'Everything Snowball did, with account tokens always redacted.',
+            h('button', {
+              class: 'btn',
+              onClick: async (e: MouseEvent) => {
+                const button = e.target as HTMLButtonElement;
+                const text = await guard(() => api.copyLogs());
+                if (text === undefined) return;
+                try {
+                  await navigator.clipboard.writeText(text);
+                  button.textContent = 'Copied';
+                  setTimeout(() => (button.textContent = 'Copy'), 1600);
+                } catch {
+                  toast('Could not copy to the clipboard.', 'error');
+                }
+              },
+            }, 'Copy'),
+            h('button', { class: 'btn', onClick: () => void guard(() => api.openLauncherFolder('logs')) }, 'Open folder')),
           settingRow('Snowball Client', state.snowballBuilds.length ? state.snowballBuilds.map((b) => `${b.version} for Fabric ${b.minecraft}`).join(', ') : 'Not bundled in this build', h('span', { class: `tag${state.snowballBuilds.length ? ' accent' : ''}` }, state.snowballBuilds.length ? 'BUILT IN' : 'MISSING')))));
   }
 
@@ -1778,7 +1877,23 @@
     ui.busy.delete(e.instanceId);
     ui.progress.delete(e.instanceId);
     render();
-    modal('COULD NOT START', h('p', { style: 'white-space:pre-wrap' }, e.message), [{ label: 'OK', kind: 'primary', onClick: (close) => close() }]);
+    const described = describeLaunchFailure(e.message);
+    modal('Minecraft could not start', errorPanel({
+      title: described.title,
+      message: described.message,
+      hints: described.hints,
+      detail: e.message,
+      retryLabel: 'Try again',
+      onRetry: () => void launch(e.instanceId),
+    }), [{ label: 'Close', kind: 'ghost', onClick: (close) => close() }]);
+  });
+  // A fault in the renderer used to leave a half-drawn page with no explanation. It now says so,
+  // rather than looking like the launcher simply stopped responding.
+  window.addEventListener('error', (e) => {
+    toast(`Something in the launcher went wrong: ${e.message}\nThe details are in Settings → Logs.`, 'error');
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    toast(`Something in the launcher went wrong: ${errorMessage(e.reason)}\nThe details are in Settings → Logs.`, 'error');
   });
   api.on('launcher-log', (r: Snowball.LauncherLog) => {
     ui.launcherLogs.push(r);

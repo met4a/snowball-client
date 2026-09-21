@@ -81,7 +81,7 @@ public final class SnowballMenuGameTest implements FabricClientGameTest {
 					PlayerInfo info = mc.getConnection().getPlayerInfo(mc.getUser().getProfileId());
 					return info == null ? "" : mc.gui.hud.getTabList().getNameForDisplay(info).getString();
 				});
-				if (!shown.startsWith(String.valueOf(rank.badge())) || !shown.contains("[" + rank.tag() + "]")) {
+				if (!shown.startsWith(rank.badge()) || !shown.contains("[" + rank.tag() + "]")) {
 					throw new AssertionError("Rank " + rank.id() + " is not drawn correctly: " + shown);
 				}
 			}
