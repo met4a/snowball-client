@@ -146,7 +146,7 @@ declare namespace Snowball {
     java: { autoDownloadRuntime: boolean; defaultMaxMemoryMb: number | null };
     game: { closeLauncherOnLaunch: boolean; showLogsOnLaunch: boolean };
     accounts: { microsoftClientId: string; selectedAccountId: string | null; rank: string };
-    updates: { channel: 'stable' | 'beta'; checkOnStartup: boolean };
+    updates: { channel: 'stable' | 'beta'; automatic: boolean };
     performance: { installMods: boolean };
     logs: { retainDays: number; debug: boolean };
     selectedInstanceId: string | null;

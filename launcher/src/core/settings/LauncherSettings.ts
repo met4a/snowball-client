@@ -11,7 +11,7 @@ export interface LauncherSettings {
   game: { closeLauncherOnLaunch: boolean; showLogsOnLaunch: boolean };
   /** rank is written only from what the Snowball backend reports for the signed-in account. */
   accounts: { microsoftClientId: string; selectedAccountId: string | null; rank: string };
-  updates: { channel: 'stable' | 'beta'; checkOnStartup: boolean };
+  updates: { channel: 'stable' | 'beta'; automatic: boolean };
   /** installMods: let a performance profile download its optimisation mods. Off by default: profiles then
    *  only use what the instance already has. */
   performance: { installMods: boolean };
@@ -27,7 +27,7 @@ export function defaultSettings(): LauncherSettings {
     java: { autoDownloadRuntime: true, defaultMaxMemoryMb: null },
     game: { closeLauncherOnLaunch: false, showLogsOnLaunch: false },
     accounts: { microsoftClientId: '', selectedAccountId: null, rank: 'snowball' },
-    updates: { channel: 'stable', checkOnStartup: true },
+    updates: { channel: 'stable', automatic: true },
     performance: { installMods: false },
     logs: { retainDays: 14, debug: false },
     selectedInstanceId: null,
@@ -56,7 +56,9 @@ export function normalizeSettings(raw: unknown): LauncherSettings {
       selectedAccountId: typeof r.accounts?.selectedAccountId === 'string' ? r.accounts.selectedAccountId : null,
       rank: typeof r.accounts?.rank === 'string' ? r.accounts.rank : 'snowball',
     },
-    updates: { channel: r.updates?.channel === 'beta' ? 'beta' : 'stable', checkOnStartup: bool(r.updates?.checkOnStartup, d.updates.checkOnStartup) },
+    // `automatic` replaced `checkOnStartup`, which only decided whether to look. The old value
+    // is deliberately not carried over: it answered a different question.
+    updates: { channel: r.updates?.channel === 'beta' ? 'beta' : 'stable', automatic: bool(r.updates?.automatic, d.updates.automatic) },
     performance: { installMods: bool(r.performance?.installMods, d.performance.installMods) },
     logs: { retainDays: int(r.logs?.retainDays, 1, 365, d.logs.retainDays), debug: bool(r.logs?.debug, false) },
     selectedInstanceId: typeof r.selectedInstanceId === 'string' ? r.selectedInstanceId : null,

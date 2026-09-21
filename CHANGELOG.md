@@ -9,6 +9,16 @@ restart. You only download an installer once.
 
 ---
 
+## 1.6.2
+
+### What's new
+- Snowball updates itself when it starts. There is nothing to click and no
+  installer to run: if a new version is out, it is installed and Snowball
+  restarts into it before you get going. It waits if a game is running.
+- A new application icon, so Snowball is easier to pick out on the taskbar.
+
+---
+
 ## 1.6.1
 
 ### Fixed

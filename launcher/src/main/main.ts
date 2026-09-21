@@ -53,7 +53,9 @@ async function createWindow(): Promise<void> {
     minHeight: 540,
     title: 'Snowball Client',
     backgroundColor: '#05070a',
-    icon: join(__dirname, '..', 'renderer', 'assets', 'logo.png'),
+    // The tile icon, so the window matches the .exe. The bare snowball stays the mark used
+    // inside the interface.
+    icon: join(__dirname, '..', 'renderer', 'assets', 'app-icon.png'),
     autoHideMenuBar: true,
     show: false,
     webPreferences: {
@@ -75,7 +77,9 @@ async function createWindow(): Promise<void> {
   win.once('ready-to-show', () => win.show());
   registerIpc(launcher, win, updates, chat);
   await win.loadFile(join(__dirname, '..', 'renderer', 'index.html'));
-  scheduleStartupCheck(updates, win, launcher.settings.get().updates.checkOnStartup);
+  // Restarting is fine while somebody is browsing mods; it is not fine while they are playing.
+  updates.onlyRestartWhen(() => launcher.processes.runningIds().length === 0);
+  scheduleStartupCheck(updates, win, launcher.settings.get().updates.automatic);
   if (process.env.SNOWBALLCLIENT_CAPTURE_DIR) await captureViews(win, process.env.SNOWBALLCLIENT_CAPTURE_DIR);
   // A development hook for checking the chat handshake end to end without clicking through the UI.
   if (process.env.SNOWBALLCLIENT_CHAT_CHECK) {

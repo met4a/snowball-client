@@ -62,6 +62,13 @@ export class UpdateService {
   private updater: typeof import('electron-updater').autoUpdater | null = null;
   private checking: Promise<UpdateState> | null = null;
   private readonly handoverFile: string;
+  /**
+   * Set while the check that runs at launch is in flight. An update found then is applied
+   * straight away, because restarting is cheapest before anyone has started doing anything.
+   */
+  private applyWhenReady = false;
+  /** Asked before restarting, so a running game is never pulled out from under someone. */
+  private safeToRestart: () => boolean = () => true;
 
   constructor(private readonly send: (state: UpdateState) => void) {
     this.state = { status: 'idle', version: app.getVersion() };
@@ -71,6 +78,27 @@ export class UpdateService {
 
   current(): UpdateState {
     return this.state;
+  }
+
+  /** The launcher decides what "safe" means; the updater only asks. */
+  onlyRestartWhen(safe: () => boolean): void {
+    this.safeToRestart = safe;
+  }
+
+  /**
+   * The check that runs on every launch. Anything it finds is installed without being asked:
+   * this is the difference between a launcher that updates itself and one that offers to.
+   */
+  async checkAndApply(): Promise<UpdateState> {
+    this.applyWhenReady = true;
+    try {
+      return await this.check(false);
+    } finally {
+      // Only this check auto-applies. A later one puts the banner up and waits.
+      setTimeout(() => {
+        this.applyWhenReady = false;
+      }, 10 * 60_000);
+    }
   }
 
   /**
@@ -251,6 +279,14 @@ export class UpdateService {
       }
       log.info('Update verified and staged', { version: info.version });
       this.set({ status: 'ready', version: app.getVersion(), newVersion: info.version });
+      if (this.applyWhenReady) {
+        if (this.safeToRestart()) {
+          log.info('Applying the update found at launch', { version: info.version });
+          this.install();
+        } else {
+          log.info('Update is ready, but a game is running; leaving it for the next start', { version: info.version });
+        }
+      }
     });
     autoUpdater.on('error', (err) => {
       const described = describeUpdateFailure(err);
@@ -273,9 +309,14 @@ export class UpdateService {
   }
 }
 
-/** Starts the background check a moment after the window is up, so it never delays the first paint. */
-export function scheduleStartupCheck(service: UpdateService, win: BrowserWindow, enabled: boolean): void {
-  if (!enabled) return;
-  const timer = setTimeout(() => void service.check(false), 4000);
+/**
+ * Starts the check a moment after the window is up, so it never delays the first paint.
+ *
+ * `automatic` decides whether an update is applied on its own, not whether to look: the
+ * launcher always looks, because knowing a version is out of date is worth a line in the log
+ * even when the person would rather press the button themselves.
+ */
+export function scheduleStartupCheck(service: UpdateService, win: BrowserWindow, automatic: boolean): void {
+  const timer = setTimeout(() => void (automatic ? service.checkAndApply() : service.check(false)), 4000);
   win.on('closed', () => clearTimeout(timer));
 }
