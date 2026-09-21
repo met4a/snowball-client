@@ -302,7 +302,7 @@ export class ChatRoom {
     socket.send(JSON.stringify({ type: 'bug-filed', id: bug.id }));
     // The owner sees it arrive without asking.
     for (const [other, person] of this.sockets) {
-      if (person.admin) other.send(JSON.stringify({ type: 'bugs', bugs: this.bugs.slice(0, 50) }));
+      if (can(person, 'bugs.triage')) other.send(JSON.stringify({ type: 'bugs', bugs: this.bugs.slice(0, 50) }));
     }
   }
 
@@ -314,7 +314,7 @@ export class ChatRoom {
 
   async onAdmin(payload, socket, member) {
     const needed = {
-      people: 'users.view', bugs: 'bugs.report', 'bug-status': 'bugs.triage', flag: 'flags.manage',
+      people: 'users.view', bugs: 'bugs.triage', 'bug-status': 'bugs.triage', flag: 'flags.manage',
       clear: 'chat.moderate', mute: 'chat.moderate', unmute: 'chat.moderate',
       'rank-set': 'ranks.manage', 'rank-clear': 'ranks.manage', grant: 'ranks.manage', ungrant: 'ranks.manage',
       history: 'users.view', lookup: 'users.view',

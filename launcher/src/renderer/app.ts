@@ -230,6 +230,30 @@
   const rankInfo = (id: string | undefined) => RANKS.find((r) => r.id === id) ?? RANKS[0];
 
   /**
+   * What this account may do, according to the server. The client never decides this: it only
+   * reflects the permission list the chat server sent, and the server checks again on every
+   * action regardless of what the launcher chose to show.
+   */
+  const can = (permission: string): boolean => {
+    const held = ui.chat?.permissions ?? [];
+    return held.includes('everything') || held.includes(permission);
+  };
+
+  /** The admin tabs, and the permission each one needs. */
+  const ADMIN_TABS: Array<[typeof ui.adminTab, string, string]> = [
+    ['chat', 'Chat', 'chat.moderate'],
+    ['ranks', 'Ranks', 'users.view'],
+    ['people', 'People', 'users.view'],
+    ['bugs', 'Bugs', 'bugs.triage'],
+    ['flags', 'Features', 'flags.manage'],
+  ];
+
+  const adminTabs = () => ADMIN_TABS.filter(([, , permission]) => can(permission));
+
+  /** Whether this account can administer anything at all, which is what the nav item needs. */
+  const canAdminister = () => adminTabs().length > 0;
+
+  /**
    * The [Tag] chip used in chat, the people list and profiles. It wears the same nine-pixel mark
    * the player list draws, from the same files, so a rank looks identical in-game and here.
    */
@@ -257,7 +281,7 @@
   function render(): void {
     const nav = document.getElementById('nav')!;
     // Admin only appears for an account the Snowball server says may use it.
-    const entries = NAV.filter(([view]) => view !== 'admin' || Boolean(ui.chat?.admin));
+    const entries = NAV.filter(([view]) => view !== 'admin' || canAdminister());
     nav.replaceChildren(...entries.map(([view, label]) => h('button', { class: `nav-item${ui.view === view ? ' active' : ''}`, onClick: () => { ui.view = view; render(); } }, icon(view), label)));
 
     const state = ui.state;
@@ -1204,18 +1228,19 @@
           h('h2', { class: 'page-title' }, 'NO SNOWBALL SERVER'),
           h('p', { class: 'muted' }, 'This build has no Snowball server set, so there is nothing to administer.')));
     }
-    if (!state.admin) {
+    if (!canAdminister()) {
       return h('div', { class: 'stack' },
-        header('Admin', 'Snowball owner tools'),
+        header('Admin', 'Snowball staff tools'),
         h('div', { class: 'card empty' },
-          h('h2', { class: 'page-title' }, state.status === 'online' ? 'NOT YOUR RANK' : 'JOIN CHAT FIRST'),
+          h('h2', { class: 'page-title' }, state.status === 'online' ? 'Not your rank' : 'Join chat first'),
           h('p', { class: 'muted' }, state.status === 'online'
             ? 'Your account does not hold a rank that can administer Snowball.'
             : 'Join chat so the Snowball server can confirm which account you are, then come back.'),
           state.status === 'online' ? null : h('button', { class: 'btn primary', onClick: () => void guard(() => api.joinChat()) }, 'Join chat')));
     }
+    const rank = rankInfo(state.rank);
     return h('div', { class: 'stack' },
-      header('Admin', `Signed in as the owner  \u00b7  ${state.online} online`),
+      header('Admin', `Signed in as ${rank.name}  \u00b7  ${state.online} online`),
       adminCard());
   }
 
@@ -1238,30 +1263,33 @@
         render();
       } }, label);
 
+    const allowed = adminTabs();
+    // A rank that cannot use the tab it last had open lands on the first one it can.
+    if (!allowed.some(([id]) => id === ui.adminTab)) ui.adminTab = allowed[0][0];
+    const tabStrip = () => h('div', { class: 'log-tabs' }, ...allowed.map(([id, label]) => tab(id, label)));
+
     if (ui.adminTab !== 'chat') {
       return h('div', { class: 'card' },
-        h('div', { class: 'row' }, h('div', { class: 'section-title' }, 'Admin'), h('div', { class: 'spacer' }),
-          h('div', { class: 'log-tabs' }, tab('chat', 'CHAT'), tab('ranks', 'RANKS'), tab('people', 'PEOPLE'), tab('bugs', 'BUGS'), tab('flags', 'FEATURES'))),
+        h('div', { class: 'row' }, h('div', { class: 'section-title' }, 'Admin'), h('div', { class: 'spacer' }), tabStrip()),
         ui.adminTab === 'ranks' ? rankManager() : ui.adminTab === 'people' ? peopleList() : ui.adminTab === 'bugs' ? bugList() : flagList());
     }
 
     return h('div', { class: 'card' },
-      h('div', { class: 'row' }, h('div', { class: 'section-title' }, 'Admin'), h('div', { class: 'spacer' }),
-        h('div', { class: 'log-tabs' }, tab('chat', 'CHAT'), tab('ranks', 'RANKS'), tab('people', 'PEOPLE'), tab('bugs', 'BUGS'), tab('flags', 'FEATURES'))),
+      h('div', { class: 'row' }, h('div', { class: 'section-title' }, 'Admin'), h('div', { class: 'spacer' }), tabStrip()),
       h('div', { class: 'list' },
-        h('div', { class: 'list-row' },
+        can('chat.announce') ? h('div', { class: 'list-row' },
           h('div', { class: 'grow' }, announcement),
           h('button', { class: 'btn small primary', onClick: () => void run(() => api.announce(announcement.value)) }, 'Post'),
-          h('button', { class: 'btn small', onClick: () => { announcement.value = ''; void run(() => api.announce(null)); } }, 'Clear')),
+          h('button', { class: 'btn small', onClick: () => { announcement.value = ''; void run(() => api.announce(null)); } }, 'Clear')) : null,
         h('div', { class: 'list-row' },
           h('div', { class: 'grow' }, muteUuid),
           muteMinutes,
           h('button', { class: 'btn small', onClick: () => void run(() => api.moderateChat('mute', muteUuid.value.trim(), Number(muteMinutes.value))) }, 'Mute'),
           h('button', { class: 'btn small', onClick: () => void run(() => api.moderateChat('unmute', muteUuid.value.trim())) }, 'Unmute')),
-        h('div', { class: 'list-row' },
+        can('ranks.manage') ? h('div', { class: 'list-row' },
           h('div', { class: 'grow' }, plusUuid),
           h('button', { class: 'btn small primary', onClick: () => void run(() => api.setSnowballPlus(plusUuid.value.trim(), true)) }, 'Give Snowball+'),
-          h('button', { class: 'btn small', onClick: () => void run(() => api.setSnowballPlus(plusUuid.value.trim(), false)) }, 'Remove')),
+          h('button', { class: 'btn small', onClick: () => void run(() => api.setSnowballPlus(plusUuid.value.trim(), false)) }, 'Remove')) : null,
         h('div', { class: 'list-row' },
           h('div', { class: 'grow' }, h('div', {}, 'Clear the chat for everyone'), h('div', { class: 'muted', style: 'font-size:12px' }, 'Wipes the recent messages the server keeps.')),
           h('button', { class: 'btn small danger', onClick: () => void run(() => api.moderateChat('clear')) }, 'Clear chat'))));
@@ -1296,9 +1324,9 @@
           h('div', { class: 'muted', style: 'font-size:11px' }, found.uuid ?? ''),
           found.given ? h('div', { class: 'muted', style: 'font-size:11px' }, 'Given by ' + found.given.byName + ' ' + fmtWhen(found.given.at)) : null,
           found.seen ? h('div', { class: 'muted', style: 'font-size:11px' }, 'Last seen ' + fmtWhen(found.seen.last)) : null),
-        picker,
-        h('button', { class: 'btn small primary', onClick: () => void applyRank(found.uuid!, picker.value) }, 'Set rank'),
-        h('button', { class: 'btn small', onClick: () => void applyRank(found.uuid!, 'snowball') }, 'Revoke')));
+        can('ranks.manage') ? picker : null,
+        can('ranks.manage') ? h('button', { class: 'btn small primary', onClick: () => void applyRank(found.uuid!, picker.value) }, 'Set rank') : null,
+        can('ranks.manage') ? h('button', { class: 'btn small', onClick: () => void applyRank(found.uuid!, 'snowball') }, 'Revoke') : null));
       if (found.history?.length) {
         result.push(h('div', { class: 'section-title', style: 'margin-top:12px' }, 'HISTORY'));
         result.push(h('div', { class: 'list' }, ...found.history.slice(0, 12).map((entry) =>
@@ -1335,10 +1363,10 @@
         h('div', { class: 'grow' },
           h('div', {}, person.name, ' ', person.rank && person.rank !== 'snowball' ? rankChip(person.rank) : null),
           h('div', { class: 'muted', style: 'font-size:11px' }, `last seen ${fmtWhen(person.last)}${person.muted ? ' - muted' : ''}`)),
-        h('button', { class: 'btn small', onClick: () => void api.setSnowballPlus(person.uuid, person.rank === 'snowball').then(() => setTimeout(() => void api.chatAdmin('people'), 400)) },
-          person.rank === 'snowball' ? 'Give Snowball+' : 'Remove rank'),
-        h('button', { class: 'btn small', onClick: () => void api.moderateChat(person.muted ? 'unmute' : 'mute', person.uuid, 10).then(() => setTimeout(() => void api.chatAdmin('people'), 400)) },
-          person.muted ? 'Unmute' : 'Mute 10m'))));
+        can('ranks.manage') ? h('button', { class: 'btn small', onClick: () => void api.setSnowballPlus(person.uuid, person.rank === 'snowball').then(() => setTimeout(() => void api.chatAdmin('people'), 400)) },
+          person.rank === 'snowball' ? 'Give Snowball+' : 'Remove rank') : null,
+        can('chat.moderate') ? h('button', { class: 'btn small', onClick: () => void api.moderateChat(person.muted ? 'unmute' : 'mute', person.uuid, 10).then(() => setTimeout(() => void api.chatAdmin('people'), 400)) },
+          person.muted ? 'Unmute' : 'Mute 10m') : null)));
   }
 
   /** Bug reports, with the states the owner can move them through. */
@@ -1353,8 +1381,10 @@
           h('div', { class: 'muted', style: 'font-size:11px' },
             `${bug.by} - ${fmtWhen(Date.parse(bug.at))}${bug.minecraft ? ` - Minecraft ${bug.minecraft}` : ''}${bug.loader ? ` - ${bug.loader}` : ''}${bug.snowball ? ` - Snowball ${bug.snowball}` : ''}`),
           bug.steps ? h('div', { class: 'muted', style: 'font-size:11px' }, `Steps: ${bug.steps}`) : null),
-        h('select', { class: 'input', style: 'max-width:150px', onChange: (e: Event) => void api.chatAdmin('bug-status', { id: bug.id, status: (e.target as HTMLSelectElement).value }) },
-          ...states.map((state) => h('option', { value: state, selected: state === bug.status }, state))))));
+        can('bugs.triage')
+          ? h('select', { class: 'input', style: 'max-width:150px', onChange: (e: Event) => void api.chatAdmin('bug-status', { id: bug.id, status: (e.target as HTMLSelectElement).value }) },
+              ...states.map((state) => h('option', { value: state, selected: state === bug.status }, state)))
+          : null)));
   }
 
   /** Feature switches: the launcher and the client ask the server what is on. */
