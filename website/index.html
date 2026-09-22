@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="styles.css?v=5" />
     <link rel="stylesheet" href="demo.css?v=1" />
     <link rel="stylesheet" href="refresh.css?v=1" />
+    <link rel="stylesheet" href="polish.css?v=1" />
     <script>document.documentElement.classList.add('js');</script>
   </head>
   <body>
@@ -38,7 +39,7 @@
       <section class="hero">
         <div class="snow" aria-hidden="true"></div>
         <div class="wrap">
-          <a class="pill" href="#download"><span class="dot"></span>Version 1.6.3 - updates itself when it starts</a>
+          <a class="pill" href="#download"><span class="dot"></span>Version 1.7.0 - updates itself when it starts</a>
           <img class="hero-logo" src="assets/logo.png" alt="Snowball Client logo" width="112" height="112" />
           <h1>SNOWBALL <span>CLIENT</span></h1>
           <p class="lead">A fast, clean Minecraft: Java Edition launcher and client. Your own main menu, a radial in-game menu, isolated instances, and a launcher that keeps itself up to date.</p>
@@ -59,7 +60,7 @@
         <div class="wrap stats">
           <div><strong>50+</strong><span>modules</span></div>
           <div><strong>3</strong><span>Minecraft versions</span></div>
-          <div><strong>0.4s</strong><span>from Play to game</span></div>
+          <div><strong>4</strong><span>mod loaders</span></div>
           <div><strong>0</strong><span>cheats</span></div>
         </div>
       </section>
@@ -94,6 +95,9 @@
             <div class="card reveal"><span class="tag">NEW</span><h3>Discord presence</h3><p>Show what you are up to, with the server read from the game itself so nobody can fake where they are playing.</p></div>
             <div class="card reveal"><span class="tag">NEW</span><h3>Snowball loading screen</h3><p>The red Mojang screen becomes a Snowball one, with a real progress bar while the game loads.</p></div>
             <div class="card reveal"><span class="tag">NEW</span><h3>Snowball in the player list</h3><p>Players on Snowball Client get a snowball next to their name when you hold Tab.</p></div>
+            <div class="card reveal"><span class="tag">NEW</span><h3>Your colours</h3><p>Pick the colour of every Snowball menu, and the tint behind them, from swatches or a full colour picker. It changes as you drag.</p></div>
+            <div class="card reveal"><span class="tag">NEW</span><h3>Badges above heads</h3><p>Snowball players carry their rank badge on the name above their head, so you can spot them in the world and in third person.</p></div>
+            <div class="card reveal"><span class="tag">NEW</span><h3>Known mods, recognised</h3><p>The mod check knows Modrinth's releases by fingerprint, so Fabric API and friends are set aside and only files it cannot vouch for are read.</p></div>
             <div class="card reveal"><span class="tag">MENU</span><h3>Your own main menu</h3><p>The title screen becomes the Snowball menu: your account, Singleplayer, Multiplayer and quick buttons for the game's own screens, over Minecraft's own panorama. Switch it off any time.</p></div>
           </div>
         </div>
@@ -113,21 +117,28 @@
           </div>
           <figure class="window">
             <div class="window-bar"><i></i><i></i><i></i><span>Minecraft 1.8.9</span></div>
-            <img src="assets/menu-189.jpg" alt="The Snowball Client radial menu running on Minecraft 1.8.9" width="1280" height="720" loading="lazy" />
+            <img src="assets/menu-189.jpg?v=2" alt="The Snowball Client radial menu running on Minecraft 1.8.9" width="474" height="330" loading="lazy" />
           </figure>
         </div>
       </section>
 
       <section id="launcher" class="alt">
-        <div class="wrap split reverse reveal">
-          <div>
-            <p class="section-title">LAUNCHER</p>
-            <h2 class="section-heading">Instances that never conflict</h2>
-            <p class="section-lead">Each instance has its own version, mods, worlds and settings, so your PvP setup never breaks your modpack.</p>
-            <ul class="checks">
+        <div class="wrap">
+          <div class="split reverse reveal launcher-intro">
+            <div>
+              <p class="section-title">LAUNCHER</p>
+              <h2 class="section-heading">Instances that never conflict</h2>
+              <p class="section-lead">Each instance has its own version, mods, worlds and settings, so your PvP setup never breaks your modpack. Pick one and press Play: Minecraft, Java, the loader and Snowball Client are all handled for you.</p>
+            </div>
+            <figure class="window">
+              <div class="window-bar"><i></i><i></i><i></i><span>Snowball Client Launcher</span></div>
+              <img src="assets/launcher-home.png?v=2" alt="The Snowball Client launcher home page: the selected instance with its version, loader, mods and memory, a Play button, and the Snowball player count" width="1280" height="800" loading="lazy" />
+            </figure>
+          </div>
+          <ul class="checks columns reveal">
               <li><strong>Updates itself</strong>: new versions arrive in the background and install when you restart, so you never run an installer again</li>
               <li><strong>Escaping another launcher?</strong> Import instances, mods, worlds and settings from Modrinth, CurseForge, Prism, MultiMC, ATLauncher, GDLauncher or the official launcher</li>
-              <li><strong>Check mods</strong>: every jar is read on your computer and told back to you in plain language - what it can run, read or send</li>
+              <li><strong>Check mods</strong>: releases from Modrinth are recognised by fingerprint, and every other jar is read on your computer and told back to you in plain language - what it can run, read or send</li>
               <li><strong>Snowball Client built in</strong>: loaded by the launcher, never a mod file you can lose, checked and repaired before every launch</li>
               <li><strong>Readable activity log</strong>: see each step, from checking files to joining a world, with the full game log one click away</li>
               <li><strong>Starts fast</strong>: game files are checked once and trusted while they stay untouched, so pressing Play starts the game instead of re-checking thousands of files</li>
@@ -140,12 +151,9 @@
               <li><strong>Mod manager</strong> that catches duplicates and version conflicts</li>
               <li><strong>Microsoft sign-in</strong> on Microsoft's own login page</li>
               <li><strong>Crash detection</strong> and live game logs</li>
-            </ul>
-          </div>
-          <figure class="window">
-            <div class="window-bar"><i></i><i></i><i></i><span>Snowball Client Launcher</span></div>
-            <img src="assets/launcher-browse.png" alt="The Snowball Client launcher mod browser listing Fabric API, Sodium and Iris with install buttons" width="1184" height="721" loading="lazy" />
-          </figure>
+              <li><strong>Make it yours</strong>: your own colour, a picture behind the launcher, and a compact layout for small screens</li>
+              <li><strong>Fits any screen</strong>, from a 1280x720 laptop at 150% to a 1440p monitor</li>
+          </ul>
         </div>
       </section>
 
@@ -218,28 +226,28 @@
         <div class="wrap">
           <p class="section-title">DOWNLOAD</p>
           <h2 class="section-heading">Get Snowball Client</h2>
-          <p class="section-lead center">Version 1.6.3 for Windows 10 and 11 (64-bit), with Snowball Client for Minecraft 1.8.9, 1.21.11 and 26.2. You need a Microsoft account that owns Minecraft: Java Edition.</p>
+          <p class="section-lead center">Version 1.7.0 for Windows 10 and 11 (64-bit), with Snowball Client for Minecraft 1.8.9, 1.21.11 and 26.2. You need a Microsoft account that owns Minecraft: Java Edition.</p>
           <div class="options">
             <div class="card featured reveal">
               <span class="tag">RECOMMENDED</span>
               <h3>Installer</h3>
               <p>Installs Snowball Client with a Start menu shortcut, and updates itself from then on.</p>
-              <p class="size">.exe - 108 MB</p>
-              <a class="btn primary" href="https://github.com/met4a/snowball-website/releases/download/v1.6.3/SnowballClient-1.6.3-setup.exe">Download installer</a>
+              <p class="size">.exe - 113 MB</p>
+              <a class="btn primary" href="https://github.com/met4a/snowball-website/releases/download/v1.7.0/SnowballClient-1.7.0-setup.exe">Download installer</a>
             </div>
             <div class="card reveal">
               <span class="tag">PORTABLE</span>
               <h3>Portable</h3>
               <p>A single file you can run from anywhere. Nothing is installed.</p>
-              <p class="size">.exe - 108 MB</p>
-              <a class="btn" href="https://github.com/met4a/snowball-website/releases/download/v1.6.3/SnowballClient-1.6.3-portable.exe">Download portable</a>
+              <p class="size">.exe - 113 MB</p>
+              <a class="btn" href="https://github.com/met4a/snowball-website/releases/download/v1.7.0/SnowballClient-1.7.0-portable.exe">Download portable</a>
             </div>
             <div class="card reveal">
               <span class="tag">ZIP</span>
               <h3>Zip archive</h3>
               <p>For when your browser refuses to download a .exe. Unpack it and run Snowball Client Launcher.exe.</p>
-              <p class="size">.zip - 148 MB</p>
-              <a class="btn" href="https://github.com/met4a/snowball-website/releases/download/v1.6.3/SnowballClient-1.6.3-win.zip">Download zip</a>
+              <p class="size">.zip - 155 MB</p>
+              <a class="btn" href="https://github.com/met4a/snowball-website/releases/download/v1.7.0/SnowballClient-1.7.0-win.zip">Download zip</a>
             </div>
           </div>
           <p class="note">Windows may show "Windows protected your PC" because the app is new and not yet code-signed. Choose More info, then Run anyway.</p>
@@ -257,12 +265,12 @@
           <details class="checksums">
             <summary>SHA-256 checksums</summary>
             <dl>
-              <dt>SnowballClient-1.6.3-setup.exe</dt>
-              <dd>6837cdcaae8a653dec23f195df473a11255f94ef4efeffc70ee20a8f265dcd10</dd>
-              <dt>SnowballClient-1.6.3-portable.exe</dt>
-              <dd>35526713f57e5406bdffe8230f38e331aa3eca3d4145ba918202b036262635e9</dd>
-              <dt>SnowballClient-1.6.3-win.zip</dt>
-              <dd>f36522d0792a27ffa33e2513be60e638068e1575b2241df766f1cb9377847bf8</dd>
+              <dt>SnowballClient-1.7.0-setup.exe</dt>
+              <dd>9ab795fa9987a6304c411c1d762f8651e700a10390f8d496e73c1e7c635ca475</dd>
+              <dt>SnowballClient-1.7.0-portable.exe</dt>
+              <dd>83cf570d646f66f2dca31fb6c384e039502a04cfe350777c3de78541e1a7039f</dd>
+              <dt>SnowballClient-1.7.0-win.zip</dt>
+              <dd>61ef1ffaf949f98b60be7f4b2d31780ba8581ad79489b405674da1ef30740748</dd>
             </dl>
           </details>
           <p class="note"><a href="https://github.com/met4a/snowball-website/releases">All releases</a></p>
@@ -307,7 +315,7 @@
           </details>
           <details>
             <summary>Do I have to reinstall it for every update?</summary>
-            <p>No. From 1.4.0 the launcher updates itself: a new version downloads in the background and takes over when you restart, and your instances, mods and settings are untouched. The portable build cannot replace itself, so it tells you when a new file is on the website.</p>
+            <p>No. The launcher updates itself when it starts: if a new version is out it is installed and Snowball restarts into it, waiting if a game is running, and your instances, mods and settings are untouched. One exception: versions 1.6.2 and older had a fault that stopped them updating, so if you are on one of those, download the installer below once - every version after that updates itself. The portable build cannot replace itself, so it tells you when a new file is on the website.</p>
           </details>
           <details>
             <summary>How do I move over from another launcher?</summary>
@@ -315,7 +323,7 @@
           </details>
           <details>
             <summary>How do I know a mod is safe?</summary>
-            <p>The Mods page has a Check mods button. Every jar is read on your computer and reported in plain language: whether it can run programs, read your Discord or browser folders, reach your Minecraft session, or send data to a webhook. Nothing is uploaded anywhere, and the report always shows which file matched so you can judge for yourself.</p>
+            <p>The Mods page has a Check mods button. Mods downloaded from Modrinth are recognised by their fingerprint (a SHA-1 checksum - only that is sent, never the file) and set aside as known releases. Every other jar is read on your computer and reported in plain language: whether it can run programs, read your Discord or browser folders, reach your Minecraft session, or send data to a webhook. The report always shows which file matched so you can judge for yourself.</p>
           </details>
           <details>
             <summary>Will a performance profile install mods I did not ask for?</summary>

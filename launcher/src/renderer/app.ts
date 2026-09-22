@@ -1,4 +1,4 @@
-///[[[[[[[['settings', 'SETTINGS']java', 'Java']admin', 'Admin']chat', 'Chat']browse', 'Browse']mods', 'Mods']instances', 'Instances']home', 'Home']<reference path="../shared/api.d.ts" />
+/// <reference path="../shared/api.d.ts" />
 // Renderer for the Snowball Client launcher. Plain DOM + the preload bridge; no Node access.
 
 (() => {
@@ -44,7 +44,54 @@
     bugs: [] as Snowball.BugReport[],
     adminTab: 'chat' as 'chat' | 'ranks' | 'people' | 'bugs' | 'flags',
     lookup: null as Snowball.RankLookup | null,
+    /** The chosen background picture as a data URL, read once at start-up. */
+    background: null as string | null,
   };
+  /** Redraws the people list where it stands, while the People tab is open. */
+  let repaintPeople: (() => void) | null = null;
+
+  /** Presets, and the hex each one sets. A custom colour is any other value. */
+  const ACCENTS: Array<[string, string]> = [
+    ['Ice', '#7fcbff'],
+    ['Mint', '#6fe3c4'],
+    ['Lime', '#a8e05f'],
+    ['Gold', '#ffd166'],
+    ['Coral', '#ff8a6b'],
+    ['Rose', '#ff8ab5'],
+    ['Violet', '#b57bff'],
+    ['Cobalt', '#6d9dff'],
+  ];
+
+  /** Colour maths, so one chosen colour can fill in every shade the interface needs. */
+  const rgbOf = (hex: string): [number, number, number] => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
+
+  /**
+   * Pushes the appearance settings into CSS custom properties. Everything accented reads from
+   * these, so one colour changes the whole launcher without a stylesheet per theme.
+   */
+  function applyAppearance(settings: Snowball.Settings): void {
+    const a = settings.appearance;
+    document.body.classList.toggle('reduce-motion', a.reduceMotion);
+    document.body.classList.toggle('compact', a.density === 'compact');
+
+    const accent = /^#[0-9a-f]{6}$/i.test(a.accent) ? a.accent : '#7fcbff';
+    const [r, g, b] = rgbOf(accent);
+    const root = document.documentElement.style;
+    root.setProperty('--accent', accent);
+    root.setProperty('--accent-soft', `rgba(${r}, ${g}, ${b}, 0.14)`);
+    root.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, 0.35)`);
+    // The colour a primary button prints its label in: dark on a light accent, light on a dark one.
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    root.setProperty('--on-accent', luminance > 0.6 ? '#05070a' : '#ffffff');
+
+    const backdrop = document.getElementById('backdrop');
+    if (backdrop) {
+      const on = a.background.enabled && Boolean(ui.background);
+      backdrop.style.backgroundImage = on ? `url("${ui.background}")` : '';
+      backdrop.style.opacity = on ? String(a.background.opacity / 100) : '0';
+      backdrop.style.filter = a.background.blur ? `blur(${a.background.blur}px)` : '';
+    }
+  }
 
   // ---------- DOM helpers ----------
   type Child = Node | string | null | undefined | false;
@@ -55,6 +102,10 @@
     for (const [key, value] of Object.entries(props)) {
       if (value === undefined || value === null || value === false) continue;
       if (key === 'class') el.className = String(value);
+      // Through the CSSOM, not setAttribute: the page's CSP (style-src 'self') blocks a style
+      // attribute, and did so silently for every style written here until 1.6.4 - progress bars
+      // never moved and long names never truncated. The CSSOM is not covered by style-src.
+      else if (key === 'style') el.style.cssText = String(value);
       else if (key === 'onClick') el.addEventListener('click', value as EventListener);
       else if (key === 'onInput') el.addEventListener('input', value as EventListener);
       else if (key === 'onChange') el.addEventListener('change', value as EventListener);
@@ -168,6 +219,22 @@
 
   // ---------- formatting ----------
   const LOADER_NAMES: Record<Snowball.LoaderId, string> = { vanilla: 'Vanilla', fabric: 'Fabric', quilt: 'Quilt', forge: 'Forge', neoforge: 'NeoForge' };
+  /** 26.x comes after 1.21.x, which a plain string or number sort gets wrong. */
+  const minecraftOrder = (id: string) => {
+    const [a = 0, b = 0, c = 0] = id.split('.').map((n) => Number.parseInt(n, 10) || 0);
+    return a === 1 ? [0, b, c] : [1, a, b];
+  };
+  const byMinecraftVersion = (x: string, y: string) => {
+    const [p, q] = [minecraftOrder(x), minecraftOrder(y)];
+    return p[0] - q[0] || p[1] - q[1] || p[2] - q[2];
+  };
+  /** Why an instance runs without Snowball Client, naming the versions that do have it. */
+  const clientUnavailable = (loader: Snowball.LoaderId, minecraftVersion: string, works: string) => {
+    const versions = [...new Set(ui.state!.snowballBuilds.flatMap((b) => b.minecraft.split(/,\s*/)).filter(Boolean))].sort(byMinecraftVersion);
+    const list = versions.length > 1 ? `${versions.slice(0, -1).join(', ')} and ${versions[versions.length - 1]}` : versions[0];
+    const where = loader === 'fabric' ? `Minecraft ${minecraftVersion}` : `${LOADER_NAMES[loader]} on Minecraft ${minecraftVersion}`;
+    return `Snowball Client isn't available for ${where} yet${list ? ` - it runs with Fabric on ${list}` : ''}. ${works}`;
+  };
   const fmtMemory = (mb: number) => (mb >= 1024 ? `${(mb / 1024).toFixed(mb % 1024 ? 1 : 0)} GB` : `${mb} MB`);
   const fmtDuration = (ms: number) => {
     const h = Math.floor(ms / 3_600_000);
@@ -197,7 +264,7 @@
   async function refresh(): Promise<void> {
     const state = await api.getState();
     ui.state = state;
-    document.body.classList.toggle('reduce-motion', state.settings.appearance.reduceMotion);
+    applyAppearance(state.settings);
     if (!ui.selectedId || !state.instances.some((i) => i.id === ui.selectedId)) {
       ui.selectedId = state.settings.selectedInstanceId && state.instances.some((i) => i.id === state.settings.selectedInstanceId) ? state.settings.selectedInstanceId : state.instances[0]?.id ?? null;
     }
@@ -307,14 +374,25 @@
     const nav = document.getElementById('nav')!;
     // Admin only appears for an account the Snowball server says may use it.
     const entries = NAV.filter(([view]) => view !== 'admin' || canAdminister());
-    nav.replaceChildren(...entries.map(([view, label]) => h('button', { class: `nav-item${ui.view === view ? ' active' : ''}`, onClick: () => { ui.view = view; render(); } }, icon(view), label)));
+    // An icon rail: the label is the tooltip and the accessible name, so the rail stays narrow
+    // and the page gets the width instead.
+    nav.replaceChildren(...entries.map(([view, label]) => h('button', {
+      class: `nav-item${ui.view === view ? ' active' : ''}`,
+      title: label,
+      'aria-label': label,
+      'aria-current': ui.view === view ? 'page' : undefined,
+      onClick: () => { ui.view = view; render(); },
+    }, icon(view), h('span', { class: 'nav-label' }, label))));
 
     const state = ui.state;
     const account = state?.accounts.find((a) => a.id === state.settings.accounts.selectedAccountId) ?? state?.accounts[0];
     document.getElementById('account-chip')!.replaceChildren(
-      h('button', { class: 'account-chip', onClick: () => { ui.view = 'settings'; render(); } },
-        h('div', { class: 'avatar' }, account ? account.name.slice(0, 1).toUpperCase() : '?'),
-        h('div', { class: 'grow' }, h('div', {}, account ? account.name : 'No account'), h('div', { class: 'muted', style: 'font-size:12px' }, account ? (account.type === 'msa' ? 'Microsoft' : 'Offline') : 'Add one in Settings'))),
+      h('button', {
+        class: 'account-chip',
+        title: account ? `${account.name} \u00b7 ${account.type === 'msa' ? 'Microsoft' : 'Offline'}` : 'No account yet',
+        'aria-label': account ? `Signed in as ${account.name}. Open settings.` : 'No account. Open settings.',
+        onClick: () => { ui.view = 'settings'; render(); } },
+        h('div', { class: 'avatar' }, account ? account.name.slice(0, 1).toUpperCase() : '?')),
     );
 
     const content = document.getElementById('content')!;
@@ -658,7 +736,6 @@
     } else {
       modsValue.textContent = 'None';
     }
-    const stat = (label: string, value: Node | string) => h('div', { class: 'stat' }, h('div', { class: 'stat-label' }, label), typeof value === 'string' ? h('div', { class: 'stat-value' }, value) : value);
 
     const logView = h('div', { class: 'log-view', id: 'home-log' });
     const logTabs = h('div', { class: 'log-tabs' });
@@ -691,31 +768,11 @@
     });
 
     return h('div', { class: 'page-home' },
-      header('HOME', 'Selected instance', picker),
+      welcomeBar(picker),
       inst.error ? h('div', { class: 'issue' }, `This instance could not be loaded: ${inst.error}`) : null,
       h('div', { class: 'home-grid' },
         h('div', { class: 'home-main' },
-          h('div', { class: 'card hero-main' },
-            h('div', { class: 'hero-top' },
-              h('div', { class: 'grow' },
-                h('div', { class: 'hero-name' }, inst.name),
-                h('div', { class: 'hero-tags' },
-                  h('span', { class: 'tag' }, inst.minecraftVersion),
-                  h('span', { class: 'tag' }, inst.loaderName),
-                  inst.snowball.supported ? h('span', { class: 'tag accent' }, `Snowball ${inst.snowball.version}`) : null,
-                  inst.running ? h('span', { class: 'tag running' }, 'Running') : null))),
-            h('div', { class: 'stats' },
-              stat('Minecraft', inst.minecraftVersion),
-              stat('Loader', inst.loader === 'vanilla' ? 'Vanilla' : `${inst.loaderName} ${inst.loaderVersion ?? 'latest'}`),
-              stat('Mods', modsValue),
-              stat('Memory', fmtMemory(inst.memory.maxMb)),
-              stat('Last played', fmtDate(inst.lastPlayed)),
-              stat('Play time', fmtDuration(inst.totalPlayMs))),
-            h('div', { class: 'hero-actions' },
-              playButton(inst, true),
-              h('button', { class: 'btn', onClick: () => editInstanceDialog(inst) }, 'Edit'),
-              verifyButton),
-            progressBar(inst.id)),
+          launchPanel(inst, modsValue, verifyButton),
           h('div', { class: 'card output-card' },
             h('div', { class: 'row log-head' }, h('div', { class: 'section-title' }, 'OUTPUT'), h('div', { class: 'spacer' }), logTabs),
             logView)),
@@ -725,6 +782,61 @@
           quickActions(inst))));
   }
 
+  /**
+   * Who you are and how many people are on, across the top. It replaces the page title on Home
+   * only: everywhere else a heading says what the page is, but here you already know.
+   */
+  function welcomeBar(picker: HTMLElement): HTMLElement {
+    const state = ui.state!;
+    const account = state.accounts.find((a) => a.id === state.settings.accounts.selectedAccountId) ?? state.accounts[0];
+    const rank = ui.chat?.rank;
+    const online = ui.stats?.online ?? ui.chat?.online ?? 0;
+
+    return h('div', { class: 'welcome' },
+      h('div', { class: 'welcome-text' },
+        h('div', { class: 'welcome-hello' },
+          account ? `Welcome back, ${account.name}` : 'Welcome to Snowball',
+          rank && rank !== 'snowball' ? rankChip(rank) : null),
+        h('div', { class: 'welcome-sub' }, account ? 'Pick an instance and press play.' : 'Add a Microsoft account in Settings to get started.')),
+      h('div', { class: 'spacer' }),
+      picker,
+      online
+        ? h('div', { class: 'welcome-online', title: 'People using Snowball right now' },
+            h('span', { class: 'count-dot' }),
+            h('span', {}, `${online.toLocaleString()} online`))
+        : null);
+  }
+
+  /**
+   * The launch. One large panel, because on this page nothing competes with it: the instance it
+   * will start, the button, and while it is working, what it is doing.
+   */
+  function launchPanel(inst: Snowball.Instance, modsValue: HTMLElement, verifyButton: HTMLElement): HTMLElement {
+    const stat = (label: string, value: Node | string) =>
+      h('div', { class: 'stat' }, h('div', { class: 'stat-label' }, label), typeof value === 'string' ? h('div', { class: 'stat-value' }, value) : value);
+
+    return h('div', { class: 'card hero-main launch-panel' },
+      h('div', { class: 'hero-top' },
+        h('div', { class: 'grow' },
+          h('div', { class: 'hero-name' }, inst.name),
+          h('div', { class: 'hero-tags' },
+            h('span', { class: 'tag' }, inst.minecraftVersion),
+            h('span', { class: 'tag' }, inst.loaderName),
+            inst.snowball.supported ? h('span', { class: 'tag accent' }, `SNOWBALL ${inst.snowball.version ?? ''}`) : null,
+            inst.running ? h('span', { class: 'tag running' }, 'RUNNING') : null))),
+      h('div', { class: 'stats' },
+        stat('Minecraft', inst.minecraftVersion),
+        stat('Loader', inst.loader === 'vanilla' ? 'Vanilla' : `${inst.loaderName} ${inst.loaderVersion ?? 'latest'}`),
+        stat('Mods', modsValue),
+        stat('Memory', fmtMemory(inst.memory.maxMb)),
+        stat('Last played', fmtDate(inst.lastPlayed)),
+        stat('Play time', fmtDuration(inst.totalPlayMs))),
+      h('div', { class: 'hero-actions' },
+        playButton(inst, true),
+        h('button', { class: 'btn', onClick: () => editInstanceDialog(inst) }, 'Edit'),
+        verifyButton),
+      progressBar(inst.id));
+  }
   /** What this build of Snowball is, and whether anything newer is waiting. */
   function snowballCard(inst: Snowball.Instance): HTMLElement {
     const update = ui.update;
@@ -906,8 +1018,7 @@
       const report = await api.coreStatus(inst.id).catch(() => null);
       if (!report) return;
       if (!report.supported) {
-        const available = state.snowballBuilds.map((b) => b.minecraft).join(', ');
-        coreEl.replaceChildren(h('div', { class: 'issue warning' }, `Snowball Client isn't available for ${inst.loaderName} ${inst.minecraftVersion} yet${available ? ` (it runs on Fabric ${available})` : ''}. This instance works without it.`));
+        coreEl.replaceChildren(h('div', { class: 'issue warning' }, clientUnavailable(inst.loader, inst.minecraftVersion, 'This instance works without it.')));
         return;
       }
       const healthy = report.problems.length === 0;
@@ -1300,7 +1411,7 @@
       const current = ui.adminTab === id;
       const button = h('button', {
         id: `admin-tab-${id}`,
-        class: `log-tab${current ? ' active' : ''}`,
+        class: `admin-tab${current ? ' active' : ''}`,
         role: 'tab',
         'aria-selected': String(current),
         'aria-controls': 'admin-panel',
@@ -1322,8 +1433,9 @@
       return button;
     };
 
-    const tabStrip = h('div', { class: 'log-tabs', role: 'tablist', 'aria-label': 'Admin sections' }, ...allowed.map(tab));
+    const tabStrip = h('div', { class: 'admin-tabs', role: 'tablist', 'aria-label': 'Admin sections' }, ...allowed.map(tab));
 
+    if (ui.adminTab !== 'people') repaintPeople = null;
     const body =
       ui.adminTab === 'ranks' ? rankManager()
       : ui.adminTab === 'people' ? peopleList()
@@ -1331,9 +1443,22 @@
       : ui.adminTab === 'flags' ? flagList()
       : chatTools();
 
-    return h('div', { class: 'card' },
-      h('div', { class: 'row' }, h('div', { class: 'section-title' }, 'ADMIN'), h('div', { class: 'spacer' }), tabStrip),
-      h('div', { id: 'admin-panel', role: 'tabpanel', 'aria-labelledby': `admin-tab-${ui.adminTab}` }, body));
+    // The tabs sit above the panel they switch, at a size that reads as navigation, and each panel
+    // lays its blocks out in columns on a wide window instead of stretching one across all of it.
+    return h('div', { class: 'admin' },
+      tabStrip,
+      h('div', { id: 'admin-panel', class: 'admin-panel', role: 'tabpanel', 'aria-labelledby': `admin-tab-${ui.adminTab}` }, body));
+  }
+
+  /** A labelled input with its buttons beside it, rather than stranded on the far side of the page. */
+  let fieldIds = 0;
+  function inlineField(label: string, control: HTMLElement, actions: Child[], hint?: string): HTMLElement {
+    const id = control.id || `admin-field-${++fieldIds}`;
+    control.id = id;
+    return h('div', { class: 'admin-field' },
+      h('label', { class: 'admin-field-label', for: id }, label),
+      h('div', { class: 'admin-inline' }, control, ...actions),
+      hint ? h('span', { class: 'admin-field-hint' }, hint) : null);
   }
 
   /** Announcements, muting and clearing chat. */
@@ -1346,9 +1471,9 @@
       else say(line, result.reason ?? 'That did not work.', 'bad');
     };
 
-    const announcement = h('input', { class: 'input', maxlength: '300', value: ui.chat?.announcement ?? '' }) as HTMLInputElement;
+    const announcement = h('input', { class: 'input', maxlength: '300', value: ui.chat?.announcement ?? '', placeholder: 'Nothing is being announced' }) as HTMLInputElement;
     const muteName = h('input', { class: 'input', placeholder: 'Minecraft name or account id' }) as HTMLInputElement;
-    const muteMinutes = h('input', { class: 'input', type: 'number', min: '1', max: '1440', value: '10', style: 'max-width:120px' }) as HTMLInputElement;
+    const muteMinutes = h('input', { class: 'input admin-minutes', type: 'number', min: '1', max: '1440', value: '10', 'aria-label': 'Minutes' }) as HTMLInputElement;
 
     /** Accepts a name as well as an id, because nobody reads ids off the people list by hand. */
     const muteTarget = async (): Promise<string | null> => {
@@ -1361,25 +1486,31 @@
       return null;
     };
 
-    const rows: Child[] = [];
+    const post = () => void run(() => api.announce(announcement.value), 'Announcement posted.');
+    announcement.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter') { e.preventDefault(); post(); }
+    });
+    const rows: Child[] = [line];
     if (can('chat.announce')) {
       rows.push(h('div', { class: 'admin-block' },
-        field('Announcement', announcement, 'Shown to everyone in the launcher, whether or not they have joined chat.'),
-        h('div', { class: 'row' },
-          h('button', { class: 'btn small primary', onClick: () => void run(() => api.announce(announcement.value), 'Announcement posted.') }, 'Post'),
-          h('button', { class: 'btn small', onClick: () => { announcement.value = ''; void run(() => api.announce(null), 'Announcement cleared.'); } }, 'Take it down'))));
+        inlineField('Announcement', announcement, [
+          h('button', { class: 'btn small primary', onClick: post }, 'Post'),
+          h('button', { class: 'btn small', onClick: () => { announcement.value = ''; void run(() => api.announce(null), 'Announcement cleared.'); } }, 'Take it down'),
+        ], 'Shown to everyone in the launcher, whether or not they have joined chat. Enter posts it.')));
     }
     if (can('chat.moderate')) {
       rows.push(h('div', { class: 'admin-block' },
-        field('Mute somebody', muteName, 'A Minecraft name from the People tab, or an account id.'),
+        inlineField('Mute somebody', muteName, [
+          h('span', { class: 'admin-for' }, 'for'),
+          muteMinutes,
+          h('span', { class: 'admin-for' }, 'min'),
+        ], 'A Minecraft name from the People tab, or an account id.'),
         h('div', { class: 'row' },
-          field('For how long', muteMinutes, 'Minutes'),
-          h('div', { class: 'spacer' }),
-          h('button', { class: 'btn small', onClick: async () => { const id = await muteTarget(); if (id) void run(() => api.moderateChat('mute', id, Number(muteMinutes.value)), `Muted for ${muteMinutes.value} minutes.`); } }, 'Mute'),
+          h('button', { class: 'btn small primary', onClick: async () => { const id = await muteTarget(); if (id) void run(() => api.moderateChat('mute', id, Number(muteMinutes.value)), `Muted for ${muteMinutes.value} minutes.`); } }, 'Mute'),
           h('button', { class: 'btn small', onClick: async () => { const id = await muteTarget(); if (id) void run(() => api.moderateChat('unmute', id), 'Unmuted.'); } }, 'Unmute'))));
 
       rows.push(h('div', { class: 'admin-block danger-block' },
-        h('div', { class: 'row' },
+        h('div', { class: 'row admin-danger-row' },
           h('div', { class: 'grow' },
             h('div', {}, 'Clear the chat for everyone'),
             h('div', { class: 'muted', style: 'font-size:12px' }, 'Wipes every recent message the server keeps. It cannot be undone.')),
@@ -1393,7 +1524,7 @@
           }, 'Clear chat'))));
     }
 
-    return h('div', { class: 'admin-body' }, ...rows, line);
+    return h('div', { class: 'admin-body' }, ...rows);
   }
   /**
    * Look a player up by their Minecraft name, see the rank they hold and who gave it, and change
@@ -1463,12 +1594,13 @@
       }
     }
 
+    search.placeholder = 'Minecraft name';
     return h('div', { class: 'admin-body' },
-      h('div', { class: 'admin-block' },
-        field('Find a player', search, 'Their Minecraft name. Press Enter to search.'),
-        h('div', { class: 'row' }, findButton)),
       line,
-      ...result);
+      h('div', { class: 'admin-block' },
+        inlineField('Find a player', search, [findButton], 'Their Minecraft name. Enter searches too.')),
+      // Beside the search on a wide window, under it on a narrow one.
+      result.length ? h('div', { class: 'admin-block' }, ...result) : null);
   }
   async function applyRank(uuid: string, rank: string, line?: HTMLElement): Promise<void> {
     const result = await guard(() => api.setRank(uuid, rank));
@@ -1525,13 +1657,17 @@
     };
     filter.addEventListener('input', paint);
     paint();
+    repaintPeople = () => {
+      if (list.isConnected) paint();
+      else repaintPeople = null;
+    };
 
-    return h('div', { class: 'admin-body' },
-      h('div', { class: 'admin-block' },
+    return h('div', { class: 'admin-body admin-wide' },
+      h('div', { class: 'admin-block admin-narrow' },
         field('Filter', filter),
         count),
       line,
-      list);
+      h('div', { class: 'admin-people' }, list));
   }
   /**
    * Bug reports. Each one is a disclosure rather than a wall: the title and state are always
@@ -1589,7 +1725,7 @@
         detail);
     });
 
-    return h('div', { class: 'admin-body' }, summary, line, h('div', { class: 'list' }, ...rows));
+    return h('div', { class: 'admin-body admin-wide' }, summary, line, h('div', { class: 'admin-cards admin-cards-wide' }, ...rows));
   }
   /**
    * Feature switches. Each one uses the same toggle as the rest of the launcher, so its state
@@ -1619,14 +1755,14 @@
         }));
     };
 
-    return h('div', { class: 'admin-body' },
+    return h('div', { class: 'admin-body admin-wide' },
       line,
-      h('div', { class: 'list' },
+      // Cards in columns keep each switch next to its name; a full-width row put them a screen apart.
+      h('div', { class: 'admin-cards' },
         ...known.map(([key, label]) => row(key, label)),
         ...Object.keys(flags).filter((key) => !known.some(([k]) => k === key)).map((key) => row(key, key))),
-      h('div', { class: 'admin-block', style: 'margin-top:16px' },
-        field('Add a switch', custom, 'For a feature that is not listed yet. It starts turned on.'),
-        h('div', { class: 'row' },
+      h('div', { class: 'admin-block admin-narrow' },
+        inlineField('Add a switch', custom, [
           h('button', {
             class: 'btn small',
             onClick: async () => {
@@ -1636,7 +1772,8 @@
               if (r?.ok) { say(line, `${key} added and turned on.`); custom.value = ''; }
               else if (r) say(line, r.reason ?? 'That did not work.', 'bad');
             },
-          }, 'Add'))));
+          }, 'Add'),
+        ], 'For a feature that is not listed yet. It starts turned on.')));
   }
   function paintChat(view: HTMLElement): void {
     if (!ui.chatMessages.length) {
@@ -1695,6 +1832,109 @@
   }
 
   /** Everything about keeping the launcher itself current, in one place. */
+  /**
+   * Colour, density and a picture behind the launcher. Everything here applies the moment it
+   * changes: nothing to save, and no restart.
+   */
+  function appearanceCard(s: Snowball.Settings, update: (patch: Partial<Snowball.Settings>) => Promise<void>): HTMLElement {
+    const set = (patch: Partial<Snowball.Settings['appearance']>) => {
+      const next = { ...s.appearance, ...patch };
+      // Paint first, save second: the change should feel instant even on a slow disk.
+      applyAppearance({ ...s, appearance: next });
+      void update({ appearance: next });
+    };
+
+    const swatches = h('div', { class: 'swatches', role: 'radiogroup', 'aria-label': 'Accent colour' },
+      ...ACCENTS.map(([name, hex]) => {
+        const chosen = s.appearance.accent.toLowerCase() === hex;
+        const dot = h('button', {
+          class: `swatch${chosen ? ' chosen' : ''}`,
+          role: 'radio',
+          'aria-checked': String(chosen),
+          title: name,
+          'aria-label': name,
+          onClick: () => { set({ accent: hex }); render(); },
+        });
+        dot.style.setProperty('--swatch', hex);
+        return dot;
+      }));
+
+    const custom = h('input', { type: 'color', class: 'swatch-custom', value: s.appearance.accent, 'aria-label': 'Custom accent colour' }) as HTMLInputElement;
+    custom.addEventListener('input', () => set({ accent: custom.value.toLowerCase() }));
+    custom.addEventListener('change', () => render());
+
+    const slider = (label: string, value: number, min: number, max: number, unit: string, onChange: (v: number) => void) => {
+      const out = h('span', { class: 'slider-value' }, `${value}${unit}`);
+      const input = h('input', { type: 'range', min: String(min), max: String(max), value: String(value), 'aria-label': label }) as HTMLInputElement;
+      input.addEventListener('input', () => {
+        out.textContent = `${input.value}${unit}`;
+        onChange(Number(input.value));
+      });
+      return h('div', { class: 'list-row' },
+        h('div', { class: 'grow' }, h('div', {}, label), input),
+        out);
+    };
+
+    const rows: Child[] = [
+      h('div', { class: 'list-row' },
+        h('div', { class: 'grow' },
+          h('div', {}, 'Accent colour'),
+          h('div', { class: 'muted', style: 'font-size:13px' }, 'Used by every highlight, button and badge in the launcher.')),
+        swatches,
+        custom),
+      h('div', { class: 'list-row' },
+        h('div', { class: 'grow' },
+          h('div', {}, 'Compact spacing'),
+          h('div', { class: 'muted', style: 'font-size:13px' }, 'Tightens everything up, so more fits on a small screen.')),
+        toggle(s.appearance.density === 'compact', (v) => { set({ density: v ? 'compact' : 'cosy' }); render(); })),
+      h('div', { class: 'list-row' },
+        h('div', { class: 'grow' },
+          h('div', {}, 'Background picture'),
+          h('div', { class: 'muted', style: 'font-size:13px' }, ui.background ? 'A picture of your own, behind the launcher.' : 'Choose a PNG, JPG or WEBP to sit behind the launcher.')),
+        ui.background
+          ? toggle(s.appearance.background.enabled, (v) => { set({ background: { ...s.appearance.background, enabled: v } }); render(); })
+          : null,
+        h('button', { class: 'btn small', onClick: () => void chooseBackground() }, ui.background ? 'Change' : 'Choose'),
+        ui.background
+          ? h('button', { class: 'btn small ghost', onClick: () => void removeBackground() }, 'Remove')
+          : null),
+    ];
+
+    if (ui.background && s.appearance.background.enabled) {
+      rows.push(slider('How strong', s.appearance.background.opacity, 0, 100, '%', (v) => set({ background: { ...s.appearance.background, opacity: v } })));
+      rows.push(slider('Blur', s.appearance.background.blur, 0, 40, 'px', (v) => set({ background: { ...s.appearance.background, blur: v } })));
+    }
+
+    return h('div', { class: 'card' }, h('div', { class: 'list' }, ...rows));
+  }
+
+  async function chooseBackground(): Promise<void> {
+    const result = await guard(() => api.pickBackground());
+    if (!result) return;
+    if (result.reason) { toast(result.reason, 'error'); return; }
+    if (!result.ok || !result.dataUrl) return;
+    ui.background = result.dataUrl;
+    const settings = ui.state?.settings;
+    if (settings) {
+      const appearance = { ...settings.appearance, background: { ...settings.appearance.background, enabled: true } };
+      applyAppearance({ ...settings, appearance });
+      await guard(() => api.updateSettings({ appearance }));
+    }
+    render();
+  }
+
+  async function removeBackground(): Promise<void> {
+    await guard(() => api.clearBackground());
+    ui.background = null;
+    const settings = ui.state?.settings;
+    if (settings) {
+      const appearance = { ...settings.appearance, background: { ...settings.appearance.background, enabled: false } };
+      applyAppearance({ ...settings, appearance });
+      await guard(() => api.updateSettings({ appearance }));
+    }
+    render();
+  }
+
   function updatesCard(s: Snowball.Settings, update: (patch: Partial<Snowball.Settings>) => Promise<void>): HTMLElement {
     const state = ui.update;
     const line = (): string => {
@@ -1788,39 +2028,96 @@
     }).catch((err) => list.replaceChildren(h('div', { class: 'muted' }, errorMessage(err))));
   }
 
-  /** Snowball's own mod check: reads each jar on this computer and reports what it can do. */
+  /**
+   * Snowball's own mod check. Known releases are recognised by fingerprint and set aside, so what
+   * is left on screen is only what was actually read here - and what, if anything, is worth a look.
+   */
   function scanDialog(instanceId: string): void {
-    const body = h('div', {});
-    const list = h('div', { class: 'list' }, h('div', { class: 'muted' }, 'Reading every mod in this instance...'));
-    const summary = h('p', { class: 'muted' }, 'Nothing is uploaded: each jar is read here and compared with what stealers and loaders do.');
-    body.append(summary, list);
+    const VERDICT_LABELS: Record<Snowball.ScanVerdict, string> = { dangerous: 'Check first', suspicious: 'Worth a look', watch: 'Worth knowing', clean: 'Looks fine', known: 'Known' };
+    const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+    const body = h('div', { class: 'scan' });
+    const summary = h('p', { class: 'scan-summary' }, 'Checking every mod in this instance...');
+    const content = h('div', { class: 'stack' });
+    const note = h('p', { class: 'muted scan-note' });
+    body.append(summary, content, note);
     modal('MOD CHECK', body, [{ label: 'Close', kind: 'ghost', onClick: (c) => c() }]);
 
-    void api.scanMods(instanceId).then((results) => {
+    const toggle = (label: string, panel: HTMLElement) => {
+      const button = h('button', { class: 'btn small', 'aria-expanded': 'false' }, label) as HTMLButtonElement;
+      button.addEventListener('click', () => {
+        panel.hidden = !panel.hidden;
+        button.setAttribute('aria-expanded', String(!panel.hidden));
+        button.textContent = panel.hidden ? label : 'Hide';
+      });
+      return button;
+    };
+
+    const readRow = (r: Snowball.ScanResult) => {
+      const findings = h('div', { class: 'scan-findings' },
+        ...r.findings.map((f) =>
+          h('div', { class: 'scan-finding' },
+            h('div', { class: 'scan-finding-title' }, f.title),
+            h('div', { class: 'muted' }, f.detail),
+            h('code', { class: 'scan-where' }, f.where))),
+        r.verdict === 'dangerous' || r.verdict === 'suspicious'
+          ? h('div', { class: 'scan-advice' }, 'Not sure where this file came from? Turn it off on the Mods page until you are. Mods from Modrinth are recognised automatically, so a well-known mod showing up here usually means it came from somewhere else.')
+          : null);
+      findings.hidden = true;
+      const detail = r.error ? `Could not be read: ${r.error}` : r.findings.length ? plural(r.findings.length, 'thing') + ' to know' : 'Nothing unusual inside';
+      return h('div', { class: 'scan-item' },
+        h('div', { class: 'list-row scan-row' },
+          h('span', { class: `verdict ${r.verdict}` }, VERDICT_LABELS[r.verdict]),
+          h('div', { class: 'grow' }, h('div', { class: 'truncate', title: r.fileName }, r.fileName), h('div', { class: 'muted scan-sub' }, detail)),
+          r.findings.length ? toggle('Details', findings) : null),
+        findings);
+    };
+
+    void api.scanMods(instanceId).then(({ results, recognised }) => {
       if (!results.length) {
-        list.replaceChildren(h('div', { class: 'muted' }, 'This instance has no mods to check.'));
+        summary.textContent = 'This instance has no mods to check.';
         return;
       }
-      const bad = results.filter((r) => r.verdict === 'dangerous' || r.verdict === 'suspicious').length;
-      summary.textContent = bad
-        ? `${bad} of ${results.length} mods do things worth a second look. Nothing was uploaded; everything was checked here.`
-        : `All ${results.length} mods look ordinary. Nothing was uploaded; everything was checked here.`;
-      list.replaceChildren(...results.map((r) => {
-        const findings = h('div', { class: 'scan-findings' }, ...r.findings.map((f) =>
-          h('div', { class: 'scan-finding' },
-            h('div', {}, f.title),
-            h('div', { class: 'muted', style: 'font-size:12px' }, f.detail),
-            h('div', { class: 'muted', style: 'font-size:11px' }, f.where))));
-        findings.hidden = true;
-        const row = h('div', { class: 'list-row scan-row' },
-          h('span', { class: `verdict ${r.verdict}` }, r.verdict.toUpperCase()),
-          h('div', { class: 'grow' },
-            h('div', {}, r.fileName),
-            h('div', { class: 'muted', style: 'font-size:12px' }, r.error ? r.error : r.findings.length ? `${r.findings.length} thing${r.findings.length === 1 ? '' : 's'} found` : 'Nothing unusual')),
-          r.findings.length ? h('button', { class: 'btn small', onClick: () => { findings.hidden = !findings.hidden; } }, 'Details') : null);
-        return h('div', {}, row, findings);
-      }));
-    }).catch((err) => list.replaceChildren(h('div', { class: 'muted' }, errorMessage(err))));
+      const known = results.filter((r) => r.verdict === 'known');
+      const look = results.filter((r) => r.verdict === 'dangerous' || r.verdict === 'suspicious' || r.verdict === 'watch');
+      const fine = results.filter((r) => r.verdict === 'clean');
+
+      const parts = [
+        known.length ? `${plural(known.length, 'known mod')}` : '',
+        fine.length ? `${fine.length} that look${fine.length === 1 ? 's' : ''} fine` : '',
+        look.length ? `${look.length} worth a look` : '',
+      ].filter(Boolean);
+      summary.textContent = `Checked ${plural(results.length, 'mod')}: ${parts.join(', ')}.${look.length ? '' : ' Nothing needs your attention.'}`;
+
+      const sections: Node[] = [];
+      if (look.length) sections.push(h('div', {}, h('div', { class: 'section-title' }, 'WORTH A LOOK'), h('div', { class: 'list' }, ...look.map(readRow))));
+      if (fine.length) sections.push(h('div', {}, h('div', { class: 'section-title' }, 'READ ON THIS COMPUTER'), h('div', { class: 'list' }, ...fine.map(readRow))));
+      if (known.length) {
+        const names = h('div', { class: 'scan-known-list' },
+          ...known
+            .slice()
+            .sort((a, b) => (a.known?.project ?? a.fileName).localeCompare(b.known?.project ?? b.fileName))
+            .map((r) => h('div', { class: 'scan-known' },
+              h('span', { class: 'truncate' }, r.known?.project ?? r.fileName),
+              h('span', { class: 'muted truncate' }, r.known?.version ?? ''))));
+        names.hidden = true;
+        sections.push(h('div', {},
+          h('div', { class: 'section-title' }, 'KNOWN MODS'),
+          h('div', { class: 'list-row scan-row' },
+            h('span', { class: 'verdict known' }, VERDICT_LABELS.known),
+            h('div', { class: 'grow' },
+              h('div', {}, `${plural(known.length, 'mod')} exactly as published`),
+              h('div', { class: 'muted scan-sub' }, 'Same file, byte for byte, as the release on Modrinth, so there is nothing to check.')),
+            toggle('Show', names)),
+          names));
+      }
+      content.replaceChildren(...sections);
+      note.textContent = recognised
+        ? 'Known mods are recognised by fingerprint: only that was sent to Modrinth. Every other file was read on this computer and nothing was uploaded.'
+        : 'Modrinth could not be reached, so no mod could be recognised as a known release this time. Every file was read on this computer instead.';
+    }).catch((err) => {
+      summary.textContent = 'The check could not finish.';
+      content.replaceChildren(h('div', { class: 'muted' }, errorMessage(err)));
+    });
   }
 
   function settingsView(): Node {
@@ -1851,6 +2148,8 @@
           h('button', { class: 'btn', disabled: !state.canAddOffline, title: state.canAddOffline ? '' : 'Requires a Microsoft account first', onClick: () => offlineDialog() }, 'Add offline profile'))),
       updatesCard(s, update),
       h('div', { class: 'card' },
+        h('div', { class: 'section-title' }, 'APPEARANCE'),
+        appearanceCard(s, update),
         h('div', { class: 'section-title' }, 'LAUNCHER'),
         h('div', { class: 'list' },
           settingRow('Reduce motion', 'Turn off interface animations.', toggle(s.appearance.reduceMotion, (v) => void update({ appearance: { ...s.appearance, reduceMotion: v } }))),
@@ -1919,10 +2218,9 @@
       const check = ++supportCheck;
       void api.snowballSupport(version.value, loader.value as Snowball.LoaderId).then((s) => {
         if (check !== supportCheck) return;
-        const available = state.snowballBuilds.map((b) => b.minecraft).join(', ');
         clientNote.textContent = s.supported
           ? `Snowball Client ${s.version} and ${s.fabricApi} are set up automatically.`
-          : `Snowball Client isn't available for ${LOADER_NAMES[loader.value as Snowball.LoaderId]} ${version.value} yet${available ? ` (it runs on Fabric ${available})` : ''}. The instance works without it.`;
+          : clientUnavailable(loader.value as Snowball.LoaderId, version.value, 'The instance works without it.');
         if (!s.performanceProfiles) {
           profile.disabled = true;
           profile.value = 'none';
@@ -2155,28 +2453,37 @@
     if (ui.launcherLogs.length > 500) ui.launcherLogs.shift();
   });
   api.on('state', () => void refresh());
+  // Admin moved from the chat page to its own; these used to redraw only 'chat', so the people
+  // list, bug reports and lookups arrived and were never shown.
+  const whatAdminShows = (s: Snowball.ChatState | null) => JSON.stringify([s?.status, s?.rank, s?.permissions, s?.flags]);
   api.on('chat-state', (state: Snowball.ChatState) => {
-    const wasAnnouncement = ui.chat?.announcement ?? null;
+    const was = ui.chat;
     ui.chat = state;
-    if (ui.view === 'chat' || wasAnnouncement !== state.announcement) render();
+    // The admin page has half-typed fields, so it is only redrawn when what it offers changed -
+    // not every time somebody joins and the online count moves.
+    const adminChanged = ui.view === 'admin' && whatAdminShows(was) !== whatAdminShows(state);
+    if (ui.view === 'chat' || adminChanged || (was?.announcement ?? null) !== state.announcement) render();
   });
   api.on('chat-lookup', (result: Snowball.RankLookup) => {
     ui.lookup = result;
-    if (ui.view === 'chat') render();
+    if (ui.view === 'admin' && ui.adminTab === 'ranks') render();
   });
   api.on('chat-rank-set', (result: { uuid: string; rank: string; history: Snowball.RankLookup['history'] }) => {
     if (ui.lookup?.uuid === result.uuid) {
       ui.lookup = { ...ui.lookup, rank: result.rank, history: result.history };
-      if (ui.view === 'chat') render();
+      if (ui.view === 'admin' && ui.adminTab === 'ranks') render();
     }
   });
   api.on('chat-people', (people: Snowball.SnowballPerson[]) => {
     ui.people = people;
-    if (ui.view === 'chat' && ui.adminTab === 'people') render();
+    if (ui.view !== 'admin' || ui.adminTab !== 'people') return;
+    // Repainted in place, so a name typed into the filter survives a refresh.
+    if (repaintPeople) repaintPeople();
+    else render();
   });
   api.on('chat-bugs', (bugs: Snowball.BugReport[]) => {
     ui.bugs = bugs;
-    if (ui.view === 'chat' && ui.adminTab === 'bugs') render();
+    if (ui.view === 'admin' && ui.adminTab === 'bugs') render();
   });
   api.on('chat-history', (messages: Snowball.ChatMessage[]) => {
     ui.chatMessages = messages.slice(-200);
@@ -2206,6 +2513,10 @@
     ui.chat = state;
     if (state.configured) render();
   }).catch(() => {});
+  void api.getBackground().then((dataUrl) => {
+    ui.background = dataUrl;
+    if (ui.state) applyAppearance(ui.state.settings);
+  }).catch(() => undefined);
   void api.appVersion().then((version) => {
     ui.version = version;
     const label = document.getElementById('app-version');

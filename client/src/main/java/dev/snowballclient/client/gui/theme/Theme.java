@@ -41,6 +41,15 @@ public final class Theme {
 		return highContrast ? 0xFFFFE14D : accentColor;
 	}
 
+	/**
+	 * Sets the menu colour. Borders and hover tints are a pale version of it rather than a colour
+	 * of their own, so a red menu does not keep ice-blue edges.
+	 */
+	public void setAccent(int argb) {
+		accentColor = argb | 0xFF000000;
+		highlightColor = lerpColor(accentColor, 0xFFFFFFFF, 0.75f);
+	}
+
 	public int highlight() {
 		return highContrast ? 0xFFFFFFFF : highlightColor;
 	}

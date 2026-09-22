@@ -7,12 +7,33 @@ import java.util.Locale;
 
 /** ARGB colour persisted as "#AARRGGBB". */
 public final class ColorSetting extends Setting<Integer> {
+	/** Bright colours that read well as a highlight; the same eight the launcher offers, then neutrals. */
+	public static final int[] BRIGHT = {0xFF7FCBFF, 0xFF6FE3C4, 0xFFA8E05F, 0xFFFFD166, 0xFFFF8A6B, 0xFFFF8AB5,
+			0xFFB57BFF, 0xFF6D9DFF, 0xFFFFFFFF, 0xFFBDBDBD, 0xFF6B6B6B, 0xFF000000};
+
+	private int[] presets = BRIGHT;
+
 	public ColorSetting(String id, String name, String description, int defaultArgb) {
 		super(id, name, description, defaultArgb);
 	}
 
 	public int argb() {
 		return get();
+	}
+
+	/** Swatches the colour picker offers first. */
+	public ColorSetting presets(int... argb) {
+		if (argb.length > 0) presets = argb.clone();
+		return this;
+	}
+
+	public int[] presets() {
+		return presets.clone();
+	}
+
+	/** Whether see-through matters for this colour; judged by its default, which is opaque when it does not. */
+	public boolean hasOpacity() {
+		return (defaultValue() >>> 24) != 0xFF;
 	}
 
 	public static String format(int argb) {

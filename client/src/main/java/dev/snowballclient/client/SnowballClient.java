@@ -83,6 +83,11 @@ public final class SnowballClient implements ClientModInitializer {
 	 * How ranks appear in the player list: "badge_tag", "badge", "tag", or "off" for nothing at all.
 	 * The mixin reads this rather than deciding for itself, so the shape stays one setting.
 	 */
+	/** Whether a Snowball badge is drawn on the name above a player's head. */
+	public static boolean nameTagBadges() {
+		return ModuleRegistry.INTERFACE == null || ModuleRegistry.INTERFACE.nameTagBadges.get();
+	}
+
 	public static String tabFormat() {
 		if (ModuleRegistry.INTERFACE == null) return "badge_tag";
 		String format = ModuleRegistry.INTERFACE.tabRanks.get();
@@ -223,10 +228,20 @@ public final class SnowballClient implements ClientModInitializer {
 		if (inWorld && !wasInWorld) {
 			showMenuHint(mc);
 			if (mc.getUser() != null) SnowballPlayers.setSelf(mc.getUser().getProfileId());
+			// Who is on Snowball is asked of the backend, so other people wear their badge too.
+			dev.snowballclient.client.social.RankLookup.reset();
+			dev.snowballclient.client.social.RankLookup.start(() -> {
+				if (mc.getConnection() == null) return java.util.List.of();
+				return mc.getConnection().getOnlinePlayers().stream()
+						.map(p -> p.getProfile().id())
+						.filter(java.util.Objects::nonNull)
+						.toList();
+			});
 		}
 		if (!inWorld && wasInWorld) {
 			ModuleRegistry.COMBAT.reset();
 			SnowballPlayers.forgetOthers();
+			dev.snowballclient.client.social.RankLookup.stop();
 			saveIfDirty();
 		}
 		wasInWorld = inWorld;

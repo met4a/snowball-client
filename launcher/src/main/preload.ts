@@ -63,6 +63,9 @@ const api = {
   releaseNotes: invoke('app:release-notes'),
   copyLogs: invoke('logs:copy'),
   openLogFolder: () => ipcRenderer.invoke('app:open-folder', 'logs'),
+  pickBackground: invoke('appearance:pick-background'),
+  getBackground: invoke('appearance:background'),
+  clearBackground: invoke('appearance:clear-background'),
   on(event: string, listener: (payload: unknown) => void): () => void {
     if (!EVENTS.has(event)) throw new Error(`Unknown event ${event}`);
     const wrapped = (_e: unknown, payload: unknown) => listener(payload);

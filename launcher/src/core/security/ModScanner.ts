@@ -6,7 +6,28 @@ import { ZipReader, type ZipEntry } from '../util/zip.js';
 
 const log = getLogger('scanner');
 
-export type Verdict = 'clean' | 'watch' | 'suspicious' | 'dangerous';
+/** 'known' is a file recognised as a published release, byte for byte; the rest come from reading it. */
+export type Verdict = 'known' | 'clean' | 'watch' | 'suspicious' | 'dangerous';
+
+/** Where a known file was published, and as what. */
+export interface KnownMod {
+  source: 'Modrinth' | 'Snowball';
+  project: string;
+  version: string;
+}
+
+export interface ScanOptions {
+  /** SHA-1s of files the launcher put there itself and verified. */
+  trusted?: ReadonlySet<string>;
+  /** Looks fingerprints up somewhere that can vouch for them. Called once, with every file's SHA-1. */
+  recognise?: (sha1s: string[]) => Promise<ReadonlyMap<string, KnownMod>>;
+}
+
+export interface ScanReport {
+  results: ScanResult[];
+  /** False when the lookup could not be made, so nothing could be recognised this time. */
+  recognised: boolean;
+}
 
 export interface ScanFinding {
   /** Short name of what was found, e.g. "Runs programs on your computer". */
@@ -28,6 +49,8 @@ export interface ScanResult {
   /** Mod id and name from the jar's own metadata, when it has any. */
   modId: string | null;
   scannedAt: string;
+  /** Set when the file is a published release, unchanged. */
+  known?: KnownMod;
   error?: string;
 }
 
@@ -66,19 +89,25 @@ const DANGEROUS = 70;
 const SUSPICIOUS = 40;
 const WATCH = 20;
 
-/** Scans one jar. Nothing leaves this computer: the file is only read and compared with the rules above. */
-export async function scanJar(path: string, trusted: ReadonlySet<string> = new Set()): Promise<ScanResult> {
+/**
+ * Scans one jar: the file is read here and compared with the rules above. A file in `known` is a
+ * published release, unchanged, and is reported as that rather than read - the rules are about
+ * what a file can do, and for a known release that question has already been answered.
+ */
+export async function scanJar(path: string, trusted: ReadonlySet<string> = new Set(), known: ReadonlyMap<string, KnownMod> = new Map(), sha1Hint?: string): Promise<ScanResult> {
   const fileName = basename(path);
   const scannedAt = new Date().toISOString();
   let sizeBytes = 0;
   let sha1 = '';
   try {
     sizeBytes = (await stat(path)).size;
-    sha1 = await sha1File(path);
+    sha1 = sha1Hint ?? (await sha1File(path));
     if (trusted.has(sha1)) {
       // A file the launcher put there itself and verified: it is what it says it is.
-      return { fileName, sha1, sizeBytes, verdict: 'clean', score: 0, findings: [], modId: 'snowballclient', scannedAt };
+      return { fileName, sha1, sizeBytes, verdict: 'known', score: 0, findings: [], modId: 'snowballclient', scannedAt, known: { source: 'Snowball', project: 'Snowball Client', version: '' } };
     }
+    const release = known.get(sha1);
+    if (release) return { fileName, sha1, sizeBytes, verdict: 'known', score: 0, findings: [], modId: null, scannedAt, known: release };
     const zip = await ZipReader.open(path);
     const findings = scanEntries(zip);
     const modId = readModId(zip);
@@ -155,12 +184,33 @@ function safeParse(text: string): Record<string, any> | null {
   }
 }
 
-/** Convenience for a whole folder: every jar, newest result first. */
-export async function scanJars(paths: string[], trusted: ReadonlySet<string> = new Set()): Promise<ScanResult[]> {
+/**
+ * A whole folder: every jar, the ones worth a look first. Fingerprints are looked up once for the
+ * lot; if that fails (offline, say) every file is simply read instead, and the report says so.
+ */
+export async function scanJars(paths: string[], options: ScanOptions = {}): Promise<ScanReport> {
+  const hashes = new Map<string, string>();
+  for (const path of paths) {
+    try {
+      hashes.set(path, await sha1File(path));
+    } catch {
+      // scanJar reports the file it cannot read.
+    }
+  }
+  let known: ReadonlyMap<string, KnownMod> = new Map();
+  let recognised = !options.recognise;
+  if (options.recognise && hashes.size) {
+    try {
+      known = await options.recognise([...new Set(hashes.values())]);
+      recognised = true;
+    } catch (err) {
+      log.info('Could not look up mod fingerprints; every mod is read instead', { error: String(err) });
+    }
+  }
   const results: ScanResult[] = [];
-  for (const path of paths) results.push(await scanJar(path, trusted));
-  const order: Record<Verdict, number> = { dangerous: 0, suspicious: 1, watch: 2, clean: 3 };
-  return results.sort((a, b) => order[a.verdict] - order[b.verdict] || b.score - a.score);
+  for (const path of paths) results.push(await scanJar(path, options.trusted, known, hashes.get(path)));
+  const order: Record<Verdict, number> = { dangerous: 0, suspicious: 1, watch: 2, clean: 3, known: 4 };
+  return { results: results.sort((a, b) => order[a.verdict] - order[b.verdict] || b.score - a.score || a.fileName.localeCompare(b.fileName)), recognised };
 }
 
 export type { ZipEntry };

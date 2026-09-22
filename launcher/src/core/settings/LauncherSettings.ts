@@ -5,7 +5,15 @@ const log = getLogger('settings');
 
 export interface LauncherSettings {
   schemaVersion: 1;
-  appearance: { reduceMotion: boolean; accent: 'ice' | 'white' };
+  appearance: {
+    reduceMotion: boolean;
+    /** The interface colour, as #rrggbb. Everything accented follows it. */
+    accent: string;
+    /** 'compact' tightens the spacing throughout, for smaller screens. */
+    density: 'cosy' | 'compact';
+    /** A picture behind the launcher. The file itself lives in the data folder. */
+    background: { enabled: boolean; opacity: number; blur: number };
+  };
   downloads: { concurrency: number; retries: number };
   java: { autoDownloadRuntime: boolean; defaultMaxMemoryMb: number | null };
   game: { closeLauncherOnLaunch: boolean; showLogsOnLaunch: boolean };
@@ -22,7 +30,12 @@ export interface LauncherSettings {
 export function defaultSettings(): LauncherSettings {
   return {
     schemaVersion: 1,
-    appearance: { reduceMotion: false, accent: 'ice' },
+    appearance: {
+      reduceMotion: false,
+      accent: '#7fcbff',
+      density: 'cosy',
+      background: { enabled: false, opacity: 35, blur: 0 },
+    },
     downloads: { concurrency: 8, retries: 3 },
     java: { autoDownloadRuntime: true, defaultMaxMemoryMb: null },
     game: { closeLauncherOnLaunch: false, showLogsOnLaunch: false },
@@ -44,7 +57,17 @@ export function normalizeSettings(raw: unknown): LauncherSettings {
   const r = raw as Record<string, any>;
   return {
     schemaVersion: 1,
-    appearance: { reduceMotion: bool(r.appearance?.reduceMotion, d.appearance.reduceMotion), accent: r.appearance?.accent === 'white' ? 'white' : 'ice' },
+    appearance: {
+      reduceMotion: bool(r.appearance?.reduceMotion, d.appearance.reduceMotion),
+      // Anything that is not a colour falls back, so a hand-edited file cannot inject CSS.
+      accent: /^#[0-9a-fA-F]{6}$/.test(String(r.appearance?.accent)) ? String(r.appearance?.accent).toLowerCase() : d.appearance.accent,
+      density: r.appearance?.density === 'compact' ? 'compact' : 'cosy',
+      background: {
+        enabled: bool(r.appearance?.background?.enabled, d.appearance.background.enabled),
+        opacity: int(r.appearance?.background?.opacity, 0, 100, d.appearance.background.opacity),
+        blur: int(r.appearance?.background?.blur, 0, 40, d.appearance.background.blur),
+      },
+    },
     downloads: { concurrency: int(r.downloads?.concurrency, 1, 32, d.downloads.concurrency), retries: int(r.downloads?.retries, 0, 10, d.downloads.retries) },
     java: {
       autoDownloadRuntime: bool(r.java?.autoDownloadRuntime, d.java.autoDownloadRuntime),

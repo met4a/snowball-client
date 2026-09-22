@@ -1,0 +1,118 @@
+/*
+ * Loaded last. Brings the site back to the launcher's own look - one ice colour, flat surfaces,
+ * nothing that moves unless it means something - and fixes the layouts that fell apart: download
+ * options wrapping two-and-one, centred headings with left-aligned labels, and the launcher list
+ * running a screen past its picture.
+ */
+
+:root {
+  /* The violet was never part of Snowball; everything that used it now uses the ice colour. */
+  --violet: var(--ice);
+}
+
+body {
+  background:
+    radial-gradient(1100px 600px at 50% -220px, rgba(127, 203, 255, 0.12), transparent 65%),
+    #05070a;
+}
+
+/* ---------- quieter hero ---------- */
+.hero::before,
+.hero::after,
+.hero-shot::after {
+  display: none;
+}
+.hero h1 {
+  background: none;
+  color: var(--text);
+}
+.hero h1 span {
+  background: none;
+  color: var(--ice);
+}
+.hero-logo {
+  filter: drop-shadow(0 0 22px rgba(127, 203, 255, 0.35));
+}
+
+/* ---------- buttons: solid, no sheen ---------- */
+.btn.primary {
+  background: var(--ice);
+  color: #04121d;
+  box-shadow: none;
+}
+.btn.primary:hover {
+  background: #b9e3ff;
+  box-shadow: 0 8px 24px rgba(127, 203, 255, 0.22);
+}
+.btn.primary::after {
+  display: none;
+}
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+/* ---------- cards: a border that lights up, not a gradient ring ---------- */
+.grid .card::before {
+  display: none;
+}
+.card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(127, 203, 255, 0.35);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
+}
+.stats strong {
+  background: none;
+  color: var(--text);
+}
+.site-header .nav a::after {
+  background: var(--ice);
+}
+
+/* ---------- labels line up with their headings ---------- */
+.section-title.center {
+  display: flex;
+  justify-content: center;
+}
+
+/* ---------- features: four across, and nothing left on its own ---------- */
+#features .grid {
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+}
+
+/* ---------- launcher: picture beside the introduction, the list underneath ---------- */
+.launcher-intro {
+  align-items: center;
+}
+ul.checks.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  column-gap: 32px;
+  margin-top: 40px;
+}
+ul.checks.columns li:last-child {
+  border-bottom: 1px solid var(--border);
+}
+
+/* ---------- download: three across ---------- */
+.download .options {
+  max-width: 1040px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+/* ---------- small screens ---------- */
+@media (max-width: 720px) {
+  ul.checks.columns {
+    grid-template-columns: 1fr;
+    margin-top: 28px;
+  }
+  .hero-meta b {
+    margin: 0 4px;
+  }
+}
+
+/* Every framed picture fills its frame, whatever size the file itself is. */
+.window img {
+  display: block;
+  width: 100%;
+  height: auto;
+}

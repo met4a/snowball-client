@@ -45,12 +45,15 @@ async function createWindow(): Promise<void> {
     launcherVersion: app.getVersion(),
     defaultMicrosoftClientId: microsoftClientIdFromConfig(),
     discordAppId: typeof appConfig().discordAppId === "string" ? String(appConfig().discordAppId) : "",
+    chatUrl: typeof appConfig().chatUrl === "string" ? String(appConfig().chatUrl).trim() : "",
   });
   const win = new BrowserWindow({
     width: 1200,
     height: 760,
-    minWidth: 880,
-    minHeight: 540,
+    // Small enough for a 1280x720 screen at 150% scaling (853x480, less the taskbar); every page
+    // is checked for overflow down to this size.
+    minWidth: 800,
+    minHeight: 460,
     title: 'Snowball Client',
     backgroundColor: '#05070a',
     // The tile icon, so the window matches the .exe. The bare snowball stays the mark used

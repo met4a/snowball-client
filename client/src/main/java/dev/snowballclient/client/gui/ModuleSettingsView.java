@@ -23,12 +23,10 @@ import static dev.snowballclient.client.gui.ToggleWidget.scaleAlpha;
 
 /** Settings list generated from a module's declared settings, with a keybind row and a reset button. */
 public final class ModuleSettingsView extends View {
-	private static final int PANEL_W = 300;
+	private static final int PANEL_MAX_W = 300;
 	private static final int ROW_H = 30;
 	private static final int HEADER_H = 42;
 	private static final int CONTROL_W = 116;
-	private static final int[] COLOR_PRESETS = {0xFFFFFFFF, 0xFF000000, 0xFFBDBDBD, 0xFF6B6B6B, 0xFFFF5C5C, 0xFFFFA24D,
-			0xFFFFE14D, 0xFF5CFF7A, 0xFF4DE1FF, 0xFF5C8CFF, 0xFFB57BFF, 0xFFFF7BD5};
 
 	private final Module module;
 	private final SnowballClient client;
@@ -38,6 +36,8 @@ public final class ModuleSettingsView extends View {
 	private final Smoothed open = new Smoothed(0f);
 
 	private int panelX;
+	/** Narrower than designed on a small screen rather than hanging off its sides. */
+	private int panelW = PANEL_MAX_W;
 	private int panelY;
 	private int visibleRows;
 	private int scroll;
@@ -66,7 +66,7 @@ public final class ModuleSettingsView extends View {
 	}
 
 	private int right() {
-		return panelX + PANEL_W - 14;
+		return panelX + panelW - 14;
 	}
 
 	private int controlX() {
@@ -75,8 +75,9 @@ public final class ModuleSettingsView extends View {
 
 	@Override
 	protected void init() {
+		panelW = Math.min(PANEL_MAX_W, width - 16);
 		visibleRows = Math.max(3, Math.min(rowCount(), (height - HEADER_H - 40) / ROW_H));
-		panelX = (width - PANEL_W) / 2;
+		panelX = (width - panelW) / 2;
 		panelY = Math.max(8, (height - panelH()) / 2);
 		scroll = Math.max(0, Math.min(scroll, rowCount() - visibleRows));
 	}
@@ -93,12 +94,12 @@ public final class ModuleSettingsView extends View {
 		hovered = rowAt(mouseX, mouseY);
 
 		int panelH = panelH();
-		GuiDraw.roundedRect(c, panelX + 2, panelY + 4, PANEL_W, panelH, 7, scaleAlpha(0x70000000, a));
-		GuiDraw.roundedRect(c, panelX, panelY, PANEL_W, panelH, 6, scaleAlpha(theme.surface(theme.panelOpacity), a));
-		GuiDraw.roundedOutline(c, panelX, panelY, PANEL_W, panelH, 6, scaleAlpha(theme.border(), a));
+		GuiDraw.roundedRect(c, panelX + 2, panelY + 4, panelW, panelH, 7, scaleAlpha(0x70000000, a));
+		GuiDraw.roundedRect(c, panelX, panelY, panelW, panelH, 6, scaleAlpha(theme.surface(theme.panelOpacity), a));
+		GuiDraw.roundedOutline(c, panelX, panelY, panelW, panelH, 6, scaleAlpha(theme.border(), a));
 		UiText.draw(c, module.name().toUpperCase(Locale.ROOT), UiText.TITLE, panelX + 12, panelY + 9, scaleAlpha(theme.text(), a));
-		UiText.draw(c, UiText.fit(c, module.description(), UiText.DETAIL, PANEL_W - 24), UiText.DETAIL, panelX + 12, panelY + 25, scaleAlpha(theme.mutedText(), a));
-		c.fill(panelX + 10, panelY + HEADER_H - 3, panelX + PANEL_W - 10, panelY + HEADER_H - 2, scaleAlpha(Theme.withAlpha(theme.highlight(), 0.08f), a));
+		UiText.draw(c, UiText.fit(c, module.description(), UiText.DETAIL, panelW - 24), UiText.DETAIL, panelX + 12, panelY + 25, scaleAlpha(theme.mutedText(), a));
+		c.fill(panelX + 10, panelY + HEADER_H - 3, panelX + panelW - 10, panelY + HEADER_H - 2, scaleAlpha(Theme.withAlpha(theme.highlight(), 0.08f), a));
 		c.fill(panelX + 10, panelY + HEADER_H - 3, panelX + 42, panelY + HEADER_H - 2, scaleAlpha(theme.accent(), a));
 
 		int end = Math.min(rowCount(), scroll + visibleRows);
@@ -109,7 +110,7 @@ public final class ModuleSettingsView extends View {
 
 	private void drawRow(Canvas c, int row, int y, float a, boolean hover) {
 		int x = panelX + 6;
-		int w = PANEL_W - 12;
+		int w = panelW - 12;
 		int h = ROW_H - 4;
 		int right = right();
 		int controlX = controlX();
@@ -118,7 +119,7 @@ public final class ModuleSettingsView extends View {
 
 		if (row == rowCount() - 1) {
 			int bw = 124;
-			int bx = panelX + (PANEL_W - bw) / 2;
+			int bx = panelX + (panelW - bw) / 2;
 			int by = y + (h - 16) / 2;
 			GuiDraw.roundedRect(c, bx, by, bw, 16, 4, scaleAlpha(Theme.lerpColor(theme.surface(1f), theme.highlight(), hover ? 0.12f : 0.06f), a));
 			GuiDraw.roundedOutline(c, bx, by, bw, 16, 4, scaleAlpha(theme.border(), a));
@@ -197,7 +198,7 @@ public final class ModuleSettingsView extends View {
 	}
 
 	private int rowAt(double mouseX, double mouseY) {
-		if (mouseX < panelX || mouseX >= panelX + PANEL_W) return -1;
+		if (mouseX < panelX || mouseX >= panelX + panelW) return -1;
 		int rel = (int) Math.floor(mouseY - (panelY + HEADER_H + 2));
 		if (rel < 0) return -1;
 		int idx = rel / ROW_H;
@@ -230,18 +231,12 @@ public final class ModuleSettingsView extends View {
 					editor.setValue(written.get());
 					editor.setFocused(true);
 				}
-				case ColorSetting color -> color.set(nextPreset(color.argb(), button == 1 ? -1 : 1));
+				case ColorSetting color -> host.open(new ColorPickerView(color, client));
 				default -> {
 				}
 			}
 		}
 		return true;
-	}
-
-	private static int nextPreset(int current, int direction) {
-		int idx = -1;
-		for (int i = 0; i < COLOR_PRESETS.length; i++) if (COLOR_PRESETS[i] == (current | 0xFF000000)) idx = i;
-		return COLOR_PRESETS[Math.floorMod(idx + direction, COLOR_PRESETS.length)];
 	}
 
 	private void setFromMouse(NumberSetting setting, double mouseX) {

@@ -30,6 +30,12 @@ body.reduce-motion {
   box-sizing: border-box;
 }
 
+/* The browser's own [hidden] rule loses to any class that sets display, so an element given
+   `hidden` stayed on screen whenever it also had a layout class (mod check details were one). */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
@@ -172,10 +178,13 @@ textarea {
   color: var(--muted);
   margin: 0;
 }
+/* Wraps rather than running off the side: on a small window the buttons drop under the title,
+   still right-aligned, instead of being pushed out of view. */
 .page-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
-  gap: 16px;
+  gap: 12px 16px;
   margin-bottom: 22px;
 }
 .stack > .page-head {
@@ -183,16 +192,21 @@ textarea {
 }
 .page-head-text {
   flex: none;
+  max-width: 100%;
 }
 .page-head-actions {
   margin-left: auto;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 .input.picker {
   width: auto;
-  min-width: 220px;
+  min-width: 0;
+  flex: 0 1 280px;
   max-width: 320px;
 }
 .stack {
@@ -518,6 +532,9 @@ textarea.input {
 }
 input[type='range'] {
   width: 100%;
+  /* The browser's default side margins push a full-width slider past its box. */
+  margin-left: 0;
+  margin-right: 0;
   accent-color: var(--accent);
 }
 .form-grid {
@@ -983,29 +1000,81 @@ body.reduce-motion .boot-bar > div {
   border: 1px solid var(--border-strong);
   color: var(--muted);
 }
+/* One colour throughout: how much attention a file needs shows in how strongly the accent is
+   applied, and in the wording, rather than in alarm colours. */
+.verdict.known,
 .verdict.clean {
-  color: #7ee0a5;
-  border-color: rgba(126, 224, 165, 0.4);
+  color: var(--muted);
+  border-color: var(--border-strong);
 }
 .verdict.watch {
   color: var(--accent);
-  border-color: var(--accent);
+  border-color: rgba(127, 203, 255, 0.35);
 }
 .verdict.suspicious {
-  color: var(--warning);
-  border-color: rgba(255, 209, 102, 0.5);
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 .verdict.dangerous {
-  color: var(--danger);
-  border-color: rgba(255, 107, 107, 0.6);
+  color: #05070a;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.scan-summary {
+  margin: 0 0 16px;
+}
+.scan .section-title {
+  margin: 0 0 8px;
+}
+.scan-sub {
+  font-size: 12px;
+}
+.scan-note {
+  font-size: 12px;
+  margin: 16px 0 0;
 }
 .scan-findings {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 10px 14px 14px;
-  border-left: 2px solid var(--border-strong);
-  margin: 0 0 8px 12px;
+  gap: 12px;
+  padding: 12px 14px 14px;
+  border-left: 2px solid var(--accent-soft);
+  margin: 6px 0 4px 12px;
+  min-width: 0;
+}
+.scan-finding {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+  min-width: 0;
+}
+.scan-finding-title {
+  color: var(--text);
+}
+/* Class paths are one long word; without this they run off the side of the dialog. */
+.scan-where {
+  font-size: 11px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.scan-advice {
+  font-size: 13px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+}
+.scan-known-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  gap: 4px 16px;
+  padding: 10px 14px 4px 26px;
+  font-size: 13px;
+}
+.scan-known {
+  display: contents;
 }
 
 /* ---------- global chat ---------- */
@@ -1475,5 +1544,749 @@ textarea.input {
   }
   .log-view {
     height: clamp(140px, 22vh, 240px);
+  }
+}
+
+/* ============================================================================
+   Customisation: the accent colour, spacing and a picture of your own.
+   The colours themselves are set as custom properties from app.ts, so one
+   chosen colour reaches everything without a stylesheet per theme.
+   ========================================================================== */
+
+/* A primary button's label: dark on a pale accent, light on a dark one. */
+.btn.primary {
+  color: var(--on-accent, #05070a);
+}
+
+/* ---------- the picture behind everything ---------- */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--speed);
+}
+/* The shell floats above it, and its own panels go translucent so the picture
+   shows through rather than being hidden behind them. */
+.shell {
+  position: relative;
+  z-index: 1;
+}
+body:has(.backdrop[style*='url']) .shell {
+  background: radial-gradient(1200px 700px at 70% -10%, rgba(127, 203, 255, 0.07), transparent 60%), rgba(5, 7, 10, 0.55);
+}
+body:has(.backdrop[style*='url']) .sidebar {
+  background: rgba(8, 11, 15, 0.62);
+  backdrop-filter: blur(10px);
+}
+body:has(.backdrop[style*='url']) .card,
+body:has(.backdrop[style*='url']) .mini-card {
+  background: linear-gradient(180deg, rgba(22, 29, 38, 0.72), rgba(11, 15, 20, 0.86));
+  backdrop-filter: blur(6px);
+}
+
+/* ---------- accent picker ---------- */
+.swatches {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid rgba(221, 243, 255, 0.2);
+  background: var(--swatch);
+  cursor: pointer;
+  transition: transform var(--speed), box-shadow var(--speed);
+}
+.swatch:hover {
+  transform: translateY(-2px);
+}
+.swatch.chosen {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--swatch);
+}
+.swatch-custom {
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}
+.slider-value {
+  min-width: 46px;
+  text-align: right;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ---------- compact spacing ---------- */
+/* One class, applied to the body, so density is a single decision rather than a
+   second set of rules scattered through the stylesheet. */
+body.compact .content {
+  padding: 18px 22px 24px;
+}
+body.compact .card,
+body.compact .mini-card {
+  padding: 12px 14px;
+}
+body.compact .hero-main {
+  padding: 16px 18px;
+}
+body.compact .page-head {
+  margin-bottom: 14px;
+}
+body.compact .stack,
+body.compact .home-grid,
+body.compact .home-main,
+body.compact .home-aside {
+  gap: 10px;
+}
+body.compact .list-row {
+  padding: 7px 10px;
+}
+body.compact .stats {
+  gap: 6px;
+  margin-bottom: 14px;
+}
+body.compact .btn.play {
+  padding: 10px 28px;
+  font-size: 14px;
+}
+body.compact .log-view {
+  height: clamp(130px, 20vh, 220px);
+}
+
+/* ---------- admin panel ---------- */
+.admin {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.admin-tab {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(16, 21, 28, 0.7);
+  color: var(--muted);
+  font-family: 'Monocraft', monospace;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition:
+    background var(--speed),
+    color var(--speed),
+    border-color var(--speed);
+}
+.admin-tab:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.admin-tab.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.admin-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Blocks in columns: one on a small window, two or three on a wide one, so nothing is stretched
+   across a 1440p screen with its buttons a screen away from the field they belong to. */
+.admin-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr));
+  align-items: start;
+  gap: 14px;
+}
+.admin-body > .admin-status,
+.admin-body > p,
+.admin-body > .muted,
+.admin-wide > * {
+  grid-column: 1 / -1;
+}
+.admin-wide .admin-narrow {
+  max-width: 640px;
+}
+.admin-cards,
+.admin-people .list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  align-items: start;
+  gap: 8px;
+}
+.admin-cards-wide,
+.admin-people .list {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr));
+}
+.admin-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(22, 29, 38, 0.55), rgba(11, 15, 20, 0.85));
+}
+.admin-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.admin-inline > .input {
+  flex: 1 1 200px;
+  width: auto;
+  min-width: 0;
+}
+.admin-inline > .input.admin-minutes {
+  flex: 0 0 78px;
+}
+.admin-for {
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-block .admin-person {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.admin-danger-row {
+  flex-wrap: wrap;
+}
+.admin-block.danger-block {
+  border-color: rgba(255, 107, 107, 0.25);
+  background: rgba(255, 107, 107, 0.05);
+}
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.admin-field-label {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.admin-field-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+/* Says what just happened, and is announced rather than changing silently. */
+.admin-status {
+  display: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: rgba(16, 21, 28, 0.7);
+  font-size: 13px;
+}
+.admin-status.show {
+  display: block;
+}
+.admin-status.ok {
+  border-color: rgba(127, 203, 255, 0.35);
+  color: var(--accent);
+}
+.admin-status.bad {
+  border-color: rgba(255, 107, 107, 0.4);
+  color: var(--danger);
+}
+.admin-person {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(16, 21, 28, 0.55);
+}
+.admin-person-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.admin-person-name {
+  font-family: 'Monocraft', monospace;
+  letter-spacing: 0.06em;
+}
+.admin-history {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+  line-height: 1.9;
+}
+.admin-bug {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(16, 21, 28, 0.7);
+}
+.admin-bug-detail {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+/* A visible focus ring everywhere, so the launcher can be driven by keyboard. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ============================================================================
+   The launchpad layout: a narrow icon rail, a greeting, and one large panel
+   that is the launch. No news column and no promoted tiles - Snowball has
+   nothing to advertise, and the front page should be the button you came for.
+   ========================================================================== */
+
+.shell {
+  grid-template-columns: 76px 1fr;
+}
+.sidebar {
+  padding: 16px 10px 12px;
+  align-items: center;
+}
+
+/* The brand keeps only the mark; the wordmark needs width the rail does not have. */
+.brand {
+  padding: 2px 0 18px;
+  justify-content: center;
+}
+.brand > div {
+  display: none;
+}
+.brand-logo {
+  width: 38px;
+  height: 38px;
+}
+
+.nav {
+  width: 100%;
+  gap: 6px;
+}
+.nav-item {
+  flex-direction: column;
+  gap: 5px;
+  justify-content: center;
+  padding: 9px 4px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  border-radius: 10px;
+}
+.nav-item svg {
+  width: 19px;
+  height: 19px;
+}
+.nav-label {
+  /* Small enough to be a hint rather than a label; the tooltip and the
+     accessible name carry the real thing. */
+  opacity: 0.85;
+  line-height: 1;
+}
+.nav-item.active {
+  box-shadow: none;
+  border-color: rgba(127, 203, 255, 0.3);
+}
+
+.sidebar-footer {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.account-chip {
+  width: auto;
+  padding: 6px;
+  border: none;
+  background: none;
+  justify-content: center;
+}
+.account-chip:hover {
+  background: var(--surface-2);
+}
+.avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 14px;
+}
+
+/* ---------- the greeting ---------- */
+.welcome {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.welcome-hello {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Monocraft', monospace;
+  font-size: 20px;
+  letter-spacing: 0.06em;
+}
+.welcome-sub {
+  color: var(--muted);
+  margin-top: 4px;
+}
+.welcome-online {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 7px 13px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: rgba(16, 21, 28, 0.7);
+  font-size: 12px;
+  color: var(--muted);
+}
+.count-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: #4ec98a;
+  box-shadow: 0 0 10px rgba(78, 201, 138, 0.6);
+}
+body:not(.reduce-motion) .count-dot {
+  animation: count-pulse 2.6s ease-in-out infinite;
+}
+
+/* ---------- the launch panel ---------- */
+/* Taller and darker than an ordinary card, so on this page it is plainly the
+   thing to look at. */
+.launch-panel {
+  padding: 26px 28px 24px;
+  background: linear-gradient(180deg, rgba(20, 28, 40, 0.7), rgba(8, 11, 16, 0.92));
+  border-color: var(--border-strong);
+}
+.launch-panel .hero-name {
+  font-size: 28px;
+  margin: 0 0 10px;
+}
+.launch-panel .btn.play {
+  min-width: 210px;
+  padding: 15px 40px;
+}
+.launch-panel .launch-progress {
+  margin-top: 18px;
+}
+
+@media (max-width: 1180px) {
+  .welcome {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 980px) {
+  .shell {
+    grid-template-columns: 64px 1fr;
+  }
+  .nav-label {
+    display: none;
+  }
+}
+
+/* ---------- player count, corrected ---------- */
+/* The original .count-card was a horizontal strip across the top of Home. It now
+   sits in the side column and reads downwards, so the old flex row has to go or
+   the number, the label and the split all fight for one line. */
+.count-card {
+  display: block;
+  margin-bottom: 0;
+  padding: 16px 18px;
+}
+.count-card .count-now {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+.count-card .count-value {
+  font-size: 26px;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+}
+.count-card .count-label {
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.count-card .count-split {
+  display: flex;
+  gap: 14px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.count-card .count-item {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+.count-card .count-item .n {
+  display: block;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+.count-card .count-item .l {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* Nothing on a page may force the window wider than it is: a grid child's
+   default min-width is its content, which is what pushed a scrollbar across
+   the bottom of Home. */
+.content,
+.content > div,
+.home-grid,
+.home-main,
+.home-aside,
+.hero,
+.stats {
+  min-width: 0;
+}
+.content {
+  overflow-x: hidden;
+}
+.stat {
+  min-width: 0;
+  overflow: hidden;
+}
+.stat-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================================================
+   Motion.
+
+   Every animation here is short, moves a small distance, and eases out rather
+   than bouncing: the point is to show where something came from, not to be
+   noticed. Anything longer than about 200ms in a launcher reads as lag.
+
+   All of it is switched off by Settings -> Reduce motion, which is respected in
+   one place at the bottom rather than per-rule.
+   ========================================================================== */
+
+/* ---------- pages ---------- */
+/* Content fades up slightly when the view changes, so a page reads as arriving
+   rather than blinking into place. */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.content > div {
+  animation: page-in 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ---------- lists and cards ---------- */
+/* A short stagger down a list, capped at eight: past that it stops reading as
+   one movement and starts feeling like waiting. */
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+}
+.list > *,
+.grid.cards > *,
+.home-aside > * {
+  animation: row-in 200ms cubic-bezier(0.2, 0, 0, 1) backwards;
+}
+.list > *:nth-child(1), .grid.cards > *:nth-child(1), .home-aside > *:nth-child(1) { animation-delay: 0ms; }
+.list > *:nth-child(2), .grid.cards > *:nth-child(2), .home-aside > *:nth-child(2) { animation-delay: 25ms; }
+.list > *:nth-child(3), .grid.cards > *:nth-child(3), .home-aside > *:nth-child(3) { animation-delay: 50ms; }
+.list > *:nth-child(4), .grid.cards > *:nth-child(4) { animation-delay: 75ms; }
+.list > *:nth-child(5), .grid.cards > *:nth-child(5) { animation-delay: 100ms; }
+.list > *:nth-child(6), .grid.cards > *:nth-child(6) { animation-delay: 125ms; }
+.list > *:nth-child(7), .grid.cards > *:nth-child(7) { animation-delay: 150ms; }
+.list > *:nth-child(n + 8), .grid.cards > *:nth-child(n + 8) { animation-delay: 175ms; }
+
+/* ---------- controls ---------- */
+.btn {
+  transition:
+    background var(--speed) cubic-bezier(0.2, 0, 0, 1),
+    border-color var(--speed) cubic-bezier(0.2, 0, 0, 1),
+    transform 90ms cubic-bezier(0.2, 0, 0, 1),
+    box-shadow var(--speed) cubic-bezier(0.2, 0, 0, 1);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(1px) scale(0.985);
+}
+.btn.play:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 26px rgba(127, 203, 255, 0.35);
+}
+
+.nav-item {
+  transition:
+    background var(--speed) cubic-bezier(0.2, 0, 0, 1),
+    color var(--speed) cubic-bezier(0.2, 0, 0, 1),
+    border-color var(--speed) cubic-bezier(0.2, 0, 0, 1);
+}
+.nav-item:active {
+  transform: scale(0.96);
+}
+.nav-item svg {
+  transition: transform 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+.nav-item:hover svg {
+  transform: translateY(-1px) scale(1.06);
+}
+
+.mini-action,
+.instance-card,
+.mod-row,
+.list-row {
+  transition:
+    background var(--speed) cubic-bezier(0.2, 0, 0, 1),
+    border-color var(--speed) cubic-bezier(0.2, 0, 0, 1),
+    transform var(--speed) cubic-bezier(0.2, 0, 0, 1);
+}
+.mini-action:hover:not(:disabled),
+.mod-row:hover {
+  transform: translateX(2px);
+}
+
+.swatch {
+  transition: transform 140ms cubic-bezier(0.2, 0, 0, 1), box-shadow 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+.swatch:active {
+  transform: scale(0.9);
+}
+
+.toggle::after {
+  /* A touch of overshoot, which is the one place it reads as quality rather
+     than noise: a switch should feel like it snaps. */
+  transition:
+    transform 220ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    background var(--speed);
+}
+
+/* ---------- progress ---------- */
+.progress > div {
+  transition: width 280ms cubic-bezier(0.2, 0, 0, 1);
+}
+/* A sheen that travels along a bar while something is actually downloading, so
+   a slow connection still looks alive. */
+.update-bar .progress > div::after,
+.launch-progress .progress > div::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  animation: sheen 1.6s linear infinite;
+}
+.update-bar .progress,
+.launch-progress .progress {
+  position: relative;
+  overflow: hidden;
+}
+.update-bar .progress > div,
+.launch-progress .progress > div {
+  position: relative;
+  overflow: hidden;
+}
+@keyframes sheen {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(200%); }
+}
+
+/* ---------- chat ---------- */
+@keyframes chat-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.chat-line {
+  animation: chat-in 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ---------- toasts ---------- */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+.toast {
+  animation: toast-in 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ---------- tabs ---------- */
+.log-tab,
+.tab {
+  transition: background var(--speed), color var(--speed), border-color var(--speed);
+}
+
+/* ---------- the one switch that turns it all off ---------- */
+/* Also honours the operating system's own "reduce motion", so somebody who has
+   asked Windows for less movement does not have to ask Snowball separately. */
+body.reduce-motion *,
+body.reduce-motion *::before,
+body.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* The greeting's text column: it must be allowed to shrink so a long name
+   pushes the picker and the online count rather than the window. */
+.welcome-text {
+  min-width: 0;
+}
+.welcome-hello {
+  min-width: 0;
+}
+
+/* ---------- launch panel stats ---------- */
+/* Six tiles fill six, three or two columns evenly, whatever the width: auto-fill gave five and
+   left "Play time" alone on a second row. The panel's own width decides, not the window's. */
+.launch-panel {
+  container-type: inline-size;
+}
+.launch-panel .stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@container (min-width: 460px) {
+  .launch-panel .stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@container (min-width: 900px) {
+  .launch-panel .stats {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }

@@ -18,6 +18,8 @@
     "MouseHandlerMixin",
     "OverlayTextureMixin",
     "ParticleEngineMixin",
+    "NameTagMixin",
+    "OwnNameTagMixin",
     "PlayerTabOverlayMixin",
     "ScreenBackgroundMixin",
     "ScreenEffectRendererMixin",

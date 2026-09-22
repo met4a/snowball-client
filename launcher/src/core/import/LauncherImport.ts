@@ -170,24 +170,90 @@ async function readInstance(kind: string, launcher: string, dir: string): Promis
   };
 }
 
+export interface ParsedVersionId {
+  minecraftVersion: string;
+  loader: LoaderId;
+  loaderVersion: string | null;
+}
+
+const MINECRAFT_VERSION = /^\d+\.\d+(\.\d+)?$/;
+
+/**
+ * Reads a version id from the official launcher's versions folder.
+ *
+ * Loader ids carry two version numbers and the loader's comes first - "fabric-loader-0.19.5-1.21.11"
+ * - so taking the first number that looks like a version picks Fabric's, not Minecraft's. Each
+ * loader's naming is read on its own terms instead.
+ */
+export function parseVersionId(id: string): ParsedVersionId | null {
+  const versionId = id.trim();
+  if (MINECRAFT_VERSION.test(versionId)) return { minecraftVersion: versionId, loader: 'vanilla', loaderVersion: null };
+
+  const fabricLike = /^(fabric|quilt)-loader-([^-]+)-(.+)$/.exec(versionId);
+  if (fabricLike && MINECRAFT_VERSION.test(fabricLike[3])) {
+    return { minecraftVersion: fabricLike[3], loader: fabricLike[1] === 'quilt' ? 'quilt' : 'fabric', loaderVersion: fabricLike[2] };
+  }
+
+  // NeoForge numbers itself after Minecraft without the leading "1.": 21.1.77 is for 1.21.1.
+  const neoforge = /^neoforge-(\d+)\.(\d+)\.([\w.+-]+)$/.exec(versionId);
+  if (neoforge) {
+    const [major, minor] = [Number(neoforge[1]), Number(neoforge[2])];
+    const minecraftVersion = major >= 26 ? `${major}.${minor}` : minor === 0 ? `1.${major}` : `1.${major}.${minor}`;
+    return { minecraftVersion, loader: 'neoforge', loaderVersion: `${neoforge[1]}.${neoforge[2]}.${neoforge[3]}` };
+  }
+
+  // Forge puts Minecraft first: 1.20.1-forge-47.3.0, or 1.8.9-forge1.8.9-11.15.1.2318-1.8.9.
+  const forge = /^(\d+\.\d+(?:\.\d+)?)-forge-?(?:\1-)?([\w.]+)/.exec(versionId);
+  if (forge) return { minecraftVersion: forge[1], loader: 'forge', loaderVersion: forge[2] };
+
+  // Anything else built on a release (OptiFine and the like) still names that release first.
+  const leading = /^(\d+\.\d+(?:\.\d+)?)-/.exec(versionId);
+  if (leading) return { minecraftVersion: leading[1], loader: loaderFromName(versionId), loaderVersion: null };
+  return null;
+}
+
+/**
+ * The version a profile really runs. A modded version's own json names the release it is built on
+ * (inheritsFrom), which is more reliable than any reading of its name, so that is asked first.
+ */
+async function resolveVersionId(dir: string, versionId: string): Promise<ParsedVersionId | null> {
+  const parsed = parseVersionId(versionId);
+  const json = await readJsonFile(join(dir, 'versions', versionId, `${versionId}.json`));
+  const base = typeof json?.inheritsFrom === 'string' ? json.inheritsFrom.trim() : '';
+  if (MINECRAFT_VERSION.test(base)) {
+    return { minecraftVersion: base, loader: parsed?.loader ?? loaderFromName(versionId), loaderVersion: parsed?.loaderVersion ?? null };
+  }
+  return parsed;
+}
+
+/** Just the official launcher's folder, without walking every other launcher's instances. */
+export async function detectOfficialLauncher(): Promise<FoundInstance | null> {
+  const root = searchRoots().find((r) => r.kind === 'vanilla');
+  return root ? readVanilla(root.launcher, root.dir).catch(() => null) : null;
+}
+
 /** The official launcher has no instances, so its .minecraft folder is offered as one. */
 async function readVanilla(launcher: string, dir: string): Promise<FoundInstance | null> {
   const profiles = await readJsonFile(join(dir, 'launcher_profiles.json'));
-  const all = profiles ? Object.values((profiles.profiles as Record<string, any>) ?? {}) : [];
-  const latest = all
-    .filter((p) => typeof (p as Record<string, any>).lastVersionId === 'string')
-    .sort((a, b) => String((b as Record<string, any>).lastUsed ?? '').localeCompare(String((a as Record<string, any>).lastUsed ?? '')))[0] as Record<string, any> | undefined;
-  const versionId = String(latest?.lastVersionId ?? '');
-  const minecraftVersion = /^\d+\.\d+(\.\d+)?$/.test(versionId) ? versionId : (versionId.match(/\d+\.\d+(\.\d+)?/)?.[0] ?? '');
-  if (!minecraftVersion) return null;
+  const all = (profiles ? Object.values((profiles.profiles as Record<string, any>) ?? {}) : []) as Array<Record<string, any>>;
+  // The profile played most recently that names a version this launcher can read.
+  const byLastUsed = all
+    .filter((p) => typeof p.lastVersionId === 'string')
+    .sort((a, b) => String(b.lastUsed ?? '').localeCompare(String(a.lastUsed ?? '')));
+  let version: ParsedVersionId | null = null;
+  for (const profile of byLastUsed) {
+    version = await resolveVersionId(dir, String(profile.lastVersionId));
+    if (version) break;
+  }
+  if (!version) return null;
   const mods = await countEntries(join(dir, 'mods'), (f) => /\.jar(\.disabled)?$/i.test(f));
   return {
     id: `vanilla:${dir}`,
     launcher,
     name: 'Minecraft Launcher folder',
-    minecraftVersion,
-    loader: loaderFromName(versionId),
-    loaderVersion: null,
+    minecraftVersion: version.minecraftVersion,
+    loader: version.loader,
+    loaderVersion: version.loaderVersion,
     gameDir: dir,
     mods,
     worlds: await countEntries(join(dir, 'saves')),

@@ -3,9 +3,61 @@
 Written for the people who play it. Each release says what changed, what got
 fixed, and nothing else. Technical notes live in the commit history.
 
-Snowball updates itself: leave **Settings → Updates → Check for updates on
-startup** on, and new versions download in the background and apply when you
-restart. You only download an installer once.
+Snowball updates itself: when it starts it checks for a new version, installs
+it and restarts into it, waiting if a game is running. You only download an
+installer once.
+
+---
+
+## 1.7.0
+
+### What's new
+- **Pick your own menu colours in game.** Open the Snowball menu, then Client,
+  then Menu & Accessibility: Menu colour and Panel colour open a colour picker
+  with swatches, hue, saturation and brightness, and a box for a hex code. The
+  menus change as you drag. The same picker now opens for every colour setting,
+  like the crosshair and hit colour.
+- **The mod check knows the mods everyone uses.** Mods downloaded from Modrinth
+  are recognised by their fingerprint and set aside as known, so Fabric API,
+  Sodium, Flashback and the rest no longer show up as something to worry about.
+  Only files it cannot vouch for are read, and a file pretending to be a popular
+  mod is still caught because its fingerprint does not match. Only the
+  fingerprint is sent to Modrinth, never the file.
+- The mod check is friendlier to read: no more red and yellow warnings, plain
+  words for what it found, and details that open when you ask for them.
+- Your Snowball badge shows above your head in game, not only in the player
+  list. Press F5 to see yours, and you will see other Snowball players' badges
+  above theirs.
+- The admin panel is rebuilt. Proper tabs, each field sits next to its buttons,
+  and on a wide screen the sections sit side by side instead of stretching
+  across the whole window.
+- The launcher front page is rebuilt: one large panel for your instance and the
+  Play button, and a column for your version, who is online and quick actions.
+  No news feed and no adverts.
+- Make the launcher yours: any accent colour, a picture of your own behind it,
+  and a compact layout for small screens.
+- Everything fits every screen, from a 1280x720 laptop at 150% scaling to a
+  1440p monitor.
+- Smooth, short animations throughout, all switched off by Reduce motion.
+- Descriptions in the in-game menu are easier to read on smaller screens.
+
+### Fixed
+- Importing from the official Minecraft Launcher could give an instance
+  Fabric's version number instead of Minecraft's (0.19.5 instead of 1.21.11),
+  and that instance could never start. New imports read it correctly, and
+  instances already imported this way are repaired when the launcher starts.
+- Long instance names ran across the card next to them.
+- Download and update progress bars never moved. Neither did several other
+  small layout details, which were being blocked by the launcher's own
+  security settings; they now show as intended, and the security settings
+  are unchanged.
+- The mod check's details could not be closed, and were open from the start.
+- The admin panel's People list, bug reports and player lookups loaded but never
+  appeared.
+- Buttons at the top of the Mods and Browse pages ran off the side of a small
+  window.
+- The message about which Minecraft versions Snowball Client supports named
+  Fabric where it meant Minecraft.
 
 ---
 

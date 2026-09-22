@@ -3,7 +3,9 @@ package dev.snowballclient.gametest;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.snowballclient.client.SnowballClient;
+import dev.snowballclient.client.gui.ColorPickerView;
 import dev.snowballclient.client.gui.HudEditorView;
+import dev.snowballclient.client.gui.ModuleSettingsView;
 import dev.snowballclient.client.gui.RadialMenuView;
 import dev.snowballclient.client.gui.TitleMenuView;
 import dev.snowballclient.client.module.Module;
@@ -106,6 +108,23 @@ public final class SnowballMenuGameTest implements FabricClientGameTest {
 			}
 			LOG.info("Glass GUI screenshots taken");
 
+			// The badge above a player's head. It comes from EntityRenderer#getNameTag, which the
+			// player-list checks above never touch, and it is only visible in third person.
+			onClient(context, mc -> {
+				SnowballPlayers.setSelfRank(Rank.OWNER);
+				mc.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_BACK);
+				return null;
+			});
+			context.waitTicks(10);
+			context.takeScreenshot("name_tag_badge");
+			onClient(context, mc -> {
+				mc.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON);
+				SnowballPlayers.setSelfRank(Rank.SNOWBALL);
+				return null;
+			});
+			context.waitTicks(5);
+			LOG.info("Name tag badge screenshot taken");
+
 			// The HUD editor draws its boxes over the real HUD.
 			onClient(context, mc -> {
 				SnowballClient.get().modules().get("fps_counter").orElseThrow().setEnabled(true);
@@ -121,6 +140,47 @@ public final class SnowballMenuGameTest implements FabricClientGameTest {
 			context.getInput().pressKey(KEY_ESCAPE);
 			context.waitTicks(5);
 			LOG.info("HUD editor opened and closed");
+
+			// The colour menu. Menu & Accessibility lists it first, the picker changes the colour live,
+			// and the new colour has to reach the wheel - the menu it is for - and be saved.
+			for (int[] size : new int[][]{{1280, 720}, {1920, 1080}}) {
+				context.getInput().resizeWindow(size[0], size[1]);
+				context.waitTicks(10);
+				onClient(context, mc -> {
+					ViewScreen.show(new ModuleSettingsView(ModuleRegistry.INTERFACE, SnowballClient.get()));
+					return null;
+				});
+				context.waitTicks(10);
+				context.takeScreenshot("interface_settings_" + size[0] + "x" + size[1]);
+				onClient(context, mc -> {
+					ViewScreen.show(new ColorPickerView(ModuleRegistry.INTERFACE.menuColor, SnowballClient.get()));
+					return null;
+				});
+				context.waitTicks(10);
+				context.takeScreenshot("colour_picker_" + size[0] + "x" + size[1]);
+				// Escape steps back one view at a time: the picker, then the settings it was opened from.
+				context.getInput().pressKey(KEY_ESCAPE);
+				context.waitTicks(5);
+				context.getInput().pressKey(KEY_ESCAPE);
+				context.waitTicks(5);
+			}
+			onClient(context, mc -> {
+				ModuleRegistry.INTERFACE.menuColor.set(0xFFFF8AB5);
+				SnowballClient.get().saveIfDirty();
+				return null;
+			});
+			int accent = onClient(context, mc -> SnowballClient.get().theme().accent());
+			if (accent != 0xFFFF8AB5) throw new AssertionError("The menu colour did not reach the theme: " + Integer.toHexString(accent));
+			if (!readFile("gui.json").contains("FF8AB5")) throw new AssertionError("gui.json does not record the new menu colour");
+			openMenu(context);
+			context.takeScreenshot("menu_in_rose");
+			closeMenu(context);
+			onClient(context, mc -> {
+				ModuleRegistry.INTERFACE.menuColor.reset();
+				SnowballClient.get().saveIfDirty();
+				return null;
+			});
+			LOG.info("Colour menu: picker shown, rose reached the wheel and gui.json, then reset");
 
 			openMenu(context);
 			for (ModuleCategory category : ModuleCategory.values()) {
@@ -244,6 +304,15 @@ public final class SnowballMenuGameTest implements FabricClientGameTest {
 			return true;
 		});
 		return (T) box[0];
+	}
+
+	private static String readFile(String name) {
+		Path file = FabricLoader.getInstance().getConfigDir().resolve("snowballclient").resolve(name);
+		try {
+			return Files.readString(file);
+		} catch (IOException e) {
+			throw new AssertionError("Could not read " + file + ": " + e.getMessage(), e);
+		}
 	}
 
 	private static boolean readEnabled(String moduleId) {

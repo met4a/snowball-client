@@ -6,6 +6,7 @@ import dev.snowballclient.client.module.Module;
 import dev.snowballclient.client.module.ModuleCategory;
 import dev.snowballclient.client.module.setting.BooleanSetting;
 import dev.snowballclient.client.module.setting.ChoiceSetting;
+import dev.snowballclient.client.module.setting.ColorSetting;
 import dev.snowballclient.client.module.setting.NumberSetting;
 
 /**
@@ -22,13 +23,24 @@ public final class InterfaceSettings extends Module {
 	public final BooleanSetting customMainMenu;
 	public final BooleanSetting customLoadingScreen;
 	public final ChoiceSetting tabRanks;
+	public final BooleanSetting nameTagBadges;
+	public final ColorSetting menuColor;
+	public final ColorSetting panelColor;
+
+	/** Dark tints for panels: anything lighter would wash out the text drawn on them. */
+	private static final int[] PANEL_PRESETS = {0xFF07090C, 0xFF0B1020, 0xFF0A1512, 0xFF160B1A, 0xFF1A0D0D, 0xFF14110A,
+			0xFF101418, 0xFF000000};
 
 	private final Theme theme;
 	private boolean themeDirty;
 
 	public InterfaceSettings(Theme theme, ClientSettings clientSettings) {
-		super("interface", "Menu & Accessibility", "Menu size, contrast, motion", ModuleCategory.CLIENT, true);
+		super("interface", "Menu & Accessibility", "Colours, size, contrast, motion", ModuleCategory.CLIENT, true);
 		this.theme = theme;
+		// First in the list: colour is what most people open this page for.
+		Theme factory = new Theme();
+		menuColor = setting(new ColorSetting("menu_color", "Menu colour", "Highlights, sliders and switches in every Snowball menu", factory.accentColor));
+		panelColor = setting(new ColorSetting("panel_color", "Panel colour", "The tint behind Snowball's menus", factory.surfaceColor).presets(PANEL_PRESETS));
 		scale = setting(new NumberSetting("scale", "Menu scale", "", theme.scale, 0.5, 2.0, 0.05));
 		highContrast = setting(new BooleanSetting("high_contrast", "High contrast", "Stronger borders and a yellow focus accent", theme.highContrast));
 		backgroundOpacity = setting(new NumberSetting("background_opacity", "Background dim", "", theme.backgroundOpacity, 0, 1, 0.05));
@@ -39,6 +51,10 @@ public final class InterfaceSettings extends Module {
 		customLoadingScreen = setting(new BooleanSetting("custom_loading_screen", "Snowball loading screen", "Show the Snowball loading screen while the game loads its resources", true));
 		tabRanks = setting(new ChoiceSetting("tab_ranks", "Ranks in the player list", "How a player's Snowball rank is shown next to their name", "badge_tag", java.util.List.of("badge_tag", "badge", "tag", "off")));
 
+		nameTagBadges = setting(new BooleanSetting("name_tag_badges", "Badges above players", "Show a Snowball player's badge on the name floating above their head", true));
+
+		menuColor.onChange(v -> apply(() -> theme.setAccent(v)));
+		panelColor.onChange(v -> apply(() -> theme.surfaceColor = v | 0xFF000000));
 		scale.onChange(v -> apply(() -> theme.scale = v.floatValue()));
 		highContrast.onChange(v -> apply(() -> theme.highContrast = v));
 		backgroundOpacity.onChange(v -> apply(() -> theme.backgroundOpacity = v.floatValue()));
@@ -60,6 +76,8 @@ public final class InterfaceSettings extends Module {
 		backgroundOpacity.set((double) theme.backgroundOpacity);
 		panelOpacity.set((double) theme.panelOpacity);
 		animationSpeed.set((double) theme.animationSpeed);
+		menuColor.set(theme.accentColor);
+		panelColor.set(theme.surfaceColor);
 		pauseGame.set(clientSettings.pauseGameInMenu);
 		themeDirty = false;
 	}

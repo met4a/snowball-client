@@ -9,6 +9,7 @@ import { PERFORMANCE_PROFILES } from '../core/performance/PerformanceProfiles.js
 import { splitArgs } from '../core/process/LaunchArguments.js';
 import { safeJoin } from '../core/util/paths.js';
 import { loadChangelog, notesFor } from './releaseNotes.js';
+import { backgroundDataUrl, clearBackground, pickBackground } from './appearance.js';
 import { openMicrosoftLogin } from './microsoftLogin.js';
 import type { ChatClient } from '../core/social/ChatClient.js';
 import type { UpdateService } from './updates.js';
@@ -127,6 +128,9 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
     });
   });
   ipcMain.handle('app:version', () => app.getVersion());
+  ipcMain.handle('appearance:pick-background', () => pickBackground(win, launcher.paths.root));
+  ipcMain.handle('appearance:background', () => backgroundDataUrl(launcher.paths.root));
+  ipcMain.handle('appearance:clear-background', () => clearBackground(launcher.paths.root));
   ipcMain.handle('updates:state', () => updates?.current() ?? { status: 'manual', version: app.getVersion(), message: 'Updates are not available in this build.' });
   ipcMain.handle('updates:check', () => updates?.check(true) ?? null);
   ipcMain.handle('updates:install', () => updates?.install());

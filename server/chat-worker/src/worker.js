@@ -122,6 +122,26 @@ export class ChatRoom {
       return Response.json({ ...this.stats(), announcement: this.announcement ?? null }, { headers: { 'cache-control': 'no-store' } });
     }
     if (url.pathname.endsWith('/flags')) return Response.json(this.flags, { headers: { 'cache-control': 'no-store' } });
+    // Which of these accounts are on Snowball, and what they hold. The game asks about the
+    // players it can see so it can draw their badge. Ranks are already public - they are on
+    // show in chat and in the player list - so this needs no account behind it.
+    if (url.pathname.endsWith('/ranks') && request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const asked = Array.isArray(body.uuids) ? body.uuids : [];
+      const owner = String(this.env.ADMIN_UUID ?? '').replace(/-/g, '');
+      const out = {};
+      for (const raw of asked.slice(0, 200)) {
+        const id = String(raw ?? '').replace(/-/g, '').toLowerCase();
+        if (!/^[a-f0-9]{32}$/.test(id)) continue;
+        if (id === owner) { out[id] = 'owner'; continue; }
+        const held = this.ranks.get(id);
+        // Only accounts that actually hold something are reported, so the game can tell a
+        // Snowball player apart from somebody it simply has not heard of.
+        if (held?.rank) out[id] = held.rank;
+        else if (this.people.has(id)) out[id] = 'snowball';
+      }
+      return Response.json({ ranks: out }, { headers: { 'cache-control': 'max-age=60' } });
+    }
     if (url.pathname.endsWith('/nonce')) {
       const nonce = crypto.randomUUID().replace(/-/g, '');
       this.nonces.set(nonce, Date.now());

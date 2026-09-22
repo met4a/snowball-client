@@ -372,6 +372,37 @@ export class ModrinthService {
     return this.http.fetchJson<ModrinthVersion[]>(`${API}/project/${encodeURIComponent(project)}/version?${query}`, signal);
   }
 
+  /**
+   * Which of these files Modrinth published, keyed by SHA-1. Only the fingerprints are sent; a
+   * match means the file is the one on that project's page, byte for byte, so a stealer renamed to
+   * fabric-api.jar is not mistaken for Fabric API the way a list of names would.
+   */
+  async recognise(hashes: string[]): Promise<Map<string, { source: 'Modrinth'; project: string; version: string }>> {
+    const known = new Map<string, { source: 'Modrinth'; project: string; version: string }>();
+    if (!hashes.length) return known;
+    const found = await this.http.postJson<Record<string, (ModrinthVersion & { name?: unknown }) | undefined>>(`${API}/version_files`, { hashes, algorithm: 'sha1' });
+    if (!found || typeof found !== 'object') throw new ModInstallError('Modrinth returned an unexpected response.');
+    const projectIds = [...new Set(Object.values(found).map((v) => v?.project_id).filter((id): id is string => typeof id === 'string'))];
+    const titles = new Map<string, string>();
+    if (projectIds.length) {
+      // Only for nicer names; the version's own name is good enough if this fails.
+      const projects = await this.http
+        .fetchJson<Array<{ id?: unknown; title?: unknown }>>(`${API}/projects?ids=${encodeURIComponent(JSON.stringify(projectIds))}`)
+        .catch(() => null);
+      for (const p of Array.isArray(projects) ? projects : []) {
+        if (typeof p?.id === 'string' && typeof p.title === 'string') titles.set(p.id, p.title);
+      }
+    }
+    for (const [sha1, v] of Object.entries(found)) {
+      if (!v?.project_id || !hashes.includes(sha1)) continue;
+      // Modrinth matched on this hash already; checking the file record as well costs nothing.
+      if (!v.files?.some((f) => f.hashes?.sha1 === sha1)) continue;
+      const project = titles.get(v.project_id) ?? (typeof v.name === 'string' ? v.name : v.project_id);
+      known.set(sha1, { source: 'Modrinth', project, version: String(v.version_number ?? '') });
+    }
+    return known;
+  }
+
   private async latestVersions(hashes: string[], mc: string, loaders: string[]): Promise<Record<string, ModrinthVersion>> {
     const result = await this.http.postJson<Record<string, ModrinthVersion>>(`${API}/version_files/update`, { hashes, algorithm: 'sha1', loaders, game_versions: [mc] });
     return result && typeof result === 'object' ? result : {};

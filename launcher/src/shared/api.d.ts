@@ -141,7 +141,15 @@ declare namespace Snowball {
   }
 
   interface Settings {
-    appearance: { reduceMotion: boolean; accent: 'ice' | 'white' };
+    appearance: {
+      reduceMotion: boolean;
+      /** The interface colour, as #rrggbb. Everything accented follows it. */
+      accent: string;
+      /** 'compact' tightens the spacing throughout, for smaller screens. */
+      density: 'cosy' | 'compact';
+      /** A picture behind the launcher. The file itself lives in the data folder. */
+      background: { enabled: boolean; opacity: number; blur: number };
+    };
     downloads: { concurrency: number; retries: number };
     java: { autoDownloadRuntime: boolean; defaultMaxMemoryMb: number | null };
     game: { closeLauncherOnLaunch: boolean; showLogsOnLaunch: boolean };
@@ -215,7 +223,19 @@ declare namespace Snowball {
     stable: boolean;
   }
 
-  type ScanVerdict = 'clean' | 'watch' | 'suspicious' | 'dangerous';
+  type ScanVerdict = 'known' | 'clean' | 'watch' | 'suspicious' | 'dangerous';
+
+  interface KnownMod {
+    source: 'Modrinth' | 'Snowball';
+    project: string;
+    version: string;
+  }
+
+  interface ScanReport {
+    results: ScanResult[];
+    /** False when fingerprints could not be looked up, so nothing was recognised. */
+    recognised: boolean;
+  }
 
   interface ScanFinding {
     title: string;
@@ -233,6 +253,7 @@ declare namespace Snowball {
     findings: ScanFinding[];
     modId: string | null;
     scannedAt: string;
+    known?: KnownMod;
     error?: string;
   }
 
@@ -391,7 +412,7 @@ declare namespace Snowball {
     selectAccount(id: string): Promise<void>;
     signInMicrosoft(): Promise<Account>;
     openLauncherFolder(folder: 'root' | 'logs'): Promise<void>;
-    scanMods(instanceId: string): Promise<ScanResult[]>;
+    scanMods(instanceId: string): Promise<ScanReport>;
     findOtherLaunchers(): Promise<FoundInstance[]>;
     importFromLauncher(instance: FoundInstance, options: Partial<ImportOptions>): Promise<Instance>;
     chatState(): Promise<ChatState>;
@@ -414,6 +435,9 @@ declare namespace Snowball {
     releaseNotes(version?: string): Promise<ReleaseNote | ReleaseNote[] | null>;
     copyLogs(): Promise<string>;
     openLogFolder(): Promise<void>;
+    pickBackground(): Promise<{ ok: boolean; dataUrl?: string; reason?: string }>;
+    getBackground(): Promise<string | null>;
+    clearBackground(): Promise<void>;
     on(event: EventName, listener: (payload: any) => void): () => void;
   }
 }

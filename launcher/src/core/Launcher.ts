@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { AuthManager, type SecretCipher } from './auth/AuthManager.js';
 import { DownloadManager, type DownloadProgress } from './download/DownloadManager.js';
 import { VerifiedFiles } from './download/VerifiedFiles.js';
-import { detectInstances, foldersFor, type FoundInstance, type ImportOptions } from './import/LauncherImport.js';
+import { detectInstances, detectOfficialLauncher, foldersFor, type FoundInstance, type ImportOptions } from './import/LauncherImport.js';
 import { InstanceManager, type CreateInstanceOptions, type InstanceConfig, type LoaderId, type PerformanceProfileId } from './instance/InstanceManager.js';
 import { JavaManager, recommendMemory } from './java/JavaManager.js';
 import { ActivityLog } from './logging/Activity.js';
@@ -17,7 +17,7 @@ import { ModLoaderRegistry } from './modloader/ModLoaderRegistry.js';
 import { ModManager } from './mods/ModManager.js';
 import { ModrinthService } from './mods/Modrinth.js';
 import { getProfile, installProfile, PERFORMANCE_PROFILES, resolveProfile } from './performance/PerformanceProfiles.js';
-import { scanJars, type ScanResult } from './security/ModScanner.js';
+import { scanJars, type ScanReport } from './security/ModScanner.js';
 import { GameActivityInterpreter } from './process/GameOutput.js';
 import { buildLaunchPlan } from './process/LaunchArguments.js';
 import { ProcessManager, type GameExit, type GameRecordEvent } from './process/ProcessManager.js';
@@ -52,6 +52,8 @@ export interface LauncherOptions {
   launcherVersion: string;
   /** Discord application id from the build config; empty when the presence module is not set up. */
   discordAppId?: string;
+  /** The Snowball backend, passed to the game so it can look up other players' ranks. */
+  chatUrl?: string;
   consoleLogs?: boolean;
   /** Azure application (client) ID shipped with this build (app-config.json); Settings can override it. */
   defaultMicrosoftClientId?: string;
@@ -128,7 +130,34 @@ export class Launcher extends EventEmitter {
       void launcher.reportExit(exit);
     });
     log.info('Launcher started', { root: paths.root, version: options.launcherVersion });
+    await launcher.repairMisreadImports().catch((err) => log.warn('Could not check imported instances', { error: String(err) }));
     return launcher;
+  }
+
+  /**
+   * Imports from the official launcher used to take Fabric's version number for Minecraft's
+   * ("0.19.5" instead of "1.21.11"), and those instances could never start. No Minecraft release
+   * is numbered 0.x, so they are recognisable, and the folder they were copied from still says
+   * which release that loader was installed for.
+   */
+  async repairMisreadImports(): Promise<void> {
+    const misread = (await this.instances.list()).filter(
+      (s) => !s.error && /^0\.\d+\.\d+$/.test(s.config.minecraftVersion) && (s.config.loader === 'fabric' || s.config.loader === 'quilt'),
+    );
+    if (!misread.length) return;
+    const official = await detectOfficialLauncher();
+    for (const { config } of misread) {
+      const loaderVersion = config.minecraftVersion;
+      if (!official || official.loaderVersion !== loaderVersion) {
+        log.warn('An imported instance has a loader version where its Minecraft version should be', { instance: config.id, version: loaderVersion });
+        continue;
+      }
+      await this.instances.update(config.id, (c) => {
+        c.minecraftVersion = official.minecraftVersion;
+        c.loaderVersion = loaderVersion;
+      });
+      log.info('Repaired the Minecraft version of an imported instance', { instance: config.id, from: loaderVersion, to: official.minecraftVersion });
+    }
   }
 
   private progress(instanceId: string, stage: string, p?: DownloadProgress): void {
@@ -342,15 +371,16 @@ export class Launcher extends EventEmitter {
   }
 
   /**
-   * Checks every mod of an instance for the things stealers and loaders do. It is a local check of
-   * what is inside each jar, not a virus scanner and not a web service: nothing is uploaded.
+   * Checks every mod of an instance for the things stealers and loaders do. Files Modrinth
+   * published unchanged are recognised by fingerprint (only the SHA-1 is sent); everything else
+   * is read here, on this computer. It is not a virus scanner, and no file is uploaded.
    */
-  async scanMods(instanceId: string): Promise<ScanResult[]> {
+  async scanMods(instanceId: string): Promise<ScanReport> {
     const modsDir = join(this.instances.gameDir(instanceId), 'mods');
-    if (!existsSync(modsDir)) return [];
+    if (!existsSync(modsDir)) return { results: [], recognised: true };
     const files = (await readdir(modsDir)).filter((f) => /\.jar(\.disabled)?$/i.test(f));
     const trusted = new Set(this.core.registry.builds.map((b) => b.sha1));
-    return scanJars(files.map((f) => join(modsDir, f)), trusted);
+    return scanJars(files.map((f) => join(modsDir, f)), { trusted, recognise: (hashes) => this.modrinth.recognise(hashes) });
   }
 
   /** Instances of other launchers found on this computer. */
@@ -468,6 +498,8 @@ export class Launcher extends EventEmitter {
           ...(this.discordAppId ? [`-Dsnowball.discordAppId=${this.discordAppId}`] : []),
           // The rank the backend granted this account; the client only reads it, never sets it.
           `-Dsnowball.rank=${this.settings.get().accounts.rank}`,
+          // So the client can ask which of the players around you are on Snowball.
+          ...(this.options.chatUrl ? [`-Dsnowball.chatUrl=${this.options.chatUrl}`] : []),
         ],
       });
       say('info', 'Starting Minecraft...');

@@ -42,9 +42,19 @@ public final class UiText {
 
 	/** Extra scale, relative to the current pose, that snaps font pixels to whole screen pixels. */
 	private static float scaleFor(Kind kind) {
+		return (float) (pixelsFor(kind) / density);
+	}
+
+	/** Screen pixels per font pixel for this kind of text. */
+	private static int pixelsFor(Kind kind) {
+		if (kind == Kind.DETAIL) {
+			// A steady three quarters of body text. Rounding the density on its own gave one font
+			// pixel where body text got two, so at 1280x720 descriptions came out half the size of
+			// the name above them and were hard to read.
+			return Math.max(1, Math.round(pixelsFor(Kind.UI) * 0.75f));
+		}
 		// Round up from .4 so small screens get readable text (1.45 -> 2) while large ones stay close to layout size.
-		int pixels = Math.max(1, (int) Math.floor(density * kind.factor + kind.bias) + kind.extraPixels);
-		return (float) (pixels / density);
+		return Math.max(1, (int) Math.floor(density * kind.factor + kind.bias) + kind.extraPixels);
 	}
 
 	public static int width(Canvas c, String text, Kind kind) {
