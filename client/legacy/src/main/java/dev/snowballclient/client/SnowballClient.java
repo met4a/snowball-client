@@ -13,6 +13,7 @@ import dev.snowballclient.client.module.ModuleCategory;
 import dev.snowballclient.client.module.ModuleRegistry;
 import dev.snowballclient.client.social.Rank;
 import dev.snowballclient.client.social.SnowballPlayers;
+import dev.snowballclient.client.social.SnowballPresence;
 import dev.snowballclient.client.perf.ModRequests;
 import dev.snowballclient.client.perf.ModScanner;
 import dev.snowballclient.client.platform.LegacyCanvas;
@@ -144,9 +145,22 @@ public final class SnowballClient implements ClientModInitializer {
 		HudRenderCallback.EVENT.register((client, tickDelta) -> hud.render(hudCanvas.frame()));
 		ClientTickEvents.END_CLIENT_TICK.register(this::onEndTick);
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> saveAll());
+		// Other Snowball players see this player's badge only while this game runs Snowball Client.
+		SnowballPresence.start(SnowballClient::presenceAccount, () -> ModuleRegistry.INTERFACE == null || ModuleRegistry.INTERFACE.showMe.isOn());
+		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> SnowballPresence.stop());
 		// The launcher passes the rank the backend granted this account; the client only reads it.
 		SnowballPlayers.setSelfRank(Rank.byId(System.getProperty("snowball.rank", "snowball")));
 		LOGGER.info("Snowball Client initialised with {} modules", modules.all().size());
+	}
+
+	/** The signed-in account, as 1.8.9 keeps it: the id comes without dashes. */
+	private static SnowballPresence.Account presenceAccount() {
+		var session = MinecraftClient.getInstance().getSession();
+		if (session == null || session.getUuid() == null) return null;
+		String hex = session.getUuid().replace("-", "");
+		if (!hex.matches("[0-9a-fA-F]{32}")) return null;
+		java.util.UUID id = new java.util.UUID(Long.parseUnsignedLong(hex.substring(0, 16), 16), Long.parseUnsignedLong(hex.substring(16), 16));
+		return new SnowballPresence.Account(session.getUsername(), id, session.getAccessToken());
 	}
 
 	private void onEndTick(MinecraftClient client) {

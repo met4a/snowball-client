@@ -10,6 +10,10 @@ the last 60 messages, the announcement and the mutes. It costs nothing on Cloudf
   this worker checks that with Mojang. The Minecraft token never leaves the player's computer.
 - **The rules are enforced here, not only in the launcher.** No links, no addresses, no images, no
   pinging everyone, a word list, a length limit, and a rate limit of 12 messages a minute.
+- **Badges only while someone is really on Snowball.** A game running Snowball Client proves its
+  account the same way (`POST /presence`) and repeats itself every two minutes on a ticket; `POST
+  /ranks` only reports players whose game did so in the last five minutes. Closing the game sends
+  `DELETE /presence`. Nothing about it is written to storage. Tests: `node --test test/`.
 - **Announcements and moderation are yours alone.** Only the UUID in `ADMIN_UUID` may post an
   announcement, mute someone or clear the chat.
 

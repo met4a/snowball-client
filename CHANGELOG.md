@@ -9,6 +9,78 @@ installer once.
 
 ---
 
+## 1.8.0
+
+### What's new
+- **Nether Travel.** A calculator in the QOL category: type a position and see
+  where a portal comes out on the other side. X and Z are divided or multiplied
+  by 8, Y stays the same, and negative and decimal numbers work. It starts from
+  where you stand, Tab moves between the boxes, Enter copies the block
+  position for /tp. The Coordinates HUD can also show the other dimension's
+  position under "Show the other dimension".
+- **Low Fire, reworked.** The burning overlay is now squashed towards the
+  bottom of the screen instead of slid off it, so the flames keep their whole
+  shape and no longer blink as the fire animates. Choose the flame height and
+  how see-through they are. It measures the same at every resolution and GUI
+  scale, and it now works on Minecraft 1.8.9 too. Your old setting carries over.
+- **Bring your setup from other launchers.** Import now finds Lunar Client
+  (your Fabric mods for each version, options, keybinds and servers, with worlds
+  and packs from its game folder), Feather Client, and the Modrinth App again:
+  newer Modrinth versions keep their profiles in a database, and Snowball could
+  not see any of them. Your .minecraft folder is offered for Badlion and
+  LabyMod players, and you pick the version. For anything else, choose a folder.
+  With a long list you can search it, and what to bring across is picked first.
+- **A Snowball badge now means someone is playing with Snowball Client.**
+  Badges used to follow anyone who had ever used Snowball, even while they
+  played on another client. Now your game tells Snowball's server every couple
+  of minutes that it is running Snowball Client, proved with the key Mojang
+  issued to your account (your access token only ever goes to Mojang), and a
+  badge only shows while that is true. It goes a few minutes after the game
+  closes. Hide yours under Menu & Accessibility, "Show others I use Snowball".
+  Players still on 1.7.0 show no badge until their launcher updates them.
+- **Snowball's staff get a pixel-art snowball comet** instead of an [Owner],
+  [Admin] or [Staff] tag, drawn to fit Minecraft's own pixels in the player
+  list and above heads at every GUI scale.
+- **Play tells you what it is doing.** The button shows Preparing, Launching
+  and Running, with Cancel and Stop, and one instance can only be started once.
+  The progress card lists each step: game files, mods, account, starting
+  Minecraft, the game window.
+- **The launcher gets out of the way.** It minimises when Minecraft opens (or
+  closes, if you prefer, and comes back if the game crashes). Everything keeps
+  going while it is minimised or in the background.
+- **When a launch fails, it says why in plain words** and offers a fix where
+  there is one - download Java, use a safe amount of memory, sign in again,
+  verify files - with the technical details one click away.
+- **Faster to start playing.** Your Minecraft session is kept (encrypted)
+  between launches until it runs out, Java installations are remembered,
+  natives are only unpacked when they change, and the preparation steps run
+  side by side. Preparing an instance went from about 0.75 s to about 0.26 s
+  on a warm start on our test machine.
+- Discord Rich Presence was rebuilt in the launcher and in game: it
+  reconnects when Discord restarts, sends one presence at a time within
+  Discord's limits, and never shows IP addresses, home or dynamic-DNS server
+  names, your account or your files. Showing a server's name is off unless you
+  turn it on, and then only public domains are shown. It needs Snowball's own
+  Discord application, which this build does not have yet, so for now it says
+  "not set up" instead of pretending to work.
+
+### Fixed
+- The game cut to black for a frame when a resource pack or the language
+  reloaded while playing. It now fades exactly like Minecraft does.
+- The Mojang logo and progress bar showed through Snowball's loading screen as
+  it faded, and the loading screen asked for text before Minecraft could draw
+  any, which logged shader errors on every start.
+- Module names in the wheel could run into the next segment.
+- At GUI scale 1, panel titles ran into the line below them.
+- Pressing Play twice could start the same instance twice.
+- The progress card disappeared right after pressing Play.
+- A launcher left open for more than a day could start Minecraft with a
+  session that had run out.
+- Settings said "Launcher 1.5.1" whatever the version was.
+- The "Install optimisation mods" switch did not save.
+- The rank badge in the player list was blurry.
+- Scrollbars were the system's white ones on a dark window.
+
 ## 1.7.0
 
 ### What's new

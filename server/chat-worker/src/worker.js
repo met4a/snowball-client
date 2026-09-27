@@ -11,6 +11,12 @@
 
 import { verifyPlayerProof } from './identity.js';
 
+/** How often a game running Snowball Client says so, and how long that counts for after it stops. */
+const PRESENCE_EVERY_S = 120;
+const PRESENCE_TTL_MS = 5 * 60_000;
+/** How long a proved game may keep saying so on its ticket before proving the account again. */
+const PRESENCE_TICKET_MS = 12 * 60 * 60_000;
+
 const HISTORY = 60;
 const MAX_MESSAGE_LENGTH = 240;
 const MUTE_DEFAULT_MINUTES = 10;
@@ -103,6 +109,11 @@ export class ChatRoom {
     this.flags = {};
     this.nonces = new Map();
     this.tickets = new Map();
+    // Who is playing with Snowball Client right now: account id -> when the game last said so.
+    // Held in memory on purpose: it only has to outlive the next heartbeat, never a restart.
+    this.inClient = new Map();
+    // Handed to a game after it proved its account, so its heartbeats need not prove it again.
+    this.presenceTickets = new Map();
     this.ready = state.blockConcurrencyWhile(async () => {
       this.history = (await state.storage.get('history')) ?? [];
       this.announcement = (await state.storage.get('announcement')) ?? null;
@@ -122,9 +133,42 @@ export class ChatRoom {
       return Response.json({ ...this.stats(), announcement: this.announcement ?? null }, { headers: { 'cache-control': 'no-store' } });
     }
     if (url.pathname.endsWith('/flags')) return Response.json(this.flags, { headers: { 'cache-control': 'no-store' } });
-    // Which of these accounts are on Snowball, and what they hold. The game asks about the
-    // players it can see so it can draw their badge. Ranks are already public - they are on
-    // show in chat and in the player list - so this needs no account behind it.
+    // A game running Snowball Client saying so, every couple of minutes while it runs. The first
+    // time it proves the account with the key Mojang issued (the same proof the launcher's chat
+    // uses) and gets a ticket; after that the ticket is enough. Nothing else about the player is
+    // kept, and it is forgotten a few minutes after the game stops saying so.
+    if (url.pathname.endsWith('/presence')) {
+      const body = await request.json().catch(() => ({}));
+      const now = Date.now();
+      for (const [id, held] of this.presenceTickets) if (held.until < now) this.presenceTickets.delete(id);
+      if (request.method === 'DELETE') {
+        const held = this.presenceTickets.get(String(body.ticket ?? ''));
+        if (held) {
+          this.inClient.delete(held.uuid);
+          this.presenceTickets.delete(String(body.ticket));
+        }
+        return Response.json({ ok: true });
+      }
+      if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 });
+      if (body.ticket) {
+        const held = this.presenceTickets.get(String(body.ticket));
+        if (!held) return Response.json({ error: 'that ticket is not valid any more' }, { status: 403 });
+        this.inClient.set(held.uuid, now);
+        return Response.json({ ok: true, ticket: String(body.ticket), every: PRESENCE_EVERY_S });
+      }
+      const name = String(body.name ?? '');
+      const uuid = String(body.uuid ?? '').replace(/-/g, '').toLowerCase();
+      const failure = await this.verify(name, uuid, String(body.nonce ?? ''), body);
+      if (typeof failure === 'string') return Response.json({ error: failure }, { status: 403 });
+      const ticket = crypto.randomUUID().replace(/-/g, '');
+      this.presenceTickets.set(ticket, { uuid, until: now + PRESENCE_TICKET_MS });
+      this.inClient.set(uuid, now);
+      return Response.json({ ok: true, ticket, every: PRESENCE_EVERY_S });
+    }
+    // Which of these accounts are playing with Snowball Client right now, and what they hold. The
+    // game asks about the players it can see so it can draw their badge. Only a game that is
+    // running Snowball Client counts: somebody who used it once and now plays on another client
+    // gets no badge, and neither does the owner.
     if (url.pathname.endsWith('/ranks') && request.method === 'POST') {
       const body = await request.json().catch(() => ({}));
       const asked = Array.isArray(body.uuids) ? body.uuids : [];
@@ -133,14 +177,11 @@ export class ChatRoom {
       for (const raw of asked.slice(0, 200)) {
         const id = String(raw ?? '').replace(/-/g, '').toLowerCase();
         if (!/^[a-f0-9]{32}$/.test(id)) continue;
+        if (!this.playingNow(id)) continue;
         if (id === owner) { out[id] = 'owner'; continue; }
-        const held = this.ranks.get(id);
-        // Only accounts that actually hold something are reported, so the game can tell a
-        // Snowball player apart from somebody it simply has not heard of.
-        if (held?.rank) out[id] = held.rank;
-        else if (this.people.has(id)) out[id] = 'snowball';
+        out[id] = this.ranks.get(id)?.rank ?? 'snowball';
       }
-      return Response.json({ ranks: out }, { headers: { 'cache-control': 'max-age=60' } });
+      return Response.json({ ranks: out }, { headers: { 'cache-control': 'no-store' } });
     }
     if (url.pathname.endsWith('/nonce')) {
       const nonce = crypto.randomUUID().replace(/-/g, '');
@@ -222,6 +263,15 @@ export class ChatRoom {
     });
     if (failure) return failure;
     return { id: uuid, name };
+  }
+
+  /** Whether this account's game said it runs Snowball Client within the last few minutes. */
+  playingNow(uuid) {
+    const at = this.inClient.get(uuid);
+    if (at === undefined) return false;
+    if (Date.now() - at <= PRESENCE_TTL_MS) return true;
+    this.inClient.delete(uuid);
+    return false;
   }
 
   sweepNonces() {

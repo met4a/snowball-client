@@ -2385,3 +2385,6 @@ body.reduce-motion *::after {
 .import-options .list-row { padding-top: 8px; padding-bottom: 8px; }
 .import-filter { width: 100%; margin: 8px 0; }
 .import-list { max-height: min(44vh, 420px); overflow-y: auto; margin-top: 8px; padding-right: 2px; }
+/* The Java path box shrinks, and its buttons drop below it, rather than pushing out of a narrow card. */
+.java-check { flex-wrap: wrap; }
+.java-check .input { flex: 1 1 200px; min-width: 0; }

@@ -71,8 +71,12 @@ public final class SnowballRenderGameTest implements FabricClientGameTest {
 	private static void lowFire(ClientGameTestContext context, TestSingleplayerContext world) {
 		VisualModules.LowFire lowFire = ModuleRegistry.LOW_FIRE;
 		List<String> problems = new ArrayList<>();
-		// Turning the module on shows a toast, which is left to finish before anything is compared.
+		// Only the flames may change between photographs: the HUD (an FPS counter left on by an earlier
+		// test ticks every frame) is hidden while they are measured. Turning the module on shows a toast,
+		// which is left to finish before anything is compared.
+		boolean hudWasOn = onClient(context, mc -> ModuleRegistry.CLIENT_HUD.isEnabled());
 		onClient(context, mc -> {
+			ModuleRegistry.CLIENT_HUD.disable();
 			configure(lowFire, 100, 100);
 			return null;
 		});
@@ -148,6 +152,7 @@ public final class SnowballRenderGameTest implements FabricClientGameTest {
 			lowFire.disable();
 			lowFire.height.reset();
 			lowFire.opacity.reset();
+			if (hudWasOn) ModuleRegistry.CLIENT_HUD.enable();
 			return null;
 		});
 		setOnFire(context, world, false);

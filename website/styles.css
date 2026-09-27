@@ -8,10 +8,10 @@
   --bg: #05070a;
   --surface: #0b0f14;
   --surface-2: #10151c;
-  --border: rgba(221, 243, 255, 0.09);
-  --border-strong: rgba(221, 243, 255, 0.18);
+  --border: rgba(221, 243, 255, 0.08);
+  --border-strong: rgba(221, 243, 255, 0.16);
   --accent: #7fcbff;
-  --accent-soft: rgba(127, 203, 255, 0.12);
+  --accent-soft: rgba(127, 203, 255, 0.14);
   --text: #f2f6fa;
   --muted: #8a94a0;
   --radius: 12px;

@@ -1944,7 +1944,7 @@
             h('div', { class: 'stat' }, h('div', { class: 'stat-label' }, 'Safe maximum'), h('div', { class: 'stat-value' }, fmtMemory(state.memory.safeUpperLimitMb))))),
         h('div', { class: 'card' },
           h('div', { class: 'section-title' }, 'CHECK A JAVA EXECUTABLE'),
-          h('div', { class: 'row' }, pathInput,
+          h('div', { class: 'row java-check' }, pathInput,
             h('button', { class: 'btn', onClick: async () => { const p = await guard(() => api.browseJava()); if (p) pathInput.value = p; } }, 'Browse'),
             h('button', { class: 'btn primary', onClick: async () => { const r = await guard(() => api.validateJava(pathInput.value, null)); if (r) result.textContent = r.java ? `Java ${r.java.version} (${r.java.vendor})${r.message ? ` - ${r.message}` : ''}` : r.message ?? 'Not a Java executable'; } }, 'Check')),
           result)),

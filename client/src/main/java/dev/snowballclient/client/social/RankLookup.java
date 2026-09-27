@@ -7,8 +7,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -18,21 +19,25 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Finds out which of the players around you are on Snowball, so their badge can be drawn above
- * their head and in the player list.
+ * Finds out which of the players around you are playing with Snowball Client right now, so their
+ * badge can be drawn above their head and in the player list. The backend only reports a player
+ * whose game is running Snowball Client (see {@link SnowballPresence}), and players are asked about
+ * again every couple of minutes, so a badge goes when its owner switches to another client.
  *
  * The client never decides a rank: it asks the Snowball backend and shows whatever it is told.
  * Ranks are already public - they are on show in chat - so this needs no account behind it, and
  * sends nothing but the account ids the game can already see.
  *
- * <p>Deliberately quiet: one request at a time, at most every 30 seconds, only for players it has
- * not already asked about, and never at all when the backend address was not configured.
+ * <p>Deliberately quiet: one request at a time, at most every 30 seconds, each player at most every
+ * two minutes, and never at all when the backend address was not configured.
  */
 public final class RankLookup {
 	private static final Duration TIMEOUT = Duration.ofSeconds(8);
 	private static final long EVERY_MS = 30_000;
-	/** Asked about already, so the same faces are not looked up every half minute. */
-	private static final Set<UUID> ASKED = ConcurrentHashMap.newKeySet();
+	/** When each player was last asked about, so the same faces are not looked up every half minute. */
+	private static final Map<UUID, Long> ASKED = new ConcurrentHashMap<>();
+	/** How long an answer stands before the player is asked about again. */
+	private static final long REASK_MS = 120_000;
 	private static final Pattern ENTRY = Pattern.compile("\"([0-9a-f]{32})\"\\s*:\\s*\"([a-z_]+)\"");
 
 	private static ScheduledExecutorService timer;
@@ -43,7 +48,7 @@ public final class RankLookup {
 	}
 
 	/** The backend address the launcher passed in, or empty when this build has none. */
-	private static String baseUrl() {
+	static String baseUrl() {
 		String url = System.getProperty("snowball.chatUrl", "").trim();
 		return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
 	}
@@ -86,11 +91,12 @@ public final class RankLookup {
 		List<UUID> wanted = new ArrayList<>();
 		for (UUID id : players) {
 			if (wanted.size() >= 200) break;
-			if (id != null && !ASKED.contains(id)) wanted.add(id);
+			Long asked = id == null ? null : ASKED.get(id);
+			if (id != null && (asked == null || now - asked >= REASK_MS)) wanted.add(id);
 		}
 		if (wanted.isEmpty()) return;
 		lastRun = now;
-		ASKED.addAll(wanted);
+		for (UUID id : wanted) ASKED.put(id, now);
 
 		StringBuilder body = new StringBuilder("{\"uuids\":[");
 		for (int i = 0; i < wanted.size(); i++) {
@@ -111,9 +117,14 @@ public final class RankLookup {
 			answered = true;
 			// A tiny reader rather than a JSON library: the shape is one flat object of id to rank,
 			// and the client has no JSON dependency to spend on it.
+			Map<UUID, Rank> playing = new HashMap<>();
 			Matcher m = ENTRY.matcher(response.body());
-			while (m.find()) {
-				SnowballPlayers.add(uuidOf(m.group(1)), Rank.byId(m.group(2)));
+			while (m.find()) playing.put(uuidOf(m.group(1)), Rank.byId(m.group(2)));
+			// Everyone asked about and not in the answer is not playing with Snowball Client now.
+			for (UUID id : wanted) {
+				Rank rank = playing.get(id);
+				if (rank != null) SnowballPlayers.add(id, rank);
+				else SnowballPlayers.remove(id);
 			}
 		} catch (Exception e) {
 			SnowballClient.LOGGER.debug("Could not look up ranks: {}", e.toString());

@@ -24,6 +24,7 @@ public final class InterfaceSettings extends Module {
 	public final BooleanSetting customLoadingScreen;
 	public final ChoiceSetting tabRanks;
 	public final BooleanSetting nameTagBadges;
+	public final BooleanSetting showMe;
 	public final ColorSetting menuColor;
 	public final ColorSetting panelColor;
 
@@ -52,6 +53,7 @@ public final class InterfaceSettings extends Module {
 		tabRanks = setting(new ChoiceSetting("tab_ranks", "Ranks in the player list", "How a player's Snowball rank is shown next to their name", "badge_tag", java.util.List.of("badge_tag", "badge", "tag", "off")));
 
 		nameTagBadges = setting(new BooleanSetting("name_tag_badges", "Badges above players", "Show a Snowball player's badge on the name floating above their head", true));
+		showMe = setting(new BooleanSetting("show_me", "Show others I use Snowball", "Other Snowball players see your badge while you play with Snowball Client", true));
 
 		menuColor.onChange(v -> apply(() -> theme.setAccent(v)));
 		panelColor.onChange(v -> apply(() -> theme.surfaceColor = v | 0xFF000000));

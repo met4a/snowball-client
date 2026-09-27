@@ -18,12 +18,21 @@
 
     <main class="wrap doc">
       <h1>Privacy Policy</h1>
-      <p class="updated">Last updated 14 September 2026</p>
+      <p class="updated">Last updated 27 September 2026</p>
 
-      <p>This policy explains what the Snowball Client launcher and the Snowball Client mod do with your information. In short: we do not run accounts, analytics or tracking, and your data stays on your computer.</p>
+      <p>This policy explains what the Snowball Client launcher and the Snowball Client mod do with your information. In short: we do not run accounts, analytics or tracking. The only things that reach Snowball's own server are listed below, and they are there so chat and Snowball badges work.</p>
 
       <h2>Information we do not collect</h2>
-      <p>Snowball Client does not send us your name, email, password, gameplay, settings, logs or any usage statistics. We have no servers that receive data from the app.</p>
+      <p>Snowball Client does not send us your email, password, access tokens, gameplay, settings, logs, files or any usage statistics.</p>
+
+      <h2>Snowball's server</h2>
+      <p>Snowball runs one small server for the launcher's chat and for Snowball badges. It receives:</p>
+      <ul>
+        <li><strong>When you use the chat:</strong> your Minecraft name and account ID, proved with the public key Mojang issued to your account, and the messages you send. The last messages, mutes and ranks are kept so the chat works for everyone.</li>
+        <li><strong>While you play with Snowball Client:</strong> every two minutes the game tells the server your Minecraft name and account ID, proved the same way, so other Snowball players can see your badge. Only that you are playing is kept, and it is forgotten within five minutes of the game closing. Switch it off under Menu &amp; Accessibility, "Show others I use Snowball".</li>
+        <li><strong>To draw other players' badges:</strong> the account IDs of the players the game can see, so the server can say which of them are playing with Snowball Client right now.</li>
+      </ul>
+      <p>Your access token is only ever sent to Mojang, to fetch that public key; it never reaches Snowball's server.</p>
 
       <h2>Microsoft sign-in</h2>
       <ul>
@@ -43,7 +52,8 @@
         <li>Microsoft, Xbox Live and Minecraft services (sign-in)</li>
         <li>Mojang (Minecraft versions, libraries, assets and Java runtimes)</li>
         <li>FabricMC, QuiltMC, MinecraftForge and NeoForged (mod loaders)</li>
-        <li>Modrinth (Fabric API and optimisation mods)</li>
+        <li>Modrinth (Fabric API, optimisation mods, the mod browser, and the mod check, which sends only each mod's SHA-1 fingerprint, never the file)</li>
+        <li>Discord, on your own computer only, when Discord presence is switched on: never your account, your files, IP addresses or private server addresses</li>
       </ul>
       <p>Each service handles requests under its own privacy policy.</p>
 

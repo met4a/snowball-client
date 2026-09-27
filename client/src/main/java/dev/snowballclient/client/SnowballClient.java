@@ -22,6 +22,7 @@ import dev.snowballclient.client.platform.MinecraftTextures;
 import dev.snowballclient.client.platform.ViewScreen;
 import dev.snowballclient.client.social.Rank;
 import dev.snowballclient.client.social.SnowballPlayers;
+import dev.snowballclient.client.social.SnowballPresence;
 import dev.snowballclient.client.util.OptionsSaver;
 import dev.snowballclient.client.waypoint.WaypointStore;
 import net.fabricmc.api.ClientModInitializer;
@@ -84,6 +85,11 @@ public final class SnowballClient implements ClientModInitializer {
 	 * The mixin reads this rather than deciding for itself, so the shape stays one setting.
 	 */
 	/** Whether a Snowball badge is drawn on the name above a player's head. */
+	private static final java.util.function.Supplier<SnowballPresence.Account> PRESENCE_ACCOUNT = () -> {
+		var user = Minecraft.getInstance().getUser();
+		return user == null ? null : new SnowballPresence.Account(user.getName(), user.getProfileId(), user.getAccessToken());
+	};
+
 	public static boolean nameTagBadges() {
 		return ModuleRegistry.INTERFACE == null || ModuleRegistry.INTERFACE.nameTagBadges.get();
 	}
@@ -190,6 +196,9 @@ public final class SnowballClient implements ClientModInitializer {
 
 		ClientTickEvents.END_CLIENT_TICK.register(this::onEndTick);
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> saveAll());
+		// Other Snowball players see this player's badge only while this game runs Snowball Client.
+		SnowballPresence.start(PRESENCE_ACCOUNT, () -> ModuleRegistry.INTERFACE == null || ModuleRegistry.INTERFACE.showMe.isOn());
+		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> SnowballPresence.stop());
 		// The launcher passes the rank the backend granted this account; the client only reads it.
 		SnowballPlayers.setSelfRank(Rank.byId(System.getProperty("snowball.rank", "snowball")));
 		LOGGER.info("Snowball Client initialised with {} modules", modules.all().size());
