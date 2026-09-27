@@ -56,6 +56,11 @@ installer once.
   natives are only unpacked when they change, and the preparation steps run
   side by side. Preparing an instance went from about 0.75 s to about 0.26 s
   on a warm start on our test machine.
+- **A first Mac build (beta)** for Apple Silicon and Intel. It is not signed
+  with an Apple certificate yet, so macOS asks before opening it the first
+  time, and it tells you about new versions instead of updating itself. On
+  GitHub's Mac machines it starts Minecraft 1.21.11 with Snowball Client on
+  both chips and 26.2 on Apple Silicon; 1.8.9 is untested on a real Mac.
 - Discord Rich Presence was rebuilt in the launcher and in game: it
   reconnects when Discord restarts, sends one presence at a time within
   Discord's limits, and never shows IP addresses, home or dynamic-DNS server
