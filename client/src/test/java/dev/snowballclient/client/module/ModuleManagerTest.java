@@ -5,6 +5,7 @@ import com.google.gson.JsonParser;
 import dev.snowballclient.client.keybind.KeybindTracker;
 import dev.snowballclient.client.module.setting.BooleanSetting;
 import dev.snowballclient.client.module.setting.ChoiceSetting;
+import dev.snowballclient.client.module.render.VisualModules;
 import dev.snowballclient.client.module.setting.NumberSetting;
 import org.junit.jupiter.api.Test;
 
@@ -232,5 +233,36 @@ class ModuleManagerTest {
 		broken.enable();
 		assertDoesNotThrow(manager::tick);
 		assertFalse(broken.isEnabled());
+	}
+
+	@Test
+	void lowFireKeepsAHeightSavedBefore180() {
+		ModuleManager manager = new ModuleManager();
+		VisualModules.LowFire lowFire = manager.register(new VisualModules.LowFire());
+		// The old default moved the flames down 0.3; that is 45% of their on-screen height left.
+		manager.loadState(JsonParser.parseString("{\"low_fire\":{\"enabled\":true,\"settings\":{\"height\":0.3}}}").getAsJsonObject());
+		assertTrue(lowFire.isEnabled());
+		assertEquals(45.0, lowFire.height.get());
+		manager.loadState(JsonParser.parseString("{\"low_fire\":{\"settings\":{\"height\":0.5}}}").getAsJsonObject());
+		assertEquals(10.0, lowFire.height.get(), "the old maximum still leaves flames on screen");
+		// A saved new value wins over an old one left in the same file.
+		manager.loadState(JsonParser.parseString("{\"low_fire\":{\"settings\":{\"height\":0.3,\"fire_height\":80}}}").getAsJsonObject());
+		assertEquals(80.0, lowFire.height.get());
+		assertFalse(manager.saveState().getAsJsonObject("low_fire").getAsJsonObject("settings").has("height"), "only the new setting is written back");
+	}
+
+	@Test
+	void lowFireSquashesTowardsTheBottomOfTheScreen() {
+		VisualModules.LowFire lowFire = new VisualModules.LowFire();
+		assertEquals(1f, lowFire.scale(), "off: the game's own flames");
+		assertEquals(0f, lowFire.shear());
+		lowFire.enable();
+		lowFire.height.set(45.0);
+		// A point on the bottom edge of the view (y = tan 35 deg * z) must not move; heights above it shrink.
+		float z = -0.5f;
+		float bottom = (float) Math.tan(Math.toRadians(35)) * z;
+		assertEquals(bottom, lowFire.scale() * bottom + lowFire.shear() * z, 1e-5);
+		float centre = lowFire.scale() * 0f + lowFire.shear() * z;
+		assertEquals(0.45 * (0f - bottom), centre - bottom, 1e-5);
 	}
 }

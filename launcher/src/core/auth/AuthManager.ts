@@ -18,7 +18,24 @@ export interface StoredAccount {
   uuid: string;
   /** Encrypted Microsoft refresh token; never stored in plain text. */
   refreshToken?: string;
+  /**
+   * The Minecraft session from the last sign-in, encrypted the same way, with the time it runs out.
+   * Kept so the first launch after opening the launcher does not wait on four sign-in requests.
+   */
+  session?: string;
 }
+
+/** A Minecraft session and when it stops being accepted. */
+interface CachedSession {
+  accessToken: string;
+  xuid?: string;
+  expiresAt: number;
+}
+
+/** Sessions are refreshed this long before Minecraft would stop accepting them, never at the edge. */
+const SESSION_MARGIN_MS = 30 * 60_000;
+/** Minecraft sessions last a day; used when the sign-in answer does not say. */
+const DEFAULT_SESSION_MS = 24 * 3_600_000;
 
 export interface SessionAccount {
   id: string;
@@ -76,6 +93,8 @@ export function offlineUuid(name: string): string {
 export class AuthManager {
   private accounts: StoredAccount[] = [];
   private sessions = new Map<string, SessionAccount>();
+  /** When each session in memory runs out. A launcher left open for a day must not hand Minecraft a dead token. */
+  private expiry = new Map<string, number>();
 
   constructor(
     private readonly accountsFile: string,
@@ -94,8 +113,27 @@ export class AuthManager {
     if (!result.ok && result.reason === 'malformed') log.warn('accounts.json was malformed; starting with no accounts');
   }
 
-  list(): Array<Omit<StoredAccount, 'refreshToken'> & { signedIn: boolean }> {
-    return this.accounts.map(({ refreshToken: _omit, ...a }) => ({ ...a, signedIn: this.sessions.has(a.id) || a.type === 'offline' }));
+  list(): Array<Omit<StoredAccount, 'refreshToken' | 'session'> & { signedIn: boolean }> {
+    return this.accounts.map(({ refreshToken: _omit, session: _session, ...a }) => ({ ...a, signedIn: a.type === 'offline' || this.liveSession(a.id) !== null }));
+  }
+
+  /** The Minecraft session for an account while it is still good, from memory or from disk. */
+  private liveSession(accountId: string): SessionAccount | null {
+    const now = Date.now();
+    const memory = this.sessions.get(accountId);
+    if (memory && (this.expiry.get(accountId) ?? 0) - SESSION_MARGIN_MS > now) return memory;
+    const account = this.accounts.find((a) => a.id === accountId);
+    if (!account?.session || !this.cipher.isAvailable()) return null;
+    try {
+      const cached = JSON.parse(this.cipher.decrypt(account.session)) as CachedSession;
+      if (typeof cached.accessToken !== 'string' || !(cached.expiresAt - SESSION_MARGIN_MS > now)) return null;
+      const session: SessionAccount = { id: account.id, type: 'msa', name: account.name, uuid: account.uuid, accessToken: cached.accessToken, xuid: cached.xuid };
+      this.sessions.set(account.id, session);
+      this.expiry.set(account.id, cached.expiresAt);
+      return session;
+    } catch {
+      return null;
+    }
   }
 
   private async persist(): Promise<void> {
@@ -119,6 +157,7 @@ export class AuthManager {
   async remove(id: string): Promise<void> {
     this.accounts = this.accounts.filter((a) => a.id !== id);
     this.sessions.delete(id);
+    this.expiry.delete(id);
     await this.persist();
   }
 
@@ -184,24 +223,31 @@ export class AuthManager {
     return this.storeMsa(session, token.body.refresh_token);
   }
 
-  private async storeMsa(session: Omit<SessionAccount, 'id' | 'type'>, refreshToken: string): Promise<StoredAccount> {
+  private async storeMsa(signedIn: Omit<SessionAccount, 'id' | 'type'> & { expiresInSeconds?: number }, refreshToken: string): Promise<StoredAccount> {
+    const { expiresInSeconds, ...session } = signedIn;
     const existing = this.accounts.find((a) => a.type === 'msa' && a.uuid === session.uuid);
     const account: StoredAccount = existing ?? { id: randomUUID(), type: 'msa', name: session.name, uuid: session.uuid };
     account.name = session.name;
-    if (this.cipher.isAvailable()) account.refreshToken = this.cipher.encrypt(refreshToken);
-    else {
+    const expiresAt = Date.now() + (expiresInSeconds && expiresInSeconds > 0 ? expiresInSeconds * 1000 : DEFAULT_SESSION_MS);
+    if (this.cipher.isAvailable()) {
+      account.refreshToken = this.cipher.encrypt(refreshToken);
+      const cached: CachedSession = { accessToken: session.accessToken, xuid: session.xuid, expiresAt };
+      account.session = this.cipher.encrypt(JSON.stringify(cached));
+    } else {
       delete account.refreshToken;
+      delete account.session;
       log.warn('Secure storage is unavailable; the Microsoft session will not be remembered after closing the launcher.');
     }
     if (!existing) this.accounts.push(account);
     this.sessions.set(account.id, { id: account.id, type: 'msa', ...session });
+    this.expiry.set(account.id, expiresAt);
     await this.persist();
     log.info(`Signed in Microsoft account ${session.name}`);
     return account;
   }
 
   /** Xbox Live -> XSTS -> Minecraft token -> profile. Explains the common account problems. */
-  private async minecraftSession(msAccessToken: string): Promise<Omit<SessionAccount, 'id' | 'type'>> {
+  private async minecraftSession(msAccessToken: string): Promise<Omit<SessionAccount, 'id' | 'type'> & { expiresInSeconds?: number }> {
     const xbl = await this.postJson(XBL_AUTH, { Properties: { AuthMethod: 'RPS', SiteName: 'user.auth.xboxlive.com', RpsTicket: `d=${msAccessToken}` }, RelyingParty: 'http://auth.xboxlive.com', TokenType: 'JWT' });
     if (xbl.status !== 200) throw new AuthError('Xbox Live authentication failed.');
     const uhs = xbl.body.DisplayClaims?.xui?.[0]?.uhs;
@@ -225,7 +271,8 @@ export class AuthManager {
     const profile = await profileRes.json().catch(() => ({}));
     if (!profile.id || !profile.name) throw new AuthError('Could not read the Minecraft profile.');
     const uuid = String(profile.id).replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
-    return { name: profile.name, uuid, accessToken: mc.body.access_token, xuid: xsts.body.DisplayClaims?.xui?.[0]?.xid };
+    const expiresIn = Number(mc.body.expires_in);
+    return { name: profile.name, uuid, accessToken: mc.body.access_token, xuid: xsts.body.DisplayClaims?.xui?.[0]?.xid, expiresInSeconds: Number.isFinite(expiresIn) ? expiresIn : undefined };
   }
 
   /** Returns a launch-ready session, refreshing the Microsoft token if needed. */
@@ -233,7 +280,8 @@ export class AuthManager {
     const account = this.accounts.find((a) => a.id === accountId);
     if (!account) throw new AuthError('Account not found.');
     if (account.type === 'offline') return { id: account.id, type: 'offline', name: account.name, uuid: account.uuid, accessToken: '0' };
-    const cached = this.sessions.get(account.id);
+    // A session from earlier - this run or the last one - is used until shortly before it runs out.
+    const cached = this.liveSession(account.id);
     if (cached) return cached;
     if (!account.refreshToken || !this.cipher.isAvailable()) throw new AuthError('Please sign in to this Microsoft account again.');
     const refresh = await this.postForm(MS_TOKEN, { grant_type: 'refresh_token', client_id: this.clientId(), refresh_token: this.cipher.decrypt(account.refreshToken), scope: SCOPE });

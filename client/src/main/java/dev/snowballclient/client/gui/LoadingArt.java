@@ -12,6 +12,8 @@ import dev.snowballclient.client.ui.Canvas;
 public final class LoadingArt {
 	private static final int SKY_TOP = 0xFF0C1322;
 	private static final int SKY_BOTTOM = 0xFF04060C;
+	/** The one colour that stands for the whole screen, for Minecraft to fade in its own fill with. */
+	public static final int BACKGROUND = 0xFF080C16;
 	private static final int BALL = 0xFFF6FBFF;
 	private static final int BALL_SHADE = 0xFFC8E4F7;
 	private static final int BAR_W = 180;

@@ -57,6 +57,11 @@ public final class UiText {
 		return Math.max(1, (int) Math.floor(density * kind.factor + kind.bias) + kind.extraPixels);
 	}
 
+	/** Height of one line of this kind of text, in the units it is drawn in. */
+	public static float lineHeight(Canvas c, Kind kind) {
+		return c.lineHeight() * scaleFor(kind);
+	}
+
 	public static int width(Canvas c, String text, Kind kind) {
 		return Math.round(c.textWidth(text) * scaleFor(kind));
 	}

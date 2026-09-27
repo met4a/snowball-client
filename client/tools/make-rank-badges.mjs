@@ -42,9 +42,11 @@ const RANKS = [
   { id: 'tester', name: 'Tester', file: 'rank/tester.png', ball: '_ball.png', emblem: 'tester', color: '#5CD6A8' },
   { id: 'bug_hunter', name: 'Bug Hunter', file: 'rank/bug_hunter.png', ball: '_ball.png', emblem: 'bug_hunter', color: '#FFD166' },
   { id: 'partner', name: 'Partner', file: 'rank/partner.png', ball: '_ball.png', emblem: 'partner', color: '#FFA24D' },
-  { id: 'staff', name: 'Staff', file: 'rank/staff.png', ball: '_ball.png', emblem: 'staff', color: '#5C8CFF' },
-  { id: 'developer', name: 'Developer', file: 'rank/developer.png', ball: '_ball.png', emblem: 'developer', color: '#B57BFF' },
-  { id: 'owner', name: 'Owner', file: 'rank/owner.png', ball: '_ball.png', emblem: 'owner', color: '#7FCBFF', emblemColor: '#EAF4FF' },
+  // Staff, Developer and Owner wear the flying snowball instead, drawn at its real size by
+  // make-staff-icons.mjs. They stay listed so the font keeps its order; this tool leaves their files alone.
+  { id: 'staff', name: 'Staff', file: 'rank/staff.png', pixelArt: true },
+  { id: 'developer', name: 'Developer', file: 'rank/developer.png', pixelArt: true },
+  { id: 'owner', name: 'Owner', file: 'rank/owner.png', pixelArt: true },
 ];
 
 // ------------------------------------------------------------- PNG in/out
@@ -200,25 +202,26 @@ function badge(rank) {
 let count = 0;
 const write = (to, data) => { mkdirSync(dirname(to), { recursive: true }); writeFileSync(to, data); count++; };
 
-const built = RANKS.map((rank) => ({ rank, data: encode(badge(rank)) }));
+const built = RANKS.filter((rank) => !rank.pixelArt).map((rank) => ({ rank, data: encode(badge(rank)) }));
 
 for (const tree of TREES) {
   for (const { rank, data } of built) write(join(tree, 'textures', 'gui', rank.file), data);
 
-  /** One bitmap provider per rank. ascent 7 with height 8 sits the badge on the text baseline. */
-  const providers = built.map(({ rank }, i) => ({ file: `gui/${rank.file}`, char: `\\uE00${i}` }));
+  /**
+   * One bitmap provider per rank, in RANKS order. A 32px badge drawn at height 8 with ascent 7 sits on
+   * the baseline; the 11x7 staff icon is drawn at its own height, 7, so it lines up with capitals.
+   * The last entry is the two-pixel gap RankText puts between the badge and the name.
+   */
+  const providers = RANKS.map((rank, i) => ({ file: `gui/${rank.file}`, height: rank.pixelArt ? 7 : 8, char: `\\uE00${i}` }));
   const json = `{\n\t"providers": [\n${providers
-    .map((p) => `\t\t{ "type": "bitmap", "file": "snowballclient:${p.file}", "ascent": 7, "height": 8, "chars": ["${p.char}"] }`)
+    .map((p) => `\t\t{ "type": "bitmap", "file": "snowballclient:${p.file}", "ascent": 7, "height": ${p.height}, "chars": ["${p.char}"] }`)
+    .concat(['\t\t{ "type": "space", "advances": { "\\uE0F0": 2 } }'])
     .join(',\n')}\n\t]\n}\n`;
   write(join(tree, 'font', 'icons.json'), json);
 }
 
-// The launcher shows the same badge in chat, the people list and the admin panel, and the emblem
-// on its own where there is room for it.
-for (const { rank, data } of built) {
-  write(join(LAUNCHER, `${rank.id}.png`), data);
-  if (rank.emblem) write(join(LAUNCHER, `${rank.id}-emblem.png`), encode(renderEmblem(rank.emblem, rank.emblemColor ?? rank.color, 32)));
-}
+// The launcher shows the same badge in chat, the people list and the admin panel.
+for (const { rank, data } of built) write(join(LAUNCHER, `${rank.id}.png`), data);
 
 for (const { rank } of built) console.log(`${rank.name.padEnd(12)} ${rank.emblem ? `ball + ${rank.emblem} at ${EMBLEM}px` : 'ball only'}`);
 console.log(`\n${count} files written.`);
@@ -257,6 +260,6 @@ if (process.argv.includes('--preview')) {
 </style>
 <h1>Snowball rank badges</h1>
 <p class=sub>Every player wears the snowball. The rank's emblem is seated into its lower-right, overlapping the edge so the two read as one mark. Emblems are drawn from geometry, so they stay sharp at every size.</p>
-<table><tr><th>In game</th><th>Badge</th><th>Emblem</th><th>As it reads in TAB</th></tr>${RANKS.map(row).join('')}</table>`);
+<table><tr><th>In game</th><th>Badge</th><th>Emblem</th><th>As it reads in TAB</th></tr>${built.map(({ rank }) => row(rank)).join('')}</table>`);
   console.log('preview: client/tools/rank-badges-preview.html');
 }

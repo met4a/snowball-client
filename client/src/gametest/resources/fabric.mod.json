@@ -5,7 +5,7 @@
 	"name": "Snowball Client UI tests",
 	"environment": "client",
 	"entrypoints": {
-		"fabric-client-gametest": ["dev.snowballclient.gametest.SnowballMenuGameTest", "dev.snowballclient.gametest.SnowballSceneCapture"]
+		"fabric-client-gametest": ["dev.snowballclient.gametest.SnowballMenuGameTest", "dev.snowballclient.gametest.SnowballFlickerGameTest", "dev.snowballclient.gametest.SnowballRenderGameTest", "dev.snowballclient.gametest.SnowballSceneCapture"]
 	},
 	"depends": {
 		"snowballclient": "*"

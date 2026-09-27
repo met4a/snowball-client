@@ -38,6 +38,9 @@ export async function loadAutoUpdater(
  */
 const HANDOVER = 'pending-update.json';
 
+/** Where a build that cannot replace itself sends people for the new version. */
+export const DOWNLOAD_PAGE = 'https://met4a.github.io/snowball-website/';
+
 export type UpdateStatus =
   | 'idle'
   | 'checking'
@@ -186,15 +189,18 @@ export class UpdateService {
       if (compareVersions(found, version) <= 0) {
         return this.set({ status: 'up-to-date', version, checkedAt: new Date().toISOString() });
       }
-      if (this.isPortable()) {
-        // A portable .exe has no installer to hand over to, so it is told where to get the new one
-        // rather than trying to overwrite itself while it is running.
+      if (this.isPortable() || this.isMac()) {
+        // A portable .exe has no installer to hand over to, and macOS only lets an app replace itself
+        // when it is signed with an Apple certificate, which Snowball's Mac build is not. Both are
+        // told where to get the new one rather than trying to overwrite themselves.
         return this.set({
           status: 'manual',
           version,
           newVersion: found,
-          downloadUrl: 'https://met4a.github.io/snowball-website/',
-          message: `Snowball ${found} is out. The portable build cannot replace itself, so download the new file when you are ready.`,
+          downloadUrl: DOWNLOAD_PAGE,
+          message: this.isMac()
+            ? `Snowball ${found} is out. On a Mac, download it from the website and drag it into Applications to replace this copy.`
+            : `Snowball ${found} is out. The portable build cannot replace itself, so download the new file when you are ready.`,
         });
       }
       // From here electron-updater's own events drive the state: downloading -> verifying -> ready.
@@ -253,10 +259,15 @@ export class UpdateService {
     return Boolean(process.env.PORTABLE_EXECUTABLE_FILE);
   }
 
+  private isMac(): boolean {
+    return process.platform === 'darwin';
+  }
+
   private async load(): Promise<typeof import('electron-updater').autoUpdater> {
     if (this.updater) return this.updater;
     const autoUpdater = await loadAutoUpdater();
-    autoUpdater.autoDownload = true;
+    // Builds that cannot replace themselves only look; they never download an update they cannot apply.
+    autoUpdater.autoDownload = !this.isPortable() && !this.isMac();
     // The swap happens when the user agrees to it, not silently behind them on quit.
     autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.allowDowngrade = false;

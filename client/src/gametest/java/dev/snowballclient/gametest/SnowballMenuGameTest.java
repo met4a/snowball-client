@@ -6,8 +6,6 @@ import dev.snowballclient.client.SnowballClient;
 import dev.snowballclient.client.gui.ColorPickerView;
 import dev.snowballclient.client.gui.HudEditorView;
 import dev.snowballclient.client.gui.ModuleSettingsView;
-import dev.snowballclient.client.gui.RadialMenuView;
-import dev.snowballclient.client.gui.TitleMenuView;
 import dev.snowballclient.client.module.Module;
 import dev.snowballclient.client.module.ModuleCategory;
 import dev.snowballclient.client.module.ModuleRegistry;
@@ -29,7 +27,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Function;
+
+import static dev.snowballclient.gametest.ClientSteps.*;
 
 /**
  * Drives the real client: opens the radial menu at several resolutions, selects every category
@@ -37,15 +36,14 @@ import java.util.function.Function;
  */
 public final class SnowballMenuGameTest implements FabricClientGameTest {
 	private static final Logger LOG = LoggerFactory.getLogger("SnowballClientGameTest");
-	private static final int KEY_RIGHT_SHIFT = 344;
-	private static final int KEY_E = 69;
-	private static final int KEY_ESCAPE = 256;
-	private static final int KEY_ENTER = 257;
 	private static final int[][] RESOLUTIONS = {{1280, 720}, {1920, 1080}, {2560, 1440}, {3840, 2160}};
 
 	@Override
 	public void runTest(ClientGameTestContext context) {
-		if (Boolean.getBoolean("snowball.scene")) return; // scene capture run only
+		if (Boolean.getBoolean("snowball.scene") || skipped("menu")) {
+			endOnTitle(context);
+			return;
+		}
 
 		loadingScreen(context);
 		mainMenu(context);
@@ -83,15 +81,52 @@ public final class SnowballMenuGameTest implements FabricClientGameTest {
 					PlayerInfo info = mc.getConnection().getPlayerInfo(mc.getUser().getProfileId());
 					return info == null ? "" : mc.gui.hud.getTabList().getNameForDisplay(info).getString();
 				});
-				if (!shown.startsWith(String.valueOf(rank.badge())) || !shown.contains("[" + rank.tag() + "]")) {
+				// Staff wear only their icon; every other rank its badge and its [Tag].
+				boolean tagged = shown.contains("[" + rank.tag() + "]");
+				if (!shown.startsWith(String.valueOf(rank.badge())) || tagged == rank.iconOnly()) {
 					throw new AssertionError("Rank " + rank.id() + " is not drawn correctly: " + shown);
 				}
 			}
+			// The player list itself, photographed: staff wear the icon alone, other ranks badge and tag, at
+			// every GUI scale. Minecraft only draws the list in singleplayer when an objective is shown in it.
+			world.getServer().runCommand("scoreboard objectives add snowball_list dummy");
+			world.getServer().runCommand("scoreboard objectives setdisplay list snowball_list");
+			int guiScaleBefore = onClient(context, mc -> mc.options.guiScale().get());
+			for (Rank shown : new Rank[]{Rank.OWNER, Rank.TESTER}) {
+				for (int scale = 1; scale <= 4; scale++) {
+					int guiScale = scale;
+					onClient(context, mc -> {
+						SnowballPlayers.setSelfRank(shown);
+						mc.options.guiScale().set(guiScale);
+						//? if >=26.1 {
+						mc.resizeGui();
+						//?} else {
+						/*mc.resizeDisplay();
+						*///?}
+						return null;
+					});
+					context.getInput().holdKey(KEY_TAB);
+					context.waitTicks(3);
+					context.takeScreenshot("tab_" + shown.id() + "_gui" + scale);
+					context.getInput().releaseKey(KEY_TAB);
+				}
+			}
+			onClient(context, mc -> {
+				mc.options.guiScale().set(guiScaleBefore);
+				//? if >=26.1 {
+				mc.resizeGui();
+				//?} else {
+				/*mc.resizeDisplay();
+				*///?}
+				return null;
+			});
+			world.getServer().runCommand("scoreboard objectives remove snowball_list");
+
 			onClient(context, mc -> {
 				SnowballPlayers.setSelfRank(Rank.SNOWBALL);
 				return null;
 			});
-			LOG.info("All {} ranks draw their badge and tag", Rank.values().length);
+			LOG.info("All {} ranks draw correctly: staff as their icon alone, the rest as badge and tag", Rank.values().length);
 
 			// Glass GUI: the same screen with Minecraft's background, then with Snowball's glass.
 			for (boolean glass : new boolean[]{false, true}) {
@@ -259,51 +294,6 @@ public final class SnowballMenuGameTest implements FabricClientGameTest {
 		context.getInput().pressKey(KEY_ESCAPE);
 		context.waitFor(mc -> title(mc) != null, 100);
 		LOG.info("Main menu opened Minecraft's options and came back");
-	}
-
-	private static TitleMenuView title(Minecraft mc) {
-		return mc.gui.screen() instanceof ViewScreen v && v.view() instanceof TitleMenuView t ? t : null;
-	}
-
-	private static RadialMenuView menu(Minecraft mc) {
-		return mc.gui.screen() instanceof ViewScreen v && v.view() instanceof RadialMenuView r ? r : null;
-	}
-
-	private static RadialMenuView screen(Minecraft mc) {
-		RadialMenuView r = menu(mc);
-		if (r != null) return r;
-		throw new AssertionError("Radial menu is not open (screen=" + mc.gui.screen() + ")");
-	}
-
-	private static void openMenu(ClientGameTestContext context) {
-		context.getInput().pressKey(KEY_RIGHT_SHIFT);
-		context.waitForScreen(ViewScreen.class);
-		context.waitFor(mc -> menu(mc) != null && menu(mc).isFullyOpen() && SnowballClient.get().wheelTextures().ready(), 200);
-		context.waitTicks(4);
-	}
-
-	private static void closeMenu(ClientGameTestContext context) {
-		context.getInput().pressKey(KEY_ESCAPE);
-		context.waitForScreen(null);
-		context.waitTicks(4);
-	}
-
-	private static void clickGui(ClientGameTestContext context, double[] guiPos) {
-		double scale = onClient(context, mc -> (double) mc.getWindow().getGuiScale());
-		context.getInput().setCursorPos(guiPos[0] * scale, guiPos[1] * scale);
-		context.waitTicks(2);
-		context.getInput().pressMouse(0);
-		context.waitTicks(2);
-	}
-
-	@SuppressWarnings("unchecked")
-	private static <T> T onClient(ClientGameTestContext context, Function<Minecraft, T> function) {
-		Object[] box = new Object[1];
-		context.waitFor(mc -> {
-			box[0] = function.apply(mc);
-			return true;
-		});
-		return (T) box[0];
 	}
 
 	private static String readFile(String name) {

@@ -27,6 +27,7 @@ import dev.snowballclient.client.module.misc.SessionTimer;
 import dev.snowballclient.client.module.misc.DiscordPresenceModule;
 import dev.snowballclient.client.module.qol.CpsCounter;
 import dev.snowballclient.client.module.qol.EzPots;
+import dev.snowballclient.client.module.qol.NetherTravelModule;
 import dev.snowballclient.client.module.qol.Freelook;
 import dev.snowballclient.client.module.qol.Keystrokes;
 import dev.snowballclient.client.module.qol.Snaplook;
@@ -176,6 +177,7 @@ public final class ModuleRegistry {
 		m.register(new CpsCounter());
 		m.register(new Snaplook());
 		m.register(new EzPots());
+		m.register(new NetherTravelModule());
 		THIRD_PERSON = m.register(new ThirdPersonCamera());
 
 		// STORAGE

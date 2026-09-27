@@ -11,6 +11,8 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Talks to the Discord app on this computer over its local pipe, the same way Discord's own library
@@ -24,26 +26,60 @@ public final class DiscordIpc implements Closeable {
 	/** Discord numbers its pipes when several clients (stable, PTB, Canary) run at once. */
 	private static final int MAX_PIPES = 10;
 
-	private final RandomAccessFile pipe;
-	private final SocketChannel socket;
-
-	private DiscordIpc(RandomAccessFile pipe, SocketChannel socket) {
-		this.pipe = pipe;
-		this.socket = socket;
+	/** Thrown when Discord answers the handshake by refusing the application id. */
+	public static final class RejectedException extends IOException {
+		public RejectedException(String message) {
+			super(message);
+		}
 	}
 
-	/** @return a connected client, or null when Discord is not running on this computer */
-	public static DiscordIpc connect(String applicationId) {
+	/** One end of a pipe: Windows' named pipe, or the Unix socket everywhere else. */
+	interface Channel extends Closeable {
+		void write(byte[] data) throws IOException;
+
+		void readFully(byte[] into) throws IOException;
+	}
+
+	/** Opens Discord's pipe number {@code index}, or returns null when there is nothing listening. */
+	interface Opener {
+		Channel open(int index);
+	}
+
+	private final Channel channel;
+
+	private DiscordIpc(Channel channel) {
+		this.channel = channel;
+	}
+
+	/**
+	 * @return a client Discord has accepted, or null when Discord is not running on this computer
+	 * @throws RejectedException when Discord is running but does not accept the application id
+	 */
+	public static DiscordIpc connect(String applicationId) throws RejectedException {
+		return connect(applicationId, DiscordIpc::openPipe);
+	}
+
+	static DiscordIpc connect(String applicationId, Opener opener) throws RejectedException {
 		for (int i = 0; i < MAX_PIPES; i++) {
-			DiscordIpc client = open(i);
-			if (client == null) continue;
+			Channel channel = opener.open(i);
+			if (channel == null) continue;
+			DiscordIpc client = new DiscordIpc(channel);
 			try {
 				JsonObject handshake = new JsonObject();
 				handshake.addProperty("v", 1);
 				handshake.addProperty("client_id", applicationId);
 				client.send(OP_HANDSHAKE, handshake.toString());
-				client.readFrame();
-				return client;
+				// Discord answers READY when it accepts the application, and closes when it does not.
+				// Taking any answer as a yes used to report "connected" to a Discord that had said no.
+				Frame answer = client.readFrame();
+				if (answer.opcode() == OP_CLOSE) {
+					client.closeQuietly();
+					throw new RejectedException(message(answer.body()));
+				}
+				if (answer.opcode() == OP_FRAME && answer.body().contains("\"READY\"")) return client;
+				client.closeQuietly();
+			} catch (RejectedException e) {
+				throw e;
 			} catch (IOException e) {
 				client.closeQuietly();
 			}
@@ -51,18 +87,57 @@ public final class DiscordIpc implements Closeable {
 		return null;
 	}
 
-	private static DiscordIpc open(int index) {
+	/** Discord's reason, read without a JSON parser: 1.8.9 ships a Gson too old for the modern calls. */
+	private static String message(String body) {
+		Matcher m = REASON.matcher(body);
+		return m.find() ? m.group(1) : body;
+	}
+
+	private static final Pattern REASON = Pattern.compile("\"message\"\\s*:\\s*\"([^\"]*)\"");
+
+	private static Channel openPipe(int index) {
 		try {
 			if (System.getProperty("os.name", "").toLowerCase().contains("win")) {
-				return new DiscordIpc(new RandomAccessFile("\\\\.\\pipe\\discord-ipc-" + index, "rw"), null);
+				RandomAccessFile pipe = new RandomAccessFile("\\\\.\\pipe\\discord-ipc-" + index, "rw");
+				return new Channel() {
+					public void write(byte[] data) throws IOException {
+						pipe.write(data);
+					}
+
+					public void readFully(byte[] into) throws IOException {
+						pipe.readFully(into);
+					}
+
+					public void close() throws IOException {
+						pipe.close();
+					}
+				};
 			}
-			Path socketPath = unixSocket(index);
-			if (socketPath == null) return null;
-			SocketChannel channel = SocketChannel.open(java.net.UnixDomainSocketAddress.of(socketPath));
-			return new DiscordIpc(null, channel);
+			SocketChannel socket = SocketChannel.open(java.net.UnixDomainSocketAddress.of(unixSocket(index)));
+			return socketChannel(socket);
 		} catch (IOException | RuntimeException e) {
 			return null;
 		}
+	}
+
+	static Channel socketChannel(SocketChannel socket) {
+		return new Channel() {
+			public void write(byte[] data) throws IOException {
+				ByteBuffer buffer = ByteBuffer.wrap(data);
+				while (buffer.hasRemaining()) socket.write(buffer);
+			}
+
+			public void readFully(byte[] into) throws IOException {
+				ByteBuffer buffer = ByteBuffer.wrap(into);
+				while (buffer.hasRemaining()) {
+					if (socket.read(buffer) < 0) throw new IOException("Discord closed the connection");
+				}
+			}
+
+			public void close() throws IOException {
+				socket.close();
+			}
+		};
 	}
 
 	private static Path unixSocket(int index) {
@@ -84,36 +159,30 @@ public final class DiscordIpc implements Closeable {
 		frame.addProperty("nonce", UUID.randomUUID().toString());
 		send(OP_FRAME, frame.toString());
 		// Discord answers every command; reading it keeps the pipe from filling up.
-		readFrame();
+		Frame answer = readFrame();
+		if (answer.opcode() == OP_CLOSE) throw new IOException("Discord closed the connection: " + message(answer.body()));
+	}
+
+	private record Frame(int opcode, String body) {
 	}
 
 	private void send(int opcode, String json) throws IOException {
 		byte[] body = json.getBytes(StandardCharsets.UTF_8);
 		ByteBuffer buffer = ByteBuffer.allocate(8 + body.length).order(ByteOrder.LITTLE_ENDIAN);
-		buffer.putInt(opcode).putInt(body.length).put(body).flip();
-		if (pipe != null) pipe.write(buffer.array());
-		else while (buffer.hasRemaining()) socket.write(buffer);
+		buffer.putInt(opcode).putInt(body.length).put(body);
+		channel.write(buffer.array());
 	}
 
-	private void readFrame() throws IOException {
-		ByteBuffer header = readFully(8);
-		header.order(ByteOrder.LITTLE_ENDIAN);
-		header.getInt();
-		int length = header.getInt();
-		if (length > 0 && length < 1 << 20) readFully(length);
-	}
-
-	private ByteBuffer readFully(int length) throws IOException {
-		byte[] data = new byte[length];
-		if (pipe != null) {
-			pipe.readFully(data);
-			return ByteBuffer.wrap(data);
-		}
-		ByteBuffer buffer = ByteBuffer.wrap(data);
-		while (buffer.hasRemaining()) {
-			if (socket.read(buffer) < 0) throw new IOException("Discord closed the connection");
-		}
-		return ByteBuffer.wrap(data);
+	private Frame readFrame() throws IOException {
+		byte[] header = new byte[8];
+		channel.readFully(header);
+		ByteBuffer h = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN);
+		int opcode = h.getInt();
+		int length = h.getInt();
+		if (length < 0 || length >= 1 << 20) throw new IOException("Discord sent a frame of " + length + " bytes");
+		byte[] body = new byte[length];
+		channel.readFully(body);
+		return new Frame(opcode, new String(body, StandardCharsets.UTF_8));
 	}
 
 	@Override
@@ -128,8 +197,7 @@ public final class DiscordIpc implements Closeable {
 
 	private void closeQuietly() {
 		try {
-			if (pipe != null) pipe.close();
-			if (socket != null) socket.close();
+			channel.close();
 		} catch (IOException ignored) {
 			// Nothing useful to do with a failure to close.
 		}

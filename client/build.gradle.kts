@@ -93,5 +93,9 @@ tasks {
     // Website screenshots in real worlds: ./gradlew :26.2:runClientGameTest -Pscene
     matching { it.name == "runClientGameTest" }.configureEach {
         if (project.hasProperty("scene")) (this as JavaExec).systemProperty("snowball.scene", "true")
+        // Lists flashing frames without failing, while tracking one down: -PflickerReport
+        if (project.hasProperty("flickerReport")) (this as JavaExec).systemProperty("snowball.flicker.report", "true")
+        // Runs only some of the tests, by name: -Ponly=menu,flicker,render
+        if (project.hasProperty("only")) (this as JavaExec).systemProperty("snowball.only", project.property("only").toString())
     }
 }

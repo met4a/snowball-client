@@ -4,9 +4,11 @@ import dev.snowballclient.client.hud.TextHudModule;
 import dev.snowballclient.client.module.ModuleCategory;
 import dev.snowballclient.client.module.setting.BooleanSetting;
 import dev.snowballclient.client.module.setting.ChoiceSetting;
+import dev.snowballclient.client.travel.NetherTravel;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.PlayerInfo;
+import net.minecraft.world.level.Level;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -65,6 +67,8 @@ public final class ClientHudModules {
 	public static final class Coordinates extends TextHudModule {
 		private final BooleanSetting showFacing = setting(new BooleanSetting("facing", "Show facing", "Append the direction you are looking", true));
 		private final ChoiceSetting precision = setting(new ChoiceSetting("precision", "Precision", "", "block", List.of("block", "decimal")));
+		private final BooleanSetting otherDimension = setting(new BooleanSetting("other_dimension", "Show the other dimension",
+				"Where you are in the Nether, or in the Overworld while in the Nether", false));
 
 		public Coordinates() {
 			super("coordinates", "Coordinates", "Shows your position", ModuleCategory.CLIENT, 0.0, 0.14);
@@ -77,7 +81,12 @@ public final class ClientHudModules {
 			String pos = "block".equals(precision.get())
 					? String.format(Locale.ROOT, "XYZ %d %d %d", p.getBlockX(), p.getBlockY(), p.getBlockZ())
 					: String.format(Locale.ROOT, "XYZ %.1f %.1f %.1f", p.getX(), p.getY(), p.getZ());
-			return showFacing.isOn() ? pos + "  " + p.getDirection().getSerializedName().toUpperCase(Locale.ROOT) : pos;
+			String text = showFacing.isOn() ? pos + "  " + p.getDirection().getSerializedName().toUpperCase(Locale.ROOT) : pos;
+			if (!otherDimension.isOn() || mc.level == null) return text;
+			NetherTravel.Direction way = mc.level.dimension() == Level.NETHER ? NetherTravel.Direction.TO_OVERWORLD
+					: mc.level.dimension() == Level.OVERWORLD ? NetherTravel.Direction.TO_NETHER : null;
+			return way == null ? text : text + "  " + way.to.toUpperCase(Locale.ROOT) + " "
+					+ NetherTravel.block(way.apply(p.getX())) + " " + NetherTravel.block(way.apply(p.getZ()));
 		}
 	}
 

@@ -1,18 +1,19 @@
 import { existsSync } from 'node:fs';
 import { EventEmitter } from 'node:events';
-import { cp, mkdir, readFile, readdir, rm } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { arch, platform } from 'node:os';
 import { AuthManager, type SecretCipher } from './auth/AuthManager.js';
 import { DownloadManager, type DownloadProgress } from './download/DownloadManager.js';
 import { VerifiedFiles } from './download/VerifiedFiles.js';
-import { detectInstances, detectOfficialLauncher, foldersFor, type FoundInstance, type ImportOptions } from './import/LauncherImport.js';
+import { detectInstances, detectOfficialLauncher, inspectFolder, partsFor, sourceOf, type FoundInstance, type ImportOptions } from './import/LauncherImport.js';
 import { InstanceManager, type CreateInstanceOptions, type InstanceConfig, type LoaderId, type PerformanceProfileId } from './instance/InstanceManager.js';
-import { JavaManager, recommendMemory } from './java/JavaManager.js';
+import { javaCpu, JavaManager, recommendMemory } from './java/JavaManager.js';
 import { ActivityLog } from './logging/Activity.js';
 import { getLogger, logSink, LogLevel } from './logging/Logger.js';
 import { fabricApiFor, usesLegacyFabric } from './minecraft/fabricFamily.js';
 import type { VersionJson } from './minecraft/types.js';
-import { VersionManager } from './minecraft/VersionManager.js';
+import { usesLwjgl2, VersionManager } from './minecraft/VersionManager.js';
 import { ModLoaderRegistry } from './modloader/ModLoaderRegistry.js';
 import { ModManager } from './mods/ModManager.js';
 import { ModrinthService } from './mods/Modrinth.js';
@@ -36,6 +37,25 @@ export interface LaunchProgress {
   completed?: number;
   total?: number;
 }
+
+/**
+ * Where a launch has got to. The launcher window only shows this; the launch itself runs here, in the
+ * main process, so it carries on whether the window is focused, minimised or closed.
+ *  preparing - checking and downloading files, signing in
+ *  launching - Minecraft has been started and is opening its window
+ *  running   - Minecraft's window is up
+ */
+export type LaunchPhase = 'preparing' | 'launching' | 'running';
+
+export interface LaunchPhaseEvent {
+  instanceId: string;
+  phase: LaunchPhase | null;
+}
+
+/** Minecraft opens its window and starts its sound engine at the same moment. */
+const WINDOW_UP = /^(Sound engine started|SoundSystem started)/;
+/** If a version never says so, the game is taken to be running after this long. */
+const RUNNING_FALLBACK_MS = 45_000;
 
 export class LaunchBlockedError extends Error {
   constructor(readonly issues: string[]) {
@@ -69,6 +89,10 @@ export class Launcher extends EventEmitter {
   private readonly interpreters = new Map<string, GameActivityInterpreter>();
   private readonly discordAppId: string;
   private readonly lastStage = new Map<string, string>();
+  private readonly phases = new Map<string, LaunchPhase>();
+  /** Cancels a launch that is still preparing, when Stop is pressed before the game has started. */
+  private readonly preparing = new Map<string, AbortController>();
+  private readonly runningFallback = new Map<string, NodeJS.Timeout>();
 
   private constructor(
     readonly paths: LauncherPaths,
@@ -105,7 +129,7 @@ export class Launcher extends EventEmitter {
     await verified.load();
     const downloads = new DownloadManager({ concurrency: s.downloads.concurrency, retries: s.downloads.retries, userAgent: `SnowballClientLauncher/${options.launcherVersion}`, verified });
     const versions = new VersionManager(paths, downloads);
-    const java = new JavaManager(paths.runtimes, downloads);
+    const java = new JavaManager(paths.runtimes, downloads, undefined, join(paths.cache, 'java-probes.json'));
     const instances = new InstanceManager(paths.instances);
     const mods = new ModManager();
     const modrinth = new ModrinthService(downloads, mods);
@@ -122,11 +146,13 @@ export class Launcher extends EventEmitter {
     const launcher = new Launcher(paths, settings, downloads, versions, java, instances, mods, modrinth, core, loaders, auth, processes, options);
     processes.on('record', ({ instanceId, record }: GameRecordEvent) => {
       for (const line of launcher.interpreters.get(instanceId)?.interpret(record) ?? []) launcher.activity.add(instanceId, line.level, line.message);
+      if (launcher.phases.get(instanceId) === 'launching' && WINDOW_UP.test(record.message)) launcher.setPhase(instanceId, 'running');
     });
     processes.on('exit', (exit: GameExit) => {
       instances.markPlayed(exit.instanceId, exit.durationMs).catch((err) => log.warn('Could not record play time', { error: String(err) }));
       launcher.interpreters.delete(exit.instanceId);
       launcher.lastStage.delete(exit.instanceId);
+      launcher.setPhase(exit.instanceId, null);
       void launcher.reportExit(exit);
     });
     log.info('Launcher started', { root: paths.root, version: options.launcherVersion });
@@ -297,6 +323,9 @@ export class Launcher extends EventEmitter {
     const downloadStage = (name: string, p?: DownloadProgress) => this.progress(instanceId, name, p);
 
     let versionId = mc;
+    // Checked alongside Java and the mods below when the game is already installed: none of the
+    // three depends on the others, and one after another they added up.
+    let filesChecked: Promise<unknown> = Promise.resolve();
     if (config.loader === 'vanilla') {
       stage('Checking Minecraft files');
       await this.versions.installVanilla(mc, signal, downloadStage);
@@ -311,7 +340,7 @@ export class Launcher extends EventEmitter {
       const installed = await loader.findInstalled(mc, loaderVersion, { versions: this.versions });
       if (installed) {
         stage('Checking game files');
-        await this.versions.installFiles(await this.versions.resolve(installed), signal, downloadStage);
+        filesChecked = this.versions.resolve(installed).then((v) => this.versions.installFiles(v, signal, downloadStage));
         versionId = installed;
       } else {
         const installerJava = loader.id === 'forge' || loader.id === 'neoforge' ? (await this.java.pickFor(21))?.path : undefined;
@@ -319,29 +348,19 @@ export class Launcher extends EventEmitter {
       }
     }
     const version = await this.versions.resolve(versionId);
+    const javaFound = this.javaFor(config, version, signal, stage, downloadStage);
+    const modsReady = this.prepareMods(instanceId, config, gameDir, signal, stage);
+    const [javaPath, core] = await Promise.all([javaFound, modsReady, filesChecked]);
 
-    // Snowball Client builds can need a newer Java than the game itself: Minecraft 1.8.9 asks for Java 8,
-    // and the client for that version is built for Java 21, which 1.8.9 runs on happily.
-    const gameJava = version.javaVersion?.majorVersion ?? 8;
-    const clientJava = this.core.registry.find(mc, config.loader)?.javaMajor ?? 0;
-    const required = Math.max(gameJava, clientJava);
-    let javaPath: string | null = null;
-    if (config.java.executable) {
-      const check = await this.java.validateFor(config.java.executable, required);
-      if (!check.ok || !check.java) throw new Error(check.message ?? 'The selected Java is not usable.');
-      javaPath = check.java.path;
-    } else {
-      javaPath = (await this.java.pickFor(required))?.path ?? null;
-      if (!javaPath && this.settings.get().java.autoDownloadRuntime) {
-        const component = required === gameJava ? version.javaVersion?.component ?? null : await this.java.componentForMajor(required, signal);
-        if (component) {
-          stage(`Downloading Java ${required}`);
-          javaPath = (await this.java.installMojangRuntime(component, signal, (p) => downloadStage(`Downloading Java ${required}`, p))).path;
-        }
-      }
-      if (!javaPath) throw new Error(`Java ${required} is required. Install it or enable automatic Java downloads in Settings.`);
-    }
+    const issues = this.mods.analyze(await this.mods.list(gameDir), mc, config.loader).filter((i) => i.severity === 'error');
+    if (issues.length) throw new LaunchBlockedError(issues.map((i) => i.message));
+    return { config: await this.instances.load(instanceId), version, javaPath, clientJar: core.clientJar };
+  }
 
+  /** Fabric API, the client's mod requests, a performance profile, then Snowball Client itself. */
+  private async prepareMods(instanceId: string, config: InstanceConfig, gameDir: string, signal: AbortSignal | undefined, stage: (name: string) => void) {
+    const mc = config.minecraftVersion;
+    if (config.loader !== 'vanilla') stage('Checking mods');
     if (config.loader === 'fabric' || config.loader === 'quilt') {
       if (config.pendingFabricApi) {
         stage(`Installing ${fabricApiFor(mc).name}`);
@@ -363,11 +382,38 @@ export class Launcher extends EventEmitter {
     // Snowball Client is verified and repaired before every launch; on versions without a build, a
     // stray copy is set aside so it cannot stop the game from starting.
     if (this.core.registry.find(mc, config.loader)) stage('Checking core files');
-    const core = await this.core.ensure(this.coreTarget(instanceId, config), this.activity.reporter(instanceId), signal);
+    return this.core.ensure(this.coreTarget(instanceId, config), this.activity.reporter(instanceId), signal);
+  }
 
-    const issues = this.mods.analyze(await this.mods.list(gameDir), mc, config.loader).filter((i) => i.severity === 'error');
-    if (issues.length) throw new LaunchBlockedError(issues.map((i) => i.message));
-    return { config: await this.instances.load(instanceId), version, javaPath, clientJar: core.clientJar };
+  /** The Java this launch runs on: the instance's own choice, one already installed, or Mojang's. */
+  private async javaFor(config: InstanceConfig, version: VersionJson, signal: AbortSignal | undefined, stage: (name: string) => void, downloadStage: (name: string, p?: DownloadProgress) => void): Promise<string> {
+    const mc = config.minecraftVersion;
+    // Snowball Client builds can need a newer Java than the game itself: Minecraft 1.8.9 asks for Java 8,
+    // and the client for that version is built for Java 21, which 1.8.9 runs on happily.
+    const gameJava = version.javaVersion?.majorVersion ?? 8;
+    const clientJava = this.core.registry.find(mc, config.loader)?.javaMajor ?? 0;
+    const required = Math.max(gameJava, clientJava);
+    // LWJGL 2 (Minecraft 1.12.2 and older) ships only Intel libraries for macOS, so on Apple Silicon
+    // those versions run on an Intel Java, which macOS runs through Rosetta 2.
+    const cpu = platform() === 'darwin' && arch() === 'arm64' && usesLwjgl2(version) ? 'x64' as const : undefined;
+    let javaPath: string | null = null;
+    if (config.java.executable) {
+      const check = await this.java.validateFor(config.java.executable, required);
+      if (!check.ok || !check.java) throw new Error(check.message ?? 'The selected Java is not usable.');
+      if (cpu && javaCpu(check.java.arch) !== cpu) throw new Error(`Minecraft ${mc} needs an Intel (x64) Java on Apple Silicon Macs; the selected Java is ${check.java.arch}. Clear the Java setting to let Snowball download one.`);
+      javaPath = check.java.path;
+    } else {
+      javaPath = (await this.java.pickFor(required, cpu))?.path ?? null;
+      if (!javaPath && this.settings.get().java.autoDownloadRuntime) {
+        const component = required === gameJava && !cpu ? version.javaVersion?.component ?? null : await this.java.componentForMajor(required, signal, cpu);
+        if (component) {
+          stage(`Downloading Java ${required}`);
+          javaPath = (await this.java.installMojangRuntime(component, signal, (p) => downloadStage(`Downloading Java ${required}`, p), cpu)).path;
+        }
+      }
+      if (!javaPath) throw new Error(`Java ${required} is required. Install it or enable automatic Java downloads in Settings.`);
+    }
+    return javaPath;
   }
 
   /**
@@ -388,12 +434,18 @@ export class Launcher extends EventEmitter {
     return detectInstances();
   }
 
+  /** A folder the player chose by hand: an instance of a launcher Snowball does not list, or a game folder. */
+  async inspectImportFolder(dir: string): Promise<FoundInstance | null> {
+    return inspectFolder(dir);
+  }
+
   /**
    * Copies an instance out of another launcher: a new Snowball instance with the same Minecraft
    * version and loader, and the files the player asked to bring across. Nothing is moved or deleted,
    * so the other launcher keeps working exactly as before.
    */
   async importFromLauncher(found: FoundInstance, options: ImportOptions, signal?: AbortSignal): Promise<InstanceConfig> {
+    if (!found.minecraftVersion) throw new Error('Choose the Minecraft version to import this folder as.');
     const config = await this.createInstance({
       name: found.name,
       minecraftVersion: found.minecraftVersion,
@@ -403,18 +455,13 @@ export class Launcher extends EventEmitter {
     const say = this.activity.reporter(config.id);
     const target = this.instances.gameDir(config.id);
     await mkdir(target, { recursive: true });
-    for (const folder of foldersFor(options)) {
-      const from = join(found.gameDir, folder);
-      if (!existsSync(from)) continue;
-      say('info', `Copying ${folder} from ${found.launcher}`);
-      await cp(from, join(target, folder), { recursive: true, force: true, errorOnExist: false });
+    // Each part comes from wherever that launcher keeps it: PvP clients split mods and worlds.
+    for (const part of partsFor(options)) {
+      const from = sourceOf(found, part);
+      if (!from || !existsSync(from)) continue;
+      if (!part.includes('.')) say('info', `Copying ${part} from ${found.launcher}`);
+      await cp(from, join(target, part), { recursive: true, force: true, errorOnExist: false });
       signal?.throwIfAborted();
-    }
-    if (options.options) {
-      for (const file of ['options.txt', 'servers.dat', 'optionsof.txt']) {
-        const from = join(found.gameDir, file);
-        if (existsSync(from)) await cp(from, join(target, file), { force: true });
-      }
     }
     say('success', `Imported ${found.name} from ${found.launcher}`);
     return this.instances.load(config.id);
@@ -463,11 +510,55 @@ export class Launcher extends EventEmitter {
     return { installed: resolved.files.map((f) => f.mod.name), unavailable: resolved.unavailable.map((m) => m.name) };
   }
 
+  /** The launch phase of an instance, or null when it is not starting or running. */
+  launchPhase(instanceId: string): LaunchPhase | null {
+    return this.phases.get(instanceId) ?? null;
+  }
+
+  private setPhase(instanceId: string, phase: LaunchPhase | null): void {
+    if ((this.phases.get(instanceId) ?? null) === phase) return;
+    if (phase) this.phases.set(instanceId, phase);
+    else this.phases.delete(instanceId);
+    const fallback = this.runningFallback.get(instanceId);
+    if (fallback) {
+      clearTimeout(fallback);
+      this.runningFallback.delete(instanceId);
+    }
+    if (phase === 'launching') {
+      this.runningFallback.set(instanceId, setTimeout(() => {
+        if (this.phases.get(instanceId) === 'launching') this.setPhase(instanceId, 'running');
+      }, RUNNING_FALLBACK_MS).unref());
+    }
+    this.emit('phase', { instanceId, phase } satisfies LaunchPhaseEvent);
+  }
+
+  /**
+   * Stops an instance: cancels it while it is still preparing, or ends the game once it has started.
+   * Returns false when there was nothing to stop.
+   */
+  stop(instanceId: string): boolean {
+    const pending = this.preparing.get(instanceId);
+    if (pending) {
+      pending.abort(new Error('Stopped before Minecraft started.'));
+      return true;
+    }
+    return this.processes.kill(instanceId);
+  }
+
   /** Prepares the instance, signs in the selected account and starts the game process. */
   async launch(instanceId: string, signal?: AbortSignal): Promise<void> {
     const say = this.activity.reporter(instanceId);
+    // One launch per instance. Play pressed twice - or on the home page and the instance card - used
+    // to prepare the instance twice at once and open Minecraft twice.
+    if (this.phases.has(instanceId) || this.processes.isRunning(instanceId)) {
+      throw new Error('This instance is already starting or running.');
+    }
+    const cancel = new AbortController();
+    const onOuterAbort = () => cancel.abort(signal?.reason);
+    signal?.addEventListener('abort', onOuterAbort, { once: true });
+    this.preparing.set(instanceId, cancel);
+    this.setPhase(instanceId, 'preparing');
     try {
-      if (this.processes.isRunning(instanceId)) throw new Error('This instance is already running.');
       const accounts = this.auth.list();
       const accountId = this.settings.get().accounts.selectedAccountId ?? accounts[0]?.id;
       if (!accountId || !accounts.some((a) => a.id === accountId)) throw new Error('Add an account in Settings before playing.');
@@ -475,12 +566,15 @@ export class Launcher extends EventEmitter {
       this.lastStage.delete(instanceId);
       this.progress(instanceId, 'Preparing');
       say('info', `Preparing ${(await this.instances.load(instanceId)).name}`);
-      const prep = await this.prepare(instanceId, signal);
+      // Stop can arrive before preparation has begun; it must not be missed.
+      cancel.signal.throwIfAborted();
+      const prep = await this.prepare(instanceId, cancel.signal);
+      this.progress(instanceId, 'Checking account');
       const session = await this.auth.session(accountId);
+      cancel.signal.throwIfAborted();
       say('info', `Signed in as ${session.name}`);
       const nativesDir = join(this.instances.instanceDir(instanceId), 'natives');
-      await rm(nativesDir, { recursive: true, force: true });
-      await this.versions.extractNatives(prep.version, nativesDir);
+      await this.versions.prepareNatives(prep.version, nativesDir);
 
       const plan = buildLaunchPlan({
         instance: prep.config,
@@ -502,13 +596,24 @@ export class Launcher extends EventEmitter {
           ...(this.options.chatUrl ? [`-Dsnowball.chatUrl=${this.options.chatUrl}`] : []),
         ],
       });
-      say('info', 'Starting Minecraft...');
+      cancel.signal.throwIfAborted();
+      this.progress(instanceId, 'Starting Minecraft');
       this.interpreters.set(instanceId, new GameActivityInterpreter({ minecraftVersion: prep.config.minecraftVersion, loader: prep.config.loader }));
+      this.preparing.delete(instanceId);
+      this.setPhase(instanceId, 'launching');
       this.processes.launch(instanceId, JavaManager.windowless(prep.javaPath), plan.args, this.instances.gameDir(instanceId));
       this.progress(instanceId, 'Running');
     } catch (err) {
+      this.setPhase(instanceId, null);
+      if (cancel.signal.aborted) {
+        say('info', 'Launch cancelled');
+        return;
+      }
       say('error', `Could not start: ${(err as Error).message}`);
       throw err;
+    } finally {
+      this.preparing.delete(instanceId);
+      signal?.removeEventListener('abort', onOuterAbort);
     }
   }
 

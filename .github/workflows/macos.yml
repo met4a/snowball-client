@@ -1,0 +1,129 @@
+name: macOS
+
+# The launcher on macOS, checked on real Macs: GitHub's Apple Silicon and Intel machines run the
+# launcher's tests, then start Minecraft through the launcher's own code (scripts/smoke-launch.mjs)
+# and wait for the game window. The Apple Silicon machine also builds the Mac app.
+#
+# The Mac app is not signed with an Apple certificate (there is none yet), only ad-hoc signed, so
+# macOS asks before opening it the first time and it cannot replace itself: updates are downloads.
+on:
+  push:
+    tags: ['v*']
+    # A branch under ci/ runs it without touching main.
+    branches: ['ci/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  play:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            25
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: launcher/package-lock.json
+
+      - name: Machine
+        run: |
+          uname -a
+          sw_vers
+          sysctl -n machdep.cpu.brand_string
+          # Rosetta 2 runs Intel programs on Apple Silicon; Minecraft 1.12.2 and older need it there.
+          if [ "$(uname -m)" = "arm64" ]; then (pgrep -q oahd && echo "Rosetta 2 is running") || echo "Rosetta 2 is not running"; fi
+
+      - name: Install launcher dependencies
+        working-directory: launcher
+        run: npm ci
+
+      - name: Type-check and test the launcher
+        working-directory: launcher
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Build the client jars
+        working-directory: launcher
+        env:
+          # The client is started and tested in the Windows release build; here only the jars are needed.
+          SNOWBALL_SKIP_GAMETEST: '1'
+        run: npm run build:client
+
+      - name: Build the launcher
+        working-directory: launcher
+        run: npm run build
+
+      - name: Play Minecraft 1.21.11 with Fabric and Snowball Client
+        working-directory: launcher
+        run: node scripts/smoke-launch.mjs 1.21.11 fabric
+
+      - name: Play Minecraft 26.2 with Fabric and Snowball Client
+        working-directory: launcher
+        run: node scripts/smoke-launch.mjs 26.2 fabric
+
+      - name: Play Minecraft 1.8.9 with Legacy Fabric and Snowball Client
+        working-directory: launcher
+        run: node scripts/smoke-launch.mjs 1.8.9 fabric
+
+  package:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            25
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: launcher/package-lock.json
+
+      - name: Install launcher dependencies
+        working-directory: launcher
+        run: npm ci
+
+      - name: Build the Mac app
+        working-directory: launcher
+        env:
+          SNOWBALL_SKIP_GAMETEST: '1'
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          npm run build:client
+          npm run build
+          npx electron-builder --mac --arm64 --x64 --publish never
+
+      - name: Checksums
+        working-directory: launcher/release
+        run: shasum -a 256 *.dmg *.zip | tee SHA256SUMS-mac.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snowball-client-mac
+          path: |
+            launcher/release/*.dmg
+            launcher/release/*.zip
+            launcher/release/latest-mac.yml
+            launcher/release/SHA256SUMS-mac.txt
+          if-no-files-found: error

@@ -59,6 +59,14 @@ public enum Rank {
 		return color;
 	}
 
+	/**
+	 * Staff, Developer and Owner are shown by their icon alone, never by a written rank: the flying
+	 * snowball is the rank, and its trail's tint says which one.
+	 */
+	public boolean iconOnly() {
+		return ordinal() >= STAFF.ordinal();
+	}
+
 	/** Snowball+ features belong to Plus and to every rank above it. */
 	public boolean hasPlus() {
 		return ordinal() >= PLUS.ordinal();

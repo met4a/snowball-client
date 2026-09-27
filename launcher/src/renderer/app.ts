@@ -180,12 +180,18 @@
     onClick: (close: () => void) => void | Promise<void>;
   }
 
+  /** Every dialog that is open, so an action can clear them all before it does its work. */
+  const openModals = new Set<() => void>();
+  const closeModals = () => [...openModals].forEach((close) => close());
+
   function modal(title: string, body: Node, actions: ModalAction[]): () => void {
     const root = document.getElementById('modal-root')!;
     const close = () => {
       backdrop.remove();
       document.removeEventListener('keydown', onKey);
+      openModals.delete(close);
     };
+    openModals.add(close);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close();
     };
@@ -264,6 +270,14 @@
   async function refresh(): Promise<void> {
     const state = await api.getState();
     ui.state = state;
+    // The launcher's launch phase is the truth; anything this window assumed about a launch that is
+    // no longer under way (cancelled, failed) is dropped.
+    for (const inst of state.instances) {
+      if (inst.launchPhase === null && !inst.running) {
+        ui.busy.delete(inst.id);
+        ui.progress.delete(inst.id);
+      }
+    }
     applyAppearance(state.settings);
     if (!ui.selectedId || !state.instances.some((i) => i.id === ui.selectedId)) {
       ui.selectedId = state.settings.selectedInstanceId && state.instances.some((i) => i.id === state.settings.selectedInstanceId) ? state.settings.selectedInstanceId : state.instances[0]?.id ?? null;
@@ -283,15 +297,16 @@
 
   // ---------- layout ----------
   /** The ranks, their short tags and their colours: one table the whole launcher reads from. */
-  const RANKS: { id: string; tag: string; name: string; color: string }[] = [
+  // Staff, Developer and Owner are shown by their flying-snowball icon alone, as in the game.
+  const RANKS: { id: string; tag: string; name: string; color: string; iconOnly?: boolean }[] = [
     { id: 'snowball', tag: 'Snowball', name: 'Snowball', color: '#c7d2dd' },
     { id: 'plus', tag: 'Snowball+', name: 'Snowball Plus', color: '#9fd8ff' },
     { id: 'tester', tag: 'Tester', name: 'Snowball Tester', color: '#5cd6a8' },
     { id: 'bug_hunter', tag: 'Bug Hunter', name: 'Snowball Bug Hunter', color: '#ffd166' },
     { id: 'partner', tag: 'Partner', name: 'Snowball Partner', color: '#ffa24d' },
-    { id: 'staff', tag: 'Staff', name: 'Snowball Staff', color: '#5c8cff' },
-    { id: 'developer', tag: 'Developer', name: 'Snowball Developer', color: '#b57bff' },
-    { id: 'owner', tag: 'Owner', name: 'Snowball Owner', color: '#7fcbff' },
+    { id: 'staff', tag: 'Staff', name: 'Snowball Staff', color: '#5c8cff', iconOnly: true },
+    { id: 'developer', tag: 'Developer', name: 'Snowball Developer', color: '#b57bff', iconOnly: true },
+    { id: 'owner', tag: 'Owner', name: 'Snowball Owner', color: '#7fcbff', iconOnly: true },
   ];
 
   const rankInfo = (id: string | undefined) => RANKS.find((r) => r.id === id) ?? RANKS[0];
@@ -351,10 +366,14 @@
    */
   function rankChip(id: string | undefined, extra = ''): HTMLElement {
     const rank = rankInfo(id);
-    // The same badge the player list draws, from the same file.
-    const chip = h('span', { class: 'rank-chip' + (extra ? ' ' + extra : '') },
-      h('img', { class: 'rank-mark', src: `assets/ranks/${rank.id}.png`, alt: '' }),
-      rank.tag);
+    // The same badge the player list draws, from the same file. Staff show the icon alone; the
+    // rank's name is still there, for a tooltip and a screen reader.
+    const chip = rank.iconOnly
+      ? h('span', { class: 'rank-chip icon-only' + (extra ? ' ' + extra : ''), title: rank.name, role: 'img', 'aria-label': rank.name },
+          h('img', { class: 'rank-mark staff-mark', src: `assets/ranks/${rank.id}.png`, alt: '' }))
+      : h('span', { class: 'rank-chip' + (extra ? ' ' + extra : '') },
+          h('img', { class: 'rank-mark', src: `assets/ranks/${rank.id}.png`, alt: '' }),
+          rank.tag);
     chip.style.setProperty('--rank', rank.color);
     return chip;
   }
@@ -424,20 +443,45 @@
    * A problem explained the way a person would explain it: what happened, why, what to try, and a
    * way to hand the technical text to somebody who can read it. Used for updates and for launches.
    */
-  function errorPanel(opts: { title: string; message: string; hints?: string[]; detail?: string; onRetry?: () => void; retryLabel?: string }): HTMLElement {
-    const actions = h('div', { class: 'row', style: 'margin-top:14px;flex-wrap:wrap' });
-    if (opts.onRetry) actions.append(h('button', { class: 'btn small primary', onClick: opts.onRetry }, opts.retryLabel ?? 'Retry'));
+  /** A button that puts right what went wrong, rather than only describing it. */
+  interface Fix {
+    label: string;
+    primary?: boolean;
+    run: () => void | Promise<void>;
+  }
+
+  function errorPanel(opts: { title: string; message: string; hints?: string[]; detail?: string; fixes?: Fix[]; onRetry?: () => void; retryLabel?: string }): HTMLElement {
+    const actions = h('div', { class: 'error-actions' });
+    for (const fix of opts.fixes ?? []) {
+      const button = h('button', { class: `btn small${fix.primary ? ' primary' : ''}` }, fix.label) as HTMLButtonElement;
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          await fix.run();
+        } finally {
+          button.disabled = false;
+        }
+      });
+      actions.append(button);
+    }
+    if (opts.onRetry) actions.append(h('button', { class: `btn small${opts.fixes?.some((f) => f.primary) ? '' : ' primary'}`, onClick: opts.onRetry }, opts.retryLabel ?? 'Retry'));
+
+    // The launcher's own words, kept for whoever wants them, out of the way of everyone else.
+    let details: HTMLElement | null = null;
     if (opts.detail) {
-      actions.append(h('button', {
-        class: 'btn small',
+      const copy = h('button', {
+        class: 'btn small ghost',
         onClick: (e: MouseEvent) => {
           void navigator.clipboard.writeText(`${opts.title}\n${opts.message}\n\n${opts.detail}`)
             .then(() => ((e.target as HTMLElement).textContent = 'Copied'))
             .catch(() => toast('Could not copy to the clipboard.', 'error'));
         },
-      }, 'Copy details'));
+      }, 'Copy');
+      details = h('details', { class: 'error-details' },
+        h('summary', {}, 'View technical details'),
+        h('pre', { class: 'error-detail-text' }, opts.detail),
+        h('div', { class: 'row' }, copy, h('button', { class: 'btn small ghost', onClick: () => void guard(() => api.openLogFolder()) }, 'Open logs')));
     }
-    actions.append(h('button', { class: 'btn small ghost', onClick: () => void guard(() => api.openLogFolder()) }, 'Open logs'));
 
     return h('div', { class: 'error-panel' },
       h('div', { class: 'error-head' }, icon('alert'), h('div', { class: 'error-title' }, opts.title)),
@@ -445,54 +489,108 @@
       opts.hints?.length
         ? h('ul', { class: 'error-hints' }, ...opts.hints.map((hint) => h('li', {}, hint)))
         : null,
-      actions);
+      actions.childElementCount ? actions : null,
+      details);
   }
 
   /**
    * Launch failures in the same shape as update failures: what happened, what it means, what to
    * try. The launcher's own message is kept as the detail, because it is often the useful part.
    */
-  function describeLaunchFailure(raw: string): { title: string; message: string; hints: string[] } {
+  function describeLaunchFailure(raw: string, instanceId: string): { title: string; message: string; hints: string[]; fixes: Fix[] } {
     const text = raw.toLowerCase();
-    if (/java|jvm|jre|jdk/.test(text) && /not found|missing|could not|no such/.test(text)) {
+    const inst = ui.state?.instances.find((i) => i.id === instanceId);
+    const retry: Fix = { label: 'Try again', primary: true, run: () => launch(instanceId) };
+    const go = (view: typeof ui.view, label: string): Fix => ({
+      label,
+      run: () => {
+        closeModals();
+        ui.selectedId = instanceId;
+        ui.view = view;
+        render();
+      },
+    });
+    if (/sign in again|session expired|signed in|account not found|add an account/.test(text)) {
       return {
-        title: 'Java is missing',
-        message: 'This version of Minecraft needs a Java runtime that Snowball could not find or download.',
-        hints: ['Open the Java page and press Rescan.', 'Turn on "Download Java automatically" in Settings.', 'Check your internet connection if the download failed.'],
+        title: 'Your account needs signing in',
+        message: 'Minecraft needs your Microsoft account to be signed in before it can start, and the sign-in has run out or is missing.',
+        hints: ['Sign in again in Settings. Your instances and worlds are not affected.'],
+        fixes: [{ ...go('settings', 'Go to accounts'), primary: true }],
       };
     }
-    if (/out of memory|heap space|could not reserve|memory/.test(text)) {
+    if (/bad cpu type|ebadarch|intel \(x64\) java/.test(text)) {
+      return {
+        title: 'This version needs Rosetta 2',
+        message: 'Minecraft 1.12.2 and older only run on Intel graphics libraries, so on an Apple Silicon Mac they run through Rosetta 2, which is not installed.',
+        hints: ['Install Rosetta 2 once from Terminal: softwareupdate --install-rosetta --agree-to-license', 'Then press Try again. Newer versions of Minecraft do not need it.'],
+        fixes: [retry],
+      };
+    }
+    if (/java|jvm|jre|jdk/.test(text) && /not found|missing|could not|no such|required/.test(text)) {
+      const automatic = ui.state?.settings.java.autoDownloadRuntime ?? true;
+      return {
+        title: 'Java could not be found',
+        message: automatic
+          ? 'This version of Minecraft needs a Java runtime that Snowball could not find, and downloading it did not work.'
+          : 'This version of Minecraft needs a Java runtime that is not installed, and automatic Java downloads are turned off.',
+        hints: automatic ? ['Check your internet connection, then try again.'] : ['Snowball can download the exact Java Minecraft asks for.'],
+        fixes: automatic
+          ? [retry, go('java', 'Open the Java page')]
+          : [{ label: 'Fix automatically', primary: true, run: async () => {
+              if (!ui.state) return;
+              await guard(() => api.updateSettings({ java: { ...ui.state!.settings.java, autoDownloadRuntime: true } }));
+              await refresh();
+              closeModals();
+              await launch(instanceId);
+            } }, go('java', 'Open the Java page')],
+      };
+    }
+    if (/out of memory|heap space|could not reserve|insufficient memory/.test(text)) {
+      const recommended = ui.state?.memory.recommendedMaxMb ?? 4096;
+      const lower = inst && inst.memory.maxMb > recommended;
       return {
         title: 'Not enough memory',
         message: 'Minecraft asked for more memory than this computer could give it, so it stopped before starting.',
-        hints: ['Lower the memory for this instance in Edit.', 'Close other programs and try again.'],
+        hints: lower ? [`This instance asks for ${fmtMemory(inst!.memory.maxMb)}; ${fmtMemory(recommended)} is what this computer can spare.`] : ['Close other programs and try again.'],
+        fixes: lower
+          ? [{ label: `Use ${fmtMemory(recommended)} and try again`, primary: true, run: async () => {
+              await guard(() => api.updateInstance(instanceId, { memory: { minMb: Math.min(inst!.memory.minMb, recommended), maxMb: recommended } }));
+              await refresh();
+              closeModals();
+              await launch(instanceId);
+            } }, go('instances', 'Edit the instance')]
+          : [retry],
       };
     }
-    if (/download|http|network|econn|etimedout|enotfound/.test(text)) {
+    if (/download|http|network|econn|etimedout|enotfound|fetch failed|socket/.test(text)) {
       return {
         title: 'Some game files could not be downloaded',
         message: 'Snowball could not fetch everything Minecraft needs, so it stopped rather than starting a broken game.',
-        hints: ['Check your internet connection and press Try again.', 'Use "Verify files" on the Home page to repair what is already there.'],
+        hints: ['Check your internet connection. Files that did arrive are kept, so trying again picks up where it stopped.'],
+        fixes: [retry, go('home', 'Verify files')],
       };
     }
-    if (/eacces|eperm|access is denied|permission/.test(text)) {
+    if (/eacces|eperm|ebusy|access is denied|permission|in use/.test(text)) {
       return {
-        title: 'Windows blocked a file Snowball needed',
-        message: 'A game file could not be written or read, usually because antivirus or folder permissions got in the way.',
-        hints: ['Check whether your antivirus quarantined something in the Snowball folder.', 'Open the launcher folder from Settings to see what is there.'],
+        title: 'A file Snowball needed was blocked',
+        message: 'A game file could not be written or read, usually because antivirus, another program or folder permissions got in the way.',
+        hints: ['Check whether your antivirus quarantined something in the Snowball folder, then try again.'],
+        fixes: [retry, { label: 'Open the Snowball folder', run: () => void guard(() => api.openLauncherFolder('root')) }],
       };
     }
-    if (/mod|fabric|quilt|forge|neoforge|mixin/.test(text)) {
+    if (/mod|fabric|quilt|forge|neoforge|mixin|cannot start/.test(text)) {
       return {
         title: 'A mod stopped the game from starting',
         message: 'Minecraft refused to start with the mods currently installed. This is almost always one mod that does not match the game or loader version.',
-        hints: ['Open Mods and look for anything marked incompatible.', 'Turn off recently added mods and try again.', 'The technical output below names the mod in most cases.'],
+        hints: ['Look for anything marked as a problem on the Mods page, or turn off mods you added recently.'],
+        fixes: [{ ...go('mods', 'Open Mods'), primary: true }, retry],
       };
     }
     return {
       title: 'Minecraft could not start',
-      message: 'The game stopped before it finished loading. The technical detail below usually names the cause.',
-      hints: ['Press Try again — some failures are temporary.', 'Use "Verify files" on the Home page to repair the installation.', 'Copy the details if you want to report it.'],
+      message: 'The game stopped before it finished loading. The technical details usually name the cause.',
+      hints: ['Some failures are temporary. If it keeps happening, Verify files repairs the installation.'],
+      fixes: [retry, go('home', 'Verify files')],
     };
   }
 
@@ -559,6 +657,7 @@
 
     const actions: ModalAction[] = [{ label: 'Close', kind: 'ghost', onClick: (c) => c() }];
     if (state.status === 'ready') actions.push({ label: 'Restart now', kind: 'primary', onClick: (c) => { c(); void api.installUpdate(); } });
+    else if (state.status === 'manual' && state.downloadUrl) actions.push({ label: 'Open the download page', kind: 'primary', onClick: () => void api.openDownloadPage() });
     else if (state.status === 'up-to-date' || state.status === 'idle') actions.push({ label: 'Check again', kind: 'primary', onClick: () => void retryUpdate() });
     modal('Snowball Client update', body, actions);
   }
@@ -662,20 +761,40 @@
   }
 
   // ---------- play controls ----------
+  /**
+   * Play, or where the launch has got to. The phase comes from the launcher core, which runs the
+   * launch whether or not this window is looked at; the button only shows it, and cannot start a
+   * second launch while one is under way.
+   */
+  /** Starting or running: its files are in use, so nothing may change them. */
+  const engaged = (inst: Snowball.Instance) => inst.running || inst.launchPhase !== null;
+
   function playButton(inst: Snowball.Instance, big = false): HTMLElement {
-    const progress = ui.progress.get(inst.id);
-    const preparing = ui.busy.has(inst.id);
-    if (inst.running) {
-      return h('button', { class: `btn danger${big ? ' play' : ''}`, onClick: (e: MouseEvent) => { e.stopPropagation(); void guard(() => api.stop(inst.id)); } }, 'STOP');
+    const phase = inst.launchPhase ?? (inst.running ? 'running' : ui.busy.has(inst.id) ? 'preparing' : null);
+    const size = big ? ' play' : '';
+    if (!phase) {
+      return h('button', {
+        class: `btn primary${size}`,
+        disabled: !!inst.error,
+        onClick: (e: MouseEvent) => {
+          e.stopPropagation();
+          void launch(inst.id);
+        },
+      }, 'PLAY');
     }
-    return h('button', {
-      class: `btn primary${big ? ' play' : ''}`,
-      disabled: preparing || !!inst.error,
+    const stage = ui.progress.get(inst.id)?.stage;
+    const label = phase === 'running' ? 'RUNNING' : phase === 'launching' ? 'LAUNCHING...' : stage && stage !== 'Preparing' ? stage.toUpperCase() : 'PREPARING...';
+    const stop = h('button', {
+      class: 'btn small ghost play-stop',
+      title: phase === 'running' ? 'Close Minecraft' : 'Cancel this launch',
       onClick: (e: MouseEvent) => {
         e.stopPropagation();
-        void launch(inst.id);
+        void guard(() => api.stop(inst.id));
       },
-    }, preparing ? (progress?.stage ? progress.stage.toUpperCase().slice(0, 22) : 'PREPARING') : 'PLAY');
+    }, phase === 'running' ? 'Stop' : 'Cancel');
+    return h('span', { class: 'play-group' },
+      h('button', { class: `btn primary play-state ${phase}${size}`, disabled: true, 'aria-live': 'polite' }, h('span', { class: 'play-label' }, label)),
+      stop);
   }
 
   async function launch(id: string): Promise<void> {
@@ -697,23 +816,28 @@
   }
 
   /** The steps a launch goes through, so the progress card can show what is done and what is next. */
-  const LAUNCH_STEPS = ['Checking game files', 'Downloading libraries', 'Downloading game assets', 'Checking core files', 'Loading Minecraft'];
+  const LAUNCH_STEPS = ['Checking game files', 'Checking mods', 'Checking account', 'Starting Minecraft', 'Opening the game window'];
 
-  function stepIndex(stage: string | undefined): number {
-    if (!stage) return 0;
-    const lower = stage.toLowerCase();
-    const found = LAUNCH_STEPS.findIndex((step) => lower.startsWith(step.toLowerCase().slice(0, 12)));
-    return found < 0 ? 0 : found;
+  /** Which of the steps a stage the launcher reports belongs to; downloads count as checking files. */
+  function stepIndex(stage: string | undefined, phase: Snowball.Instance['launchPhase']): number {
+    if (phase === 'launching') return 4;
+    const lower = (stage ?? '').toLowerCase();
+    if (/^starting minecraft/.test(lower)) return 3;
+    if (/^checking account/.test(lower)) return 2;
+    if (/^(checking mods|checking core files|installing .*api|applying performance)/.test(lower)) return 1;
+    return 0;
   }
 
+  /** The launch card, shown for as long as the launcher says the launch is under way. */
   function progressBar(id: string): HTMLElement | null {
-    if (!ui.busy.has(id)) return null;
+    const phase = ui.state?.instances.find((i) => i.id === id)?.launchPhase ?? null;
+    if (phase !== 'preparing' && phase !== 'launching' && !ui.busy.has(id)) return null;
     const p = ui.progress.get(id);
     const pct = p?.total ? Math.round((100 * (p.completed ?? 0)) / p.total) : null;
-    const current = stepIndex(p?.stage);
+    const current = stepIndex(p?.stage, phase);
     return h('div', { class: 'launch-progress' },
       h('div', { class: 'launch-progress-head' },
-        h('div', { class: 'launch-stage' }, p?.stage ?? 'Preparing'),
+        h('div', { class: 'launch-stage' }, phase === 'launching' ? 'Opening the game window' : p?.stage ?? 'Preparing'),
         h('div', { class: 'launch-pct' }, pct === null ? '' : `${pct}%`)),
       h('div', { class: `progress${pct === null ? ' indeterminate' : ''}` }, h('div', { style: pct === null ? '' : `width:${pct}%` })),
       h('div', { class: 'launch-steps' }, ...LAUNCH_STEPS.map((step, i) =>
@@ -757,12 +881,12 @@
       });
     }
 
-    const verifyButton = h('button', { class: 'btn ghost', disabled: inst.running }, 'Verify files') as HTMLButtonElement;
+    const verifyButton = h('button', { class: 'btn ghost', disabled: engaged(inst) }, 'Verify files') as HTMLButtonElement;
     verifyButton.addEventListener('click', async () => {
       verifyButton.disabled = true;
       verifyButton.textContent = 'Checking...';
       const result = await guard(() => api.verifyGameFiles(inst.id));
-      verifyButton.disabled = inst.running;
+      verifyButton.disabled = engaged(inst);
       verifyButton.textContent = 'Verify files';
       if (result) toast('Game files checked. Anything missing or damaged was downloaded again.');
     });
@@ -964,7 +1088,7 @@
       if (!u) return null;
       const button = h('button', {
         class: 'btn small primary',
-        disabled: inst.running,
+        disabled: engaged(inst),
         title: `${u.currentVersion} -> ${u.newVersion}`,
         onClick: async () => {
           button.disabled = true;
@@ -992,7 +1116,7 @@
         ? h('button', {
           class: 'btn small',
           style: 'margin-left:12px',
-          disabled: inst.running,
+          disabled: engaged(inst),
           onClick: async (e: MouseEvent) => {
             if (!dep.slug) return openBrowse(dep.name);
             const button = e.currentTarget as HTMLButtonElement;
@@ -1024,7 +1148,7 @@
       const healthy = report.problems.length === 0;
       const repair = h('button', {
         class: `btn small${healthy ? '' : ' primary'}`,
-        disabled: inst.running,
+        disabled: engaged(inst),
         onClick: async () => {
           repair.disabled = true;
           repair.textContent = healthy ? 'Checking...' : 'Repairing...';
@@ -1057,14 +1181,14 @@
         return h('div', { class: 'list-row' },
           locked
             ? h('span', { class: 'lock', title: 'Required by Snowball Client' }, icon('lock'))
-            : toggle(m.enabled, async (value) => { await guard(() => api.setModEnabled(inst.id, m.fileName, value)); await load(); }, inst.running),
+            : toggle(m.enabled, async (value) => { await guard(() => api.setModEnabled(inst.id, m.fileName, value)); await load(); }, engaged(inst)),
           h('div', { class: 'grow' },
             h('div', { class: 'truncate' }, m.name, m.version ? h('span', { class: 'muted' }, `  ${m.version}`) : null),
             h('div', { class: 'muted truncate', style: 'font-size:12px' }, `${m.fileName} - ${m.loader}${note}`, m.error ? h('span', { class: 'danger-text' }, ` - ${m.error}`) : null)),
           updateButton(m),
           locked
             ? h('span', { class: 'tag accent' }, 'REQUIRED')
-            : h('button', { class: 'btn small danger', disabled: inst.running, onClick: () => confirmDialog('Remove mod', `Remove ${m.fileName} from ${inst.name}? The file will be deleted.`, 'Remove', async () => { await api.removeMod(inst.id, m.fileName); await load(); }) }, 'Remove'));
+            : h('button', { class: 'btn small danger', disabled: engaged(inst), onClick: () => confirmDialog('Remove mod', `Remove ${m.fileName} from ${inst.name}? The file will be deleted.`, 'Remove', async () => { await api.removeMod(inst.id, m.fileName); await load(); }) }, 'Remove'));
       }));
     };
     void load();
@@ -1080,7 +1204,7 @@
     describe();
     const applyButton = h('button', {
       class: 'btn primary',
-      disabled: inst.running,
+      disabled: engaged(inst),
       onClick: async () => {
         applyButton.disabled = true;
         applyButton.textContent = 'Applying...';
@@ -1113,7 +1237,7 @@
 
     return h('div', { class: 'stack' },
       header('MODS', 'Install, toggle and check compatibility', picker,
-        h('button', { class: 'btn', disabled: inst.running || inst.loader === 'vanilla', onClick: async () => { const r = await guard(() => api.addMods(inst.id)); if (r) { if (r.added) toast(`Added ${r.added} mod${r.added === 1 ? '' : 's'}`); r.errors.forEach((e) => toast(e, 'error')); await load(); } } }, '+ Add mods'),
+        h('button', { class: 'btn', disabled: engaged(inst) || inst.loader === 'vanilla', onClick: async () => { const r = await guard(() => api.addMods(inst.id)); if (r) { if (r.added) toast(`Added ${r.added} mod${r.added === 1 ? '' : 's'}`); r.errors.forEach((e) => toast(e, 'error')); await load(); } } }, '+ Add mods'),
         h('button', { class: 'btn', disabled: inst.loader === 'vanilla', onClick: () => scanDialog(inst.id) }, 'Check mods'),
         h('button', { class: 'btn ghost', onClick: () => void guard(() => api.openInstanceFolder(inst.id, 'mods')) }, 'Open folder')),
       h('div', { class: 'card' },
@@ -1223,7 +1347,7 @@
       const why = inst.loader === 'vanilla' ? 'This instance has no mod loader' : `No ${inst.loaderName} version for Minecraft ${inst.minecraftVersion}`;
       const button = h('button', {
         class: `btn small${installed || !fits ? '' : ' primary'}`,
-        disabled: installed || installing || !fits || inst.running,
+        disabled: installed || installing || !fits || engaged(inst),
         title: fits ? '' : why,
         onClick: () => void installHit(hit),
       }, installed ? 'Installed' : installing ? 'Installing...' : fits ? 'Install' : 'Unavailable');
@@ -1382,9 +1506,8 @@
             : 'Join chat so the Snowball server can confirm which account you are, then come back.'),
           state.status === 'online' ? null : h('button', { class: 'btn primary', onClick: () => void guard(() => api.joinChat()) }, 'Join chat')));
     }
-    const rank = rankInfo(state.rank);
     return h('div', { class: 'stack' },
-      header('ADMIN', `Signed in as ${rank.name}  \u00b7  ${state.online} online`),
+      header('ADMIN', `Snowball staff tools  \u00b7  ${state.online} online`),
       adminCard());
   }
 
@@ -1991,40 +2114,78 @@
       optionRow('Resource packs', 'resourcePacks'),
       optionRow('Shader packs', 'shaderPacks'),
       optionRow('Worlds', 'saves'),
-      optionRow('Game options and servers', 'options'));
+      optionRow('Game options, keybinds and servers', 'options'));
+    const chooseFolder = h('button', {
+      class: 'btn small ghost',
+      onClick: async () => {
+        const found = await guard(() => api.pickImportFolder());
+        if (found) list.prepend(foundRow(found));
+      },
+    }, 'Choose a folder...');
     const body = h('div', {},
       h('p', { class: 'muted' }, 'Nothing is moved or deleted: your other launcher keeps working exactly as it does now.'),
       list,
+      h('div', { class: 'import-other' },
+        h('span', { class: 'muted' }, 'Using a launcher that is not listed?'),
+        chooseFolder),
       h('div', { class: 'section-title', style: 'margin-top:16px' }, 'BRING ACROSS'),
       options);
     const close = modal('IMPORT FROM ANOTHER LAUNCHER', body, [{ label: 'Close', kind: 'ghost', onClick: (c) => c() }]);
 
-    void api.findOtherLaunchers().then((found) => {
-      if (!found.length) {
-        list.replaceChildren(h('div', { class: 'muted' }, 'No other launcher was found on this computer. Modrinth, CurseForge, Prism, MultiMC, ATLauncher, GDLauncher and the official launcher are all checked.'));
-        return;
+    /** Releases for a folder that does not say its version, fetched once when first needed. */
+    let releases: Promise<string[]> | null = null;
+    const releaseList = () => (releases ??= api.listMinecraftVersions(false).then((v) => v.filter((x) => x.type === 'release').map((x) => x.id)).catch(() => []));
+
+    function foundRow(f: Snowball.FoundInstance): HTMLElement {
+      let version = f.minecraftVersion;
+      const counts = `${f.mods} mod${f.mods === 1 ? '' : 's'}, ${f.worlds} world${f.worlds === 1 ? '' : 's'}, ${f.resourcePacks} pack${f.resourcePacks === 1 ? '' : 's'}`;
+      const importButton = h('button', {
+        class: 'btn small primary',
+        disabled: !version,
+        onClick: async (e: MouseEvent) => {
+          const button = e.currentTarget as HTMLButtonElement;
+          button.disabled = true;
+          button.textContent = 'Copying...';
+          const created = await guard(() => api.importFromLauncher(f, picks, version));
+          button.disabled = false;
+          button.textContent = 'Import';
+          if (created) {
+            toast(`Imported ${created.name}`);
+            close();
+            await refresh();
+            select(created.id);
+          }
+        },
+      }, 'Import') as HTMLButtonElement;
+      let versionLine: HTMLElement;
+      if (version) {
+        versionLine = h('div', { class: 'muted', style: 'font-size:12px' }, `Minecraft ${version} - ${LOADER_NAMES[f.loader]} - ${counts}`);
+      } else {
+        // The folder does not record its version (PvP clients leave none behind): the player says.
+        const picker = h('select', {
+          class: 'input import-version',
+          'aria-label': `Minecraft version for ${f.name}`,
+          onChange: (e: Event) => {
+            version = (e.target as HTMLSelectElement).value;
+            importButton.disabled = !version;
+          },
+        }, h('option', { value: '' }, 'Choose the version...')) as HTMLSelectElement;
+        void releaseList().then((ids) => picker.append(...ids.map((id) => h('option', { value: id }, id))));
+        versionLine = h('div', { class: 'muted import-version-row', style: 'font-size:12px' }, picker, h('span', {}, counts));
       }
-      list.replaceChildren(...found.map((f) => h('div', { class: 'list-row' },
+      return h('div', { class: 'list-row' },
         h('div', { class: 'grow' },
           h('div', {}, f.name, h('span', { class: 'tag', style: 'margin-left:8px' }, f.launcher.toUpperCase())),
-          h('div', { class: 'muted', style: 'font-size:12px' }, `Minecraft ${f.minecraftVersion} - ${LOADER_NAMES[f.loader]} - ${f.mods} mod${f.mods === 1 ? '' : 's'}, ${f.worlds} world${f.worlds === 1 ? '' : 's'}`)),
-        h('button', {
-          class: 'btn small primary',
-          onClick: async (e: MouseEvent) => {
-            const button = e.currentTarget as HTMLButtonElement;
-            button.disabled = true;
-            button.textContent = 'Copying...';
-            const created = await guard(() => api.importFromLauncher(f, picks));
-            button.disabled = false;
-            button.textContent = 'Import';
-            if (created) {
-              toast(`Imported ${created.name}`);
-              close();
-              await refresh();
-              select(created.id);
-            }
-          },
-        }, 'Import'))));
+          versionLine),
+        importButton);
+    }
+
+    void api.findOtherLaunchers().then((found) => {
+      if (!found.length) {
+        list.replaceChildren(h('div', { class: 'muted' }, 'No other launcher was found on this computer. Modrinth, CurseForge, Prism, MultiMC, ATLauncher, GDLauncher, Lunar Client, Feather, Dawn and the .minecraft folder (Minecraft Launcher, Badlion, LabyMod) are all checked. You can still choose a folder below.'));
+        return;
+      }
+      list.replaceChildren(...found.map(foundRow));
     }).catch((err) => list.replaceChildren(h('div', { class: 'muted' }, errorMessage(err))));
   }
 
@@ -2120,6 +2281,18 @@
     });
   }
 
+  /** How Discord Rich Presence stands, in a sentence. */
+  function discordLine(d: Snowball.AppState['discord']): string {
+    if (!d.configured) return 'This build of Snowball has no Discord application yet, so there is nothing Discord can show.';
+    switch (d.status) {
+      case 'connected': return 'Discord shows what you are doing: browsing, starting a game or playing.';
+      case 'connecting': return 'Connecting to Discord...';
+      case 'unavailable': return 'Discord is not running. Snowball connects by itself as soon as it opens.';
+      case 'rejected': return 'Discord did not accept this build\'s application, so nothing is shown.';
+      default: return 'Switched off.';
+    }
+  }
+
   function settingsView(): Node {
     const state = ui.state!;
     const s = state.settings;
@@ -2153,7 +2326,10 @@
         h('div', { class: 'section-title' }, 'LAUNCHER'),
         h('div', { class: 'list' },
           settingRow('Reduce motion', 'Turn off interface animations.', toggle(s.appearance.reduceMotion, (v) => void update({ appearance: { ...s.appearance, reduceMotion: v } }))),
-          settingRow('Minimize when the game starts', 'Keeps the launcher out of the way while playing.', toggle(s.game.closeLauncherOnLaunch, (v) => void update({ game: { ...s.game, closeLauncherOnLaunch: v } }))),
+          settingRow('Keeps going in the background', 'Launching, downloads and updates carry on when you switch to another app or minimise Snowball. Nothing waits for this window.', h('span', { class: 'tag' }, 'ALWAYS')),
+          settingRow('Minimise when Minecraft starts', 'Once the game window is up, the launcher steps out of the way.', toggle(s.game.minimizeOnLaunch, (v) => void update({ game: { ...s.game, minimizeOnLaunch: v } }))),
+          settingRow('Show on Discord', discordLine(state.discord), toggle(s.discord.enabled && state.discord.configured, (v) => void update({ discord: { enabled: v } }), !state.discord.configured)),
+          settingRow('Close when Minecraft starts', 'The launcher closes its window and finishes when Minecraft does. If the game crashes, it comes back to tell you why.', toggle(s.game.closeLauncherOnLaunch, (v) => void update({ game: { ...s.game, closeLauncherOnLaunch: v } }))),
           settingRow('Download Java automatically', 'Install the exact runtime Minecraft requests when none is found.', toggle(s.java.autoDownloadRuntime, (v) => void update({ java: { ...s.java, autoDownloadRuntime: v } }))),
           settingRow('Default maximum memory', 'Used for new instances.', h('div', { class: 'row', style: 'width:260px' }, maxMemory, h('button', { class: 'btn', onClick: () => void update({ java: { ...s.java, defaultMaxMemoryMb: maxMemory.value ? Number(maxMemory.value) : null } }) }, 'Save'))),
           settingRow('Parallel downloads', `${s.downloads.concurrency} at a time`, h('div', { style: 'width:200px;flex:none' }, h('input', { type: 'range', min: '1', max: '16', value: String(s.downloads.concurrency), onChange: (e: Event) => void update({ downloads: { ...s.downloads, concurrency: Number((e.target as HTMLInputElement).value) } }) }))),
@@ -2430,14 +2606,14 @@
     ui.busy.delete(e.instanceId);
     ui.progress.delete(e.instanceId);
     render();
-    const described = describeLaunchFailure(e.message);
+    const described = describeLaunchFailure(e.message, e.instanceId);
+    const fixes = described.fixes.map((fix) => ({ ...fix, run: async () => { closeModals(); await fix.run(); } }));
     modal('Minecraft could not start', errorPanel({
       title: described.title,
       message: described.message,
       hints: described.hints,
       detail: e.message,
-      retryLabel: 'Try again',
-      onRetry: () => void launch(e.instanceId),
+      fixes,
     }), [{ label: 'Close', kind: 'ghost', onClick: (close) => close() }]);
   });
   // A fault in the renderer used to leave a half-drawn page with no explanation. It now says so,
@@ -2532,6 +2708,7 @@
     .catch((err) => toast(errorMessage(err), 'error'))
     .finally(() => {
       // The splash stays until the first real frame is on screen, then fades out of the way.
+      void api.interfaceReady().catch(() => undefined);
       const boot = document.getElementById('boot');
       if (!boot) return;
       boot.classList.add('leaving');

@@ -122,6 +122,7 @@ public final class ModuleManager {
 			JsonObject entry = element.getAsJsonObject();
 			JsonElement settings = entry.get("settings");
 			if (settings != null && settings.isJsonObject()) {
+				m.migrateSettings(settings.getAsJsonObject());
 				for (Setting<?> s : m.settings()) {
 					JsonElement value = settings.getAsJsonObject().get(s.id());
 					if (value != null) s.fromJson(value);

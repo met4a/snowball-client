@@ -3,6 +3,7 @@ package dev.snowballclient.client.platform;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.snowballclient.client.SnowballClient;
 import dev.snowballclient.client.ui.Host;
+import dev.snowballclient.client.ui.PlayerSpot;
 import dev.snowballclient.client.ui.Textures;
 import dev.snowballclient.client.ui.View;
 import net.minecraft.client.Minecraft;
@@ -21,6 +22,8 @@ import java.util.function.Function;
 public final class ViewScreen extends Screen implements Host {
 	private static final int KEY_LEFT_CONTROL = 341;
 	private static final int KEY_RIGHT_CONTROL = 345;
+	private static final int KEY_LEFT_SHIFT = 340;
+	private static final int KEY_RIGHT_SHIFT = 344;
 
 	private final View view;
 	private final Screen parent;
@@ -193,8 +196,25 @@ public final class ViewScreen extends Screen implements Host {
 	}
 
 	@Override
+	public boolean isShiftDown() {
+		return InputConstants.isKeyDown(minecraft.getWindow(), KEY_LEFT_SHIFT) || InputConstants.isKeyDown(minecraft.getWindow(), KEY_RIGHT_SHIFT);
+	}
+
+	@Override
 	public String clipboard() {
 		return minecraft.keyboardHandler.getClipboard();
+	}
+
+	@Override
+	public void copyToClipboard(String text) {
+		minecraft.keyboardHandler.setClipboard(text);
+	}
+
+	@Override
+	public PlayerSpot playerSpot() {
+		var player = minecraft.player;
+		if (player == null || minecraft.level == null) return null;
+		return new PlayerSpot(player.getX(), player.getY(), player.getZ(), minecraft.level.dimension().identifier().getPath());
 	}
 
 	@Override

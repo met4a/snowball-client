@@ -63,6 +63,44 @@ public final class RadialLayout {
 		return Math.floorMod(index + direction, segments);
 	}
 
+	/**
+	 * The widest box of height {@code h}, centred on (cx, cy), that stays inside segment
+	 * {@code index} between the two radii with {@code margin} to spare on every side. A label sized
+	 * by it cannot cross into the next segment, whatever the font scale or the screen.
+	 */
+	public float fitWidth(int index, double cx, double cy, double h, double inner, double outer, double margin) {
+		double lo = 0;
+		double hi = outer * 2;
+		for (int i = 0; i < 24; i++) {
+			double w = (lo + hi) / 2;
+			if (boxInside(index, cx, cy, w, h, inner, outer, margin)) lo = w;
+			else hi = w;
+		}
+		return (float) lo;
+	}
+
+	private boolean boxInside(int index, double cx, double cy, double w, double h, double inner, double outer, double margin) {
+		// Points along every edge, not only the corners: the inner circle can bulge into a box whose
+		// four corners are all outside it.
+		for (int i = 0; i <= 8; i++) {
+			double t = i / 8.0 - 0.5;
+			if (!pointInside(index, cx + t * w, cy - h / 2, inner, outer, margin)) return false;
+			if (!pointInside(index, cx + t * w, cy + h / 2, inner, outer, margin)) return false;
+			if (!pointInside(index, cx - w / 2, cy + t * h, inner, outer, margin)) return false;
+			if (!pointInside(index, cx + w / 2, cy + t * h, inner, outer, margin)) return false;
+		}
+		return true;
+	}
+
+	/** Whether a point is inside the segment, at least {@code margin} from its edges and both radii. */
+	boolean pointInside(int index, double x, double y, double inner, double outer, double margin) {
+		double r = Math.hypot(x, y);
+		if (r < inner + margin || r > outer - margin) return false;
+		double off = Math.abs(((angleOf(x, y) - centerAngle(index)) % 360 + 540) % 360 - 180);
+		double toEdge = span() / 2 - off;
+		return toEdge >= 0 && r * Math.sin(Math.toRadians(toEdge)) >= margin;
+	}
+
 	/** Unit vector (screen space) pointing at the middle of a segment. */
 	public double[] direction(int index) {
 		double rad = Math.toRadians(centerAngle(index));

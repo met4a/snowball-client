@@ -3,6 +3,7 @@ package dev.snowballclient.client.platform;
 import dev.snowballclient.client.SnowballClient;
 import dev.snowballclient.client.mixin.TitleScreenAccessor;
 import dev.snowballclient.client.ui.Host;
+import dev.snowballclient.client.ui.PlayerSpot;
 import dev.snowballclient.client.ui.Textures;
 import dev.snowballclient.client.ui.View;
 import net.minecraft.client.MinecraftClient;
@@ -167,8 +168,27 @@ public final class LegacyScreen extends Screen implements Host {
 	}
 
 	@Override
+	public boolean isShiftDown() {
+		return Screen.hasShiftDown();
+	}
+
+	@Override
 	public String clipboard() {
 		return Screen.getClipboard();
+	}
+
+	@Override
+	public void copyToClipboard(String text) {
+		Screen.setClipboard(text);
+	}
+
+	@Override
+	public PlayerSpot playerSpot() {
+		if (client.player == null || client.world == null) return null;
+		// 1.8.9 numbers its dimensions: -1 is the Nether, 1 the End.
+		int dimension = client.player.dimension;
+		String name = dimension == -1 ? "the_nether" : dimension == 1 ? "the_end" : dimension == 0 ? "overworld" : "dimension_" + dimension;
+		return new PlayerSpot(client.player.x, client.player.y, client.player.z, name);
 	}
 
 	@Override
@@ -176,9 +196,16 @@ public final class LegacyScreen extends Screen implements Host {
 		// Minecraft 1.8.9 has no helper for opening files, so the desktop is asked directly.
 		try {
 			if (Desktop.isDesktopSupported()) Desktop.getDesktop().open(path.toFile());
-			else new ProcessBuilder("cmd", "/c", "start", "", path.toString()).start();
+			else new ProcessBuilder(openCommand(path.toString())).start();
 		} catch (IOException | RuntimeException e) {
 			SnowballClient.LOGGER.warn("Could not open {}", path, e);
 		}
+	}
+
+	private static String[] openCommand(String path) {
+		String os = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT);
+		if (os.contains("win")) return new String[]{"cmd", "/c", "start", "", path};
+		if (os.contains("mac")) return new String[]{"open", path};
+		return new String[]{"xdg-open", path};
 	}
 }

@@ -1,5 +1,6 @@
 package dev.snowballclient.client.module;
 
+import com.google.gson.JsonObject;
 import dev.snowballclient.client.module.setting.Setting;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -168,6 +169,13 @@ public abstract class Module {
 	}
 
 	protected void onDisable() {
+	}
+
+	/**
+	 * Called with this module's saved settings before they are applied, so a setting that was renamed
+	 * or changed meaning can be carried over: add the new id to {@code saved} from the old one.
+	 */
+	protected void migrateSettings(JsonObject saved) {
 	}
 
 	/** Called at the end of each client tick while enabled. */

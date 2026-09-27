@@ -1,13 +1,16 @@
-import { app, BrowserWindow, dialog, Menu, safeStorage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage } from 'electron';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { SecretCipher } from '../core/auth/AuthManager.js';
-import { Launcher } from '../core/Launcher.js';
+import { Launcher, type LaunchPhaseEvent } from '../core/Launcher.js';
+import type { GameExit } from '../core/process/ProcessManager.js';
 import { getLogger } from '../core/logging/Logger.js';
 import { defaultDataRoot } from '../core/util/paths.js';
 import { registerIpc } from './ipc.js';
 import { ChatClient } from '../core/social/ChatClient.js';
 import { scheduleStartupCheck, UpdateService } from './updates.js';
+import { LauncherPresence } from './presence.js';
+import { DiscordRpc } from '../core/social/DiscordRpc.js';
 
 const log = getLogger('main');
 
@@ -37,7 +40,15 @@ function microsoftClientIdFromConfig(): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+/**
+ * When each part of start-up finished, in milliseconds since the process began: logged once the
+ * interface is usable, so a slow start can be traced to its step instead of guessed at.
+ */
+const startup: Record<string, number> = {};
+const mark = (step: string) => (startup[step] = Math.round(performance.now()));
+
 async function createWindow(): Promise<void> {
+  mark('electronReady');
   const launcher = await Launcher.create({
     root: defaultDataRoot(),
     cipher,
@@ -47,6 +58,7 @@ async function createWindow(): Promise<void> {
     discordAppId: typeof appConfig().discordAppId === "string" ? String(appConfig().discordAppId) : "",
     chatUrl: typeof appConfig().chatUrl === "string" ? String(appConfig().chatUrl).trim() : "",
   });
+  mark('launcherReady');
   const win = new BrowserWindow({
     width: 1200,
     height: 760,
@@ -74,11 +86,25 @@ async function createWindow(): Promise<void> {
   });
   const config = appConfig();
   const chat = new ChatClient(typeof config.chatUrl === 'string' ? config.chatUrl.trim() : '', typeof config.adminUuid === 'string' ? config.adminUuid.trim() : '');
-  Menu.setApplicationMenu(null);
+  // No menu bar on Windows and Linux. macOS always has one, and without its app and Edit menus
+  // Cmd+Q, Cmd+C and Cmd+V do nothing, not even in the launcher's text boxes.
+  Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]) : null);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (event) => event.preventDefault());
-  win.once('ready-to-show', () => win.show());
-  registerIpc(launcher, win, updates, chat);
+  win.once('ready-to-show', () => {
+    mark('windowShown');
+    win.show();
+  });
+  ipcMain.handleOnce('app:interface-ready', () => {
+    mark('interfaceReady');
+    log.info('Start-up timings', startup);
+  });
+  // Discord runs beside the window, never inside it: minimised or hidden, the presence still follows the game.
+  const presence = new LauncherPresence(launcher, new DiscordRpc(String(config.discordAppId ?? '').trim()));
+  presence.attach();
+  app.once('before-quit', () => void presence.rpc.stop());
+  registerIpc(launcher, win, updates, chat, presence);
+  followTheGame(launcher, win);
   await win.loadFile(join(__dirname, '..', 'renderer', 'index.html'));
   // Restarting is fine while somebody is browsing mods; it is not fine while they are playing.
   updates.onlyRestartWhen(() => launcher.processes.runningIds().length === 0);
@@ -113,6 +139,35 @@ async function createWindow(): Promise<void> {
     }
     app.quit();
   }
+}
+
+/**
+ * Gets the window out of the way once Minecraft is up - minimised, or closed until the game ends.
+ * Only the window: the launch runs in this process and never waited on the window being visible.
+ */
+function followTheGame(launcher: Launcher, win: BrowserWindow): void {
+  let hiddenForGame = false;
+  launcher.on('phase', ({ phase }: LaunchPhaseEvent) => {
+    if (phase !== 'running' || win.isDestroyed()) return;
+    const game = launcher.settings.get().game;
+    if (game.closeLauncherOnLaunch) {
+      hiddenForGame = true;
+      win.hide();
+    } else if (game.minimizeOnLaunch) {
+      win.minimize();
+    }
+  });
+  launcher.processes.on('exit', (exit: GameExit) => {
+    if (!hiddenForGame || launcher.processes.runningIds().length > 0) return;
+    hiddenForGame = false;
+    // A crash brings the launcher back so the reason can be read; otherwise it finishes with the game.
+    if (exit.crashed && !win.isDestroyed()) {
+      win.show();
+      win.focus();
+    } else {
+      app.quit();
+    }
+  });
 }
 
 /**
@@ -183,6 +238,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('second-instance', () => {
     const [win] = BrowserWindow.getAllWindows();
     if (win) {
+      if (!win.isVisible()) win.show();
       if (win.isMinimized()) win.restore();
       win.focus();
     }

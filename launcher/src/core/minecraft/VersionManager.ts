@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, readdir } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { dirname, join, relative } from 'node:path';
 import type { DownloadManager, DownloadProgress, DownloadTask } from '../download/DownloadManager.js';
 import { getLogger } from '../logging/Logger.js';
 import { isFileValid, readJson, writeJsonAtomic } from '../util/fsutil.js';
@@ -36,6 +36,11 @@ export function assertVersionId(id: string): string {
  * Merges a child profile (e.g. Fabric) onto its parent (vanilla). Child libraries replace
  * parent libraries with the same group:artifact(:classifier) so loaders can bump ASM etc.
  */
+/** Whether a version runs on LWJGL 2 (Minecraft 1.12.2 and older), whose group id is org.lwjgl.lwjgl. */
+export function usesLwjgl2(version: VersionJson): boolean {
+  return (version.libraries ?? []).some((l) => l.name.startsWith('org.lwjgl.lwjgl:'));
+}
+
 export function mergeVersionJson(parent: VersionJson, child: VersionJson): VersionJson {
   const childKeys = new Set(child.libraries.map((l) => libraryKey(l.name)));
   const childLibraries = child.libraries.map((l) => withReplacedNatives(l, parent.libraries.filter((p) => libraryKey(p.name) === libraryKey(l.name))));
@@ -263,6 +268,36 @@ export class VersionManager {
       const exclude = lib.extractExclude ?? ['META-INF/'];
       await zip.extractAll(nativesDir, (e) => !e.isDirectory && !exclude.some((x) => e.name.startsWith(x)) && /\.(dll|so|dylib|jnilib)$/i.test(e.name));
     }
+  }
+
+  /**
+   * Makes sure the natives folder holds this version's native libraries, extracting them only when
+   * something changed: another version, a replaced library jar, or a missing file. They used to be
+   * deleted and extracted again on every launch.
+   */
+  async prepareNatives(version: VersionJson, nativesDir: string): Promise<'extracted' | 'unchanged'> {
+    const marker = join(nativesDir, '.snowball-natives.json');
+    const sources: Array<[string, number, number]> = [];
+    for (const lib of resolveLibraries(version, this.paths.libraries)) {
+      if (!lib.isNative) continue;
+      const info = await stat(lib.path).catch(() => null);
+      if (!info) throw new VersionError(`Missing native library ${lib.name}`);
+      sources.push([lib.name, info.size, Math.round(info.mtimeMs)]);
+    }
+    const signature = JSON.stringify({ version: version.id, sources });
+    try {
+      const recorded = JSON.parse(await readFile(marker, 'utf8')) as { signature?: string; files?: string[] };
+      if (recorded.signature === signature && Array.isArray(recorded.files) && recorded.files.every((f) => existsSync(join(nativesDir, f)))) return 'unchanged';
+    } catch {
+      // No record of an earlier extraction: extract.
+    }
+    await rm(nativesDir, { recursive: true, force: true });
+    await this.extractNatives(version, nativesDir);
+    const files = (await readdir(nativesDir, { recursive: true, withFileTypes: true }))
+      .filter((e) => e.isFile())
+      .map((e) => relative(nativesDir, join(e.parentPath, e.name)));
+    await writeFile(marker, JSON.stringify({ signature, files }));
+    return 'extracted';
   }
 }
 

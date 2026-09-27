@@ -129,4 +129,51 @@ class RadialTest {
 		int edge = soft.pixel(157, 100) >>> 24;
 		assertTrue(edge > 0 && edge < 128, "soft edge fades gradually: " + edge);
 	}
+
+	@Test
+	void labelsFitInsideTheirSegment() {
+		// The real wheel: one segment per category, labels at LABEL_R, about a line of text high.
+		RadialLayout wheel = RadialLayout.forSegments(ModuleCategory.values().length);
+		float margin = WheelGeometry.SEG_GAP / 2f + 3f;
+		for (int i = 0; i < wheel.segments(); i++) {
+			double[] dir = wheel.direction(i);
+			double cx = dir[0] * WheelGeometry.LABEL_R;
+			double cy = dir[1] * WheelGeometry.LABEL_R;
+			float room = wheel.fitWidth(i, cx, cy, 9, WheelGeometry.SEG_INNER, WheelGeometry.SEG_OUTER, margin);
+			assertTrue(room > 10, "segment " + i + " has room for a label: " + room);
+			// Checked independently of fitWidth: just under the answer fits, a little over does not.
+			assertTrue(fits(wheel, i, cx, cy, room - 0.5, 9, margin), "segment " + i + " at " + room);
+			assertFalse(fits(wheel, i, cx, cy, room + 2, 9, margin), "segment " + i + " at " + room);
+		}
+	}
+
+	@Test
+	void theOldLabelAllowanceCrossedIntoTheNextSegment() {
+		// Labels used to be allowed the arc length plus 14 units, which is how FPS BOOST ran over.
+		RadialLayout wheel = RadialLayout.forSegments(ModuleCategory.values().length);
+		double[] dir = wheel.direction(1);
+		float old = (float) (WheelGeometry.LABEL_R * 2 * Math.PI / wheel.segments()) + 14;
+		float real = wheel.fitWidth(1, dir[0] * WheelGeometry.LABEL_R, dir[1] * WheelGeometry.LABEL_R, 9,
+				WheelGeometry.SEG_INNER, WheelGeometry.SEG_OUTER, WheelGeometry.SEG_GAP / 2f);
+		assertTrue(old > real, "old allowance " + old + " against what fits " + real);
+	}
+
+	/** Whether every point on the box outline is inside the segment, sampled finely. */
+	private static boolean fits(RadialLayout wheel, int index, double cx, double cy, double w, double h, float margin) {
+		for (int i = 0; i <= 40; i++) {
+			double t = i / 40.0 - 0.5;
+			double[][] points = {{cx + t * w, cy - h / 2}, {cx + t * w, cy + h / 2}, {cx - w / 2, cy + t * h}, {cx + w / 2, cy + t * h}};
+			for (double[] p : points) {
+				double r = Math.hypot(p[0], p[1]);
+				if (r < WheelGeometry.SEG_INNER + margin || r > WheelGeometry.SEG_OUTER - margin) return false;
+				if (wheel.hitTest(p[0], p[1], 0, 1000) != index) return false;
+				// Distance to the straight edge on either side: the line from the centre at the edge angle.
+				for (double edge : new double[]{wheel.centerAngle(index) - wheel.span() / 2, wheel.centerAngle(index) + wheel.span() / 2}) {
+					double rad = Math.toRadians(edge);
+					if (Math.abs(Math.sin(rad) * p[1] + Math.cos(rad) * p[0]) < margin) return false;
+				}
+			}
+		}
+		return true;
+	}
 }

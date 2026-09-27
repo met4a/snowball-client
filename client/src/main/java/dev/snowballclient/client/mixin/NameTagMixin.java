@@ -2,16 +2,13 @@ package dev.snowballclient.client.mixin;
 
 import dev.snowballclient.client.SnowballClient;
 import dev.snowballclient.client.social.Rank;
+import dev.snowballclient.client.social.RankText;
 import dev.snowballclient.client.social.SnowballPlayers;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.FontDescription;
-import net.minecraft.network.chat.Style;
-import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
@@ -25,10 +22,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @Mixin(EntityRenderer.class)
 public class NameTagMixin {
-	@Unique
-	private static final Style SNOWBALL_FONT = Style.EMPTY
-			.withFont(new FontDescription.Resource(Identifier.fromNamespaceAndPath(SnowballClient.MOD_ID, "icons")));
-
 	// The full descriptor rather than the bare name: Stonecutter's rename rules match on "name(",
 	// and a selector without one silently fails to apply on the versions it has to be rewritten for.
 	@Inject(method = "getNameTag(Lnet/minecraft/world/entity/Entity;)Lnet/minecraft/network/chat/Component;", at = @At("RETURN"), cancellable = true)
@@ -39,9 +32,6 @@ public class NameTagMixin {
 		if (rank == null) return;
 		Component original = name.getReturnValue();
 		if (original == null) return;
-		name.setReturnValue(Component.empty()
-				.append(Component.literal(String.valueOf(rank.badge())).setStyle(SNOWBALL_FONT))
-				.append(Component.literal(" "))
-				.append(original));
+		name.setReturnValue(Component.empty().append(RankText.prefix(rank, true, false)).append(original));
 	}
 }

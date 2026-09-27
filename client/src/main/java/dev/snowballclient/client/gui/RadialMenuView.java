@@ -22,6 +22,7 @@ import dev.snowballclient.client.ui.UiTexture;
 import dev.snowballclient.client.ui.View;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -69,6 +70,7 @@ public final class RadialMenuView extends View {
 	private final Map<Module, Smoothed> toggleAnim = new IdentityHashMap<>();
 	private final Map<Module, FittedRow> fitted = new IdentityHashMap<>();
 	private final String[] cardBlurbs = new String[CARDS.length];
+	private final Map<Long, Float> labelRooms = new HashMap<>();
 
 	private RadialMetrics metrics = new RadialMetrics(1f, 0f, 0f, 256);
 	private UiTexture logo;
@@ -283,13 +285,9 @@ public final class RadialMenuView extends View {
 				int ly = (int) Math.round(dir[1] * WheelGeometry.LABEL_R);
 				float emphasis = Math.max(segmentSelect[i].get(), segmentHover[i].get() * 0.7f);
 				int color = scaleAlpha(Theme.lerpColor(LABEL_IDLE, 0xFFFFFFFF, emphasis), o);
-				boolean named = emphasis > 0.35f;
-				CategoryIcons.draw(c, categories[i], lx - CategoryIcons.SIZE / 2, ly - (named ? 14 : CategoryIcons.SIZE / 2), color);
 				// Only the segment being pointed at is named, so narrow wedges never write over each other.
-				if (named) {
-					int room = (int) (WheelGeometry.LABEL_R * 2 * Math.PI / segmentHover.length) + 14;
-					UiText.drawCenteredFitted(c, categories[i].displayName(), UiText.TITLE_SMALL, lx, ly - 1, room, color);
-				}
+				if (emphasis > 0.35f) drawSegmentLabel(c, i, lx, ly, color);
+				else CategoryIcons.draw(c, categories[i], lx - CategoryIcons.SIZE / 2, ly - CategoryIcons.SIZE / 2, color);
 			}
 		}
 
@@ -302,6 +300,34 @@ public final class RadialMenuView extends View {
 		c.pop();
 		ModuleCategory shown = hoveredSegment >= 0 ? categories[hoveredSegment] : categories[selected];
 		UiText.drawCenteredFitted(c, shown.displayName(), UiText.UI_SMALL, 0, 16, 52, scaleAlpha(theme.mutedText(), o));
+	}
+
+	/**
+	 * A segment's icon and name, kept inside the segment. The name is measured against the wedge's
+	 * real shape at the height it is drawn; a two-word name that is too wide goes onto two lines,
+	 * and only a single word that still does not fit is drawn smaller.
+	 */
+	private void drawSegmentLabel(Canvas c, int index, int lx, int ly, int color) {
+		String name = categories[index].displayName();
+		float line = UiText.lineHeight(c, UiText.TITLE_SMALL);
+		int space = name.indexOf(' ');
+		String[] lines = space > 0 && UiText.width(c, name, UiText.TITLE_SMALL) > labelRoom(index, lx, ly - 1 + line / 2, line)
+				? new String[]{name.substring(0, space), name.substring(space + 1)}
+				: new String[]{name};
+		float top = ly - 1 - (lines.length - 1) * line / 2f;
+		CategoryIcons.draw(c, categories[index], lx - CategoryIcons.SIZE / 2, Math.round(top) - 13, color);
+		for (int l = 0; l < lines.length; l++) {
+			float y = top + l * line;
+			int room = (int) Math.floor(labelRoom(index, lx, y + line / 2, line));
+			UiText.drawCenteredFitted(c, lines[l], UiText.TITLE_SMALL, lx, Math.round(y), room, color);
+		}
+	}
+
+	/** Worked out once per segment, line position and text size: the wedge never changes shape. */
+	private float labelRoom(int index, float cx, float cy, float height) {
+		long key = ((long) index << 40) | ((long) (Math.round(cy * 4) & 0xFFFFF) << 20) | (Math.round(height * 4) & 0xFFFFF);
+		return labelRooms.computeIfAbsent(key, k -> layout.fitWidth(index, cx, cy, height,
+				WheelGeometry.SEG_INNER, WheelGeometry.SEG_OUTER, WheelGeometry.SEG_GAP / 2f + 3f));
 	}
 
 	private void drawPanel(Canvas c, float alpha, float progress) {

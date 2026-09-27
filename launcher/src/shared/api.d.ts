@@ -29,6 +29,8 @@ declare namespace Snowball {
     lastPlayed: string | null;
     totalPlayMs: number;
     running: boolean;
+    /** preparing: files and sign-in; launching: Minecraft is opening; running: its window is up. */
+    launchPhase: 'preparing' | 'launching' | 'running' | null;
     error?: string;
   }
 
@@ -152,10 +154,11 @@ declare namespace Snowball {
     };
     downloads: { concurrency: number; retries: number };
     java: { autoDownloadRuntime: boolean; defaultMaxMemoryMb: number | null };
-    game: { closeLauncherOnLaunch: boolean; showLogsOnLaunch: boolean };
+    game: { closeLauncherOnLaunch: boolean; minimizeOnLaunch: boolean; showLogsOnLaunch: boolean };
     accounts: { microsoftClientId: string; selectedAccountId: string | null; rank: string };
     updates: { channel: 'stable' | 'beta'; automatic: boolean };
     performance: { installMods: boolean };
+    discord: { enabled: boolean };
     logs: { retainDays: number; debug: boolean };
     selectedInstanceId: string | null;
   }
@@ -177,6 +180,8 @@ declare namespace Snowball {
     /** Snowball Client builds shipped with this launcher, newest first. */
     snowballBuilds: Array<{ version: string; minecraft: string }>;
     canAddOffline: boolean;
+    /** Discord Rich Presence: whether this build has an application, and how the connection is. */
+    discord: { configured: boolean; status: 'off' | 'connecting' | 'connected' | 'unavailable' | 'rejected' };
     microsoftSignInConfigured: boolean;
     launcherVersion: string;
   }
@@ -261,6 +266,7 @@ declare namespace Snowball {
     id: string;
     launcher: string;
     name: string;
+    /** Empty when the folder does not say; the player picks the version. */
     minecraftVersion: string;
     loader: LoaderId;
     loaderVersion: string | null;
@@ -414,7 +420,9 @@ declare namespace Snowball {
     openLauncherFolder(folder: 'root' | 'logs'): Promise<void>;
     scanMods(instanceId: string): Promise<ScanReport>;
     findOtherLaunchers(): Promise<FoundInstance[]>;
-    importFromLauncher(instance: FoundInstance, options: Partial<ImportOptions>): Promise<Instance>;
+    /** version: only used when the folder does not say which Minecraft it is for. */
+    importFromLauncher(instance: FoundInstance, options: Partial<ImportOptions>, version?: string): Promise<Instance>;
+    pickImportFolder(): Promise<FoundInstance | null>;
     chatState(): Promise<ChatState>;
     joinChat(): Promise<ChatState>;
     leaveChat(): Promise<void>;
@@ -428,9 +436,13 @@ declare namespace Snowball {
     reportBug(report: Record<string, string>): Promise<{ ok: boolean; reason?: string }>;
     chatAdmin(action: string, extra?: Record<string, unknown>): Promise<{ ok: boolean; reason?: string }>;
     appVersion(): Promise<string>;
+    /** Tells the launcher the first real frame is on screen, for its start-up timings. */
+    interfaceReady(): Promise<void>;
     updateState(): Promise<UpdateState>;
     checkForUpdates(): Promise<UpdateState | null>;
     installUpdate(): Promise<void>;
+    /** Opens the website's download page, for builds that cannot update themselves. */
+    openDownloadPage(): Promise<void>;
     updateDiagnostics(): Promise<string>;
     releaseNotes(version?: string): Promise<ReleaseNote | ReleaseNote[] | null>;
     copyLogs(): Promise<string>;

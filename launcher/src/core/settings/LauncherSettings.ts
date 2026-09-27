@@ -16,13 +16,19 @@ export interface LauncherSettings {
   };
   downloads: { concurrency: number; retries: number };
   java: { autoDownloadRuntime: boolean; defaultMaxMemoryMb: number | null };
-  game: { closeLauncherOnLaunch: boolean; showLogsOnLaunch: boolean };
+  /**
+   * What the launcher window does once Minecraft is up. Launching itself never depends on the window:
+   * it runs in the main process and carries on minimised, hidden or behind other apps.
+   */
+  game: { closeLauncherOnLaunch: boolean; minimizeOnLaunch: boolean; showLogsOnLaunch: boolean };
   /** rank is written only from what the Snowball backend reports for the signed-in account. */
   accounts: { microsoftClientId: string; selectedAccountId: string | null; rank: string };
   updates: { channel: 'stable' | 'beta'; automatic: boolean };
   /** installMods: let a performance profile download its optimisation mods. Off by default: profiles then
    *  only use what the instance already has. */
   performance: { installMods: boolean };
+  /** Shows what you are doing on Discord, when this build has a Discord application. */
+  discord: { enabled: boolean };
   logs: { retainDays: number; debug: boolean };
   selectedInstanceId: string | null;
 }
@@ -38,10 +44,11 @@ export function defaultSettings(): LauncherSettings {
     },
     downloads: { concurrency: 8, retries: 3 },
     java: { autoDownloadRuntime: true, defaultMaxMemoryMb: null },
-    game: { closeLauncherOnLaunch: false, showLogsOnLaunch: false },
+    game: { closeLauncherOnLaunch: false, minimizeOnLaunch: true, showLogsOnLaunch: false },
     accounts: { microsoftClientId: '', selectedAccountId: null, rank: 'snowball' },
     updates: { channel: 'stable', automatic: true },
     performance: { installMods: false },
+    discord: { enabled: true },
     logs: { retainDays: 14, debug: false },
     selectedInstanceId: null,
   };
@@ -73,7 +80,13 @@ export function normalizeSettings(raw: unknown): LauncherSettings {
       autoDownloadRuntime: bool(r.java?.autoDownloadRuntime, d.java.autoDownloadRuntime),
       defaultMaxMemoryMb: r.java?.defaultMaxMemoryMb === null || r.java?.defaultMaxMemoryMb === undefined ? null : int(r.java.defaultMaxMemoryMb, 512, 262144, 4096),
     },
-    game: { closeLauncherOnLaunch: bool(r.game?.closeLauncherOnLaunch, false), showLogsOnLaunch: bool(r.game?.showLogsOnLaunch, false) },
+    game: {
+      // Before 1.8.0 the only switch here was called closeLauncherOnLaunch but minimised the window;
+      // anyone who turned it on asked for minimising, and keeps it.
+      closeLauncherOnLaunch: r.game?.minimizeOnLaunch === undefined ? false : bool(r.game?.closeLauncherOnLaunch, d.game.closeLauncherOnLaunch),
+      minimizeOnLaunch: r.game?.minimizeOnLaunch === undefined && r.game?.closeLauncherOnLaunch === true ? true : bool(r.game?.minimizeOnLaunch, d.game.minimizeOnLaunch),
+      showLogsOnLaunch: bool(r.game?.showLogsOnLaunch, d.game.showLogsOnLaunch),
+    },
     accounts: {
       microsoftClientId: typeof r.accounts?.microsoftClientId === 'string' && /^[0-9a-fA-F-]{0,36}$/.test(r.accounts.microsoftClientId) ? r.accounts.microsoftClientId : '',
       selectedAccountId: typeof r.accounts?.selectedAccountId === 'string' ? r.accounts.selectedAccountId : null,
@@ -83,6 +96,7 @@ export function normalizeSettings(raw: unknown): LauncherSettings {
     // is deliberately not carried over: it answered a different question.
     updates: { channel: r.updates?.channel === 'beta' ? 'beta' : 'stable', automatic: bool(r.updates?.automatic, d.updates.automatic) },
     performance: { installMods: bool(r.performance?.installMods, d.performance.installMods) },
+    discord: { enabled: bool(r.discord?.enabled, d.discord.enabled) },
     logs: { retainDays: int(r.logs?.retainDays, 1, 365, d.logs.retainDays), debug: bool(r.logs?.debug, false) },
     selectedInstanceId: typeof r.selectedInstanceId === 'string' ? r.selectedInstanceId : null,
   };

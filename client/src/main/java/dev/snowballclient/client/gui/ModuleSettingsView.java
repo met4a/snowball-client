@@ -149,7 +149,7 @@ public final class ModuleSettingsView extends View {
 				GuiDraw.roundedRect(c, controlX, cy - 1, Math.max(2, filled), 3, 1, scaleAlpha(theme.accent(), a));
 				GuiDraw.roundedRect(c, controlX + filled - 3, cy - 5, 6, 11, 3, scaleAlpha(0xFFFFFFFF, a));
 				GuiDraw.roundedOutline(c, controlX + filled - 3, cy - 5, 6, 11, 3, scaleAlpha(theme.accent(), a));
-				String value = n.step() >= 1 ? String.valueOf(n.intValue()) : String.format(Locale.ROOT, "%.2f", n.get());
+				String value = (n.step() >= 1 ? String.valueOf(n.intValue()) : String.format(Locale.ROOT, "%.2f", n.get())) + n.unit();
 				UiText.drawRight(c, value, UiText.UI_SMALL, right, cy - 4, muted);
 			}
 			case ChoiceSetting choice -> pill(c, "< " + choice.get().replace('_', ' ').toUpperCase(Locale.ROOT) + " >", right, y + (h - 16) / 2, false, a);

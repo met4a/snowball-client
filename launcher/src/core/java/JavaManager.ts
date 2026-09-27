@@ -1,10 +1,11 @@
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { chmod, mkdir, readdir } from 'node:fs/promises';
+import { existsSync, readFileSync } from 'node:fs';
+import { chmod, mkdir, readdir, rm, stat, symlink } from 'node:fs/promises';
 import { arch, platform, totalmem } from 'node:os';
-import { basename, delimiter, dirname, join, resolve } from 'node:path';
+import { basename, delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import type { DownloadManager, DownloadProgress, DownloadTask } from '../download/DownloadManager.js';
 import { getLogger } from '../logging/Logger.js';
+import { writeJsonAtomic } from '../util/fsutil.js';
 import { safeJoin } from '../util/paths.js';
 
 const log = getLogger('java');
@@ -68,9 +69,21 @@ export function validateMemory(minMb: number, maxMb: number, totalBytes: number 
   return { ok: errors.length === 0, errors, warnings };
 }
 
-/** Mojang ships specific Java runtimes per version; this maps the OS to its manifest key. */
-export function mojangRuntimePlatform(): string | null {
-  const a = arch();
+/** The processor a Java was built for, from its os.arch property. */
+export function javaCpu(osArch: string): 'x64' | 'arm64' | 'x86' | 'other' {
+  const a = osArch.toLowerCase();
+  if (a === 'x86_64' || a === 'amd64') return 'x64';
+  if (a === 'aarch64' || a === 'arm64') return 'arm64';
+  if (/^(x86|i[3-6]86)$/.test(a)) return 'x86';
+  return 'other';
+}
+
+/**
+ * Mojang ships specific Java runtimes per version; this maps the OS to its manifest key.
+ * `cpu` asks for another processor's runtime, such as an Intel one on an Apple Silicon Mac.
+ */
+export function mojangRuntimePlatform(cpu?: 'x64'): string | null {
+  const a = cpu ?? arch();
   switch (platform()) {
     case 'win32':
       return a === 'arm64' ? 'windows-arm64' : a === 'ia32' ? 'windows-x86' : 'windows-x64';
@@ -95,14 +108,55 @@ const defaultProbe: Probe = (javaPath) =>
     });
   });
 
-export class JavaManager {
-  private cache = new Map<string, JavaInstallation | null>();
+/** What a Java executable said about itself, and the file it said it about. */
+interface ProbeRecord {
+  size: number;
+  mtimeMs: number;
+  java: JavaInstallation;
+}
 
+export class JavaManager {
+  private cache = new Map<string, { size: number; mtimeMs: number; java: JavaInstallation | null }>();
+  /** Probes remembered between launcher runs; loaded on first use. */
+  private stored: Record<string, ProbeRecord> | null = null;
+  private saveTimer: NodeJS.Timeout | null = null;
+
+  /**
+   * @param probeCacheFile where probe results are kept between runs. Asking a Java its version means
+   * starting it, a few hundred milliseconds each, and every launch used to ask every Java on the
+   * computer again. A result is reused only while the file it came from is unchanged.
+   */
   constructor(
     private readonly runtimesDir: string,
     private readonly downloads?: DownloadManager,
     private readonly probe: Probe = defaultProbe,
+    private readonly probeCacheFile?: string,
   ) {}
+
+  private storedProbes(): Record<string, ProbeRecord> {
+    if (this.stored) return this.stored;
+    this.stored = {};
+    if (!this.probeCacheFile) return this.stored;
+    try {
+      const raw = JSON.parse(readFileSync(this.probeCacheFile, 'utf8')) as Record<string, ProbeRecord>;
+      for (const [key, record] of Object.entries(raw ?? {})) {
+        if (record && typeof record.size === 'number' && typeof record.mtimeMs === 'number' && record.java && typeof record.java.majorVersion === 'number') this.stored[key] = record;
+      }
+    } catch {
+      // No cache yet, or an unreadable one: every Java is simply asked again.
+    }
+    return this.stored;
+  }
+
+  private rememberProbe(key: string, record: ProbeRecord): void {
+    this.storedProbes()[key] = record;
+    if (!this.probeCacheFile || this.saveTimer) return;
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      writeJsonAtomic(this.probeCacheFile!, this.stored).catch((err) => log.debug('Could not save the Java cache', { error: String(err) }));
+    }, 200);
+    this.saveTimer.unref();
+  }
 
   static executableName(): string {
     return platform() === 'win32' ? 'java.exe' : 'java';
@@ -146,10 +200,19 @@ export class JavaManager {
 
   async inspect(javaPath: string, source: JavaInstallation['source'] = 'manual'): Promise<JavaInstallation | null> {
     const key = resolve(javaPath);
-    if (this.cache.has(key)) return this.cache.get(key) ?? null;
+    const file = await stat(key).catch(() => null);
+    const size = file?.size ?? -1;
+    const mtimeMs = file?.mtimeMs ?? -1;
+    const known = this.cache.get(key);
+    if (known && known.size === size && known.mtimeMs === mtimeMs) return known.java ? { ...known.java, source } : null;
+    const remembered = this.storedProbes()[key];
+    if (file && remembered && remembered.size === size && remembered.mtimeMs === mtimeMs) {
+      this.cache.set(key, { size, mtimeMs, java: remembered.java });
+      return { ...remembered.java, source };
+    }
     let result: JavaInstallation | null = null;
     try {
-      if (!existsSync(key)) throw new Error('file does not exist');
+      if (!file) throw new Error('file does not exist');
       const props = parseJavaProperties(await this.probe(key));
       const major = props.version ? parseJavaMajor(props.version) : null;
       if (!props.version || major === null) throw new Error('could not determine Java version');
@@ -165,7 +228,8 @@ export class JavaManager {
     } catch (err) {
       log.warn(`Ignoring Java candidate ${key}`, { error: (err as Error).message });
     }
-    this.cache.set(key, result);
+    this.cache.set(key, { size, mtimeMs, java: result });
+    if (result) this.rememberProbe(key, { size, mtimeMs, java: result });
     return result;
   }
 
@@ -198,8 +262,9 @@ export class JavaManager {
     return { ok: true, java };
   }
 
-  async pickFor(requiredMajor: number | undefined): Promise<JavaInstallation | null> {
-    const all = await this.detect();
+  /** @param cpu only a Java built for this processor, e.g. an Intel Java for LWJGL 2 on Apple Silicon */
+  async pickFor(requiredMajor: number | undefined, cpu?: 'x64'): Promise<JavaInstallation | null> {
+    const all = (await this.detect()).filter((j) => !cpu || javaCpu(j.arch) === cpu);
     const need = requiredMajor ?? 8;
     const exact = all.find((j) => j.majorVersion === need && j.is64Bit);
     if (exact) return exact;
@@ -208,9 +273,9 @@ export class JavaManager {
   }
 
   /** The Mojang runtime that provides a Java version, e.g. 21 -> "java-runtime-delta". Null when there is none. */
-  async componentForMajor(major: number, signal?: AbortSignal): Promise<string | null> {
+  async componentForMajor(major: number, signal?: AbortSignal, cpu?: 'x64'): Promise<string | null> {
     if (!this.downloads) return null;
-    const plat = mojangRuntimePlatform();
+    const plat = mojangRuntimePlatform(cpu);
     if (!plat) return null;
     type RuntimeIndex = Record<string, Record<string, Array<{ version: { name: string } }>>>;
     const index = await this.downloads.fetchJson<RuntimeIndex>(RUNTIME_INDEX_URL, signal);
@@ -225,18 +290,20 @@ export class JavaManager {
    * Installs the Mojang-distributed runtime named in a version JSON (`javaVersion.component`).
    * Every file is checksum-verified; paths come from Mojang metadata and are traversal-checked.
    */
-  async installMojangRuntime(component: string, signal?: AbortSignal, onProgress?: (p: DownloadProgress) => void): Promise<JavaInstallation> {
+  async installMojangRuntime(component: string, signal?: AbortSignal, onProgress?: (p: DownloadProgress) => void, cpu?: 'x64'): Promise<JavaInstallation> {
     if (!this.downloads) throw new Error('Downloads are not available');
     if (!/^[a-z0-9-]+$/.test(component)) throw new Error(`Invalid runtime component: ${component}`);
-    const plat = mojangRuntimePlatform();
+    const plat = mojangRuntimePlatform(cpu);
     if (!plat) throw new Error('Mojang does not publish Java runtimes for this platform; install Java manually.');
     type RuntimeIndex = Record<string, Record<string, Array<{ manifest: { url: string; sha1: string; size: number }; version: { name: string } }>>>;
     const index = await this.downloads.fetchJson<RuntimeIndex>(RUNTIME_INDEX_URL, signal);
     const entry = index[plat]?.[component]?.[0];
     if (!entry) throw new Error(`Mojang has no ${component} runtime for ${plat}.`);
-    type FileManifest = { files: Record<string, { type: 'file' | 'directory' | 'link'; executable?: boolean; downloads?: { raw: { url: string; sha1: string; size: number } } }> };
+    type FileManifest = { files: Record<string, { type: 'file' | 'directory' | 'link'; target?: string; executable?: boolean; downloads?: { raw: { url: string; sha1: string; size: number } } }> };
     const manifest = await this.downloads.fetchJson<FileManifest>(entry.manifest.url, signal);
-    const home = safeJoin(this.runtimesDir, component);
+    // Another processor's runtime gets its own folder so it never replaces this machine's own.
+    const home = safeJoin(this.runtimesDir, cpu && plat !== mojangRuntimePlatform() ? `${component}-${cpu}` : component);
+    const links: Array<[string, string]> = [];
     const tasks: DownloadTask[] = [];
     const executables: string[] = [];
     for (const [rel, file] of Object.entries(manifest.files ?? {})) {
@@ -245,10 +312,19 @@ export class JavaManager {
       else if (file.type === 'file' && file.downloads?.raw) {
         tasks.push({ url: file.downloads.raw.url, dest: target, sha1: file.downloads.raw.sha1, size: file.downloads.raw.size, label: rel });
         if (file.executable) executables.push(target);
+      } else if (file.type === 'link' && file.target && platform() !== 'win32') {
+        links.push([target, file.target]);
       }
     }
     await this.downloads.downloadAll(tasks, signal, onProgress);
     if (platform() !== 'win32') for (const f of executables) await chmod(f, 0o755);
+    // macOS runtimes are app bundles that point parts of themselves at others; each link stays inside the runtime.
+    for (const [path, target] of links) {
+      if (isAbsolute(target) || !resolve(dirname(path), target).startsWith(home)) continue;
+      await mkdir(dirname(path), { recursive: true });
+      await rm(path, { force: true });
+      await symlink(target, path).catch((err) => log.debug('Could not link a runtime file', { path, error: String(err) }));
+    }
     const javaPath = platform() === 'darwin' ? join(home, 'jre.bundle', 'Contents', 'Home', 'bin', 'java') : join(home, 'bin', JavaManager.executableName());
     this.cache.delete(resolve(javaPath));
     const java = await this.inspect(javaPath, 'managed');

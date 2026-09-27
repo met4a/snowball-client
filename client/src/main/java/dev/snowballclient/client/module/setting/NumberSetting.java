@@ -7,6 +7,7 @@ public final class NumberSetting extends Setting<Double> {
 	private final double min;
 	private final double max;
 	private final double step;
+	private String unit = "";
 
 	public NumberSetting(String id, String name, String description, double defaultValue, double min, double max, double step) {
 		super(id, name, description, defaultValue);
@@ -26,6 +27,16 @@ public final class NumberSetting extends Setting<Double> {
 
 	public double step() {
 		return step;
+	}
+
+	/** Shown after the value, such as "%". */
+	public NumberSetting unit(String unit) {
+		this.unit = unit;
+		return this;
+	}
+
+	public String unit() {
+		return unit;
 	}
 
 	public float floatValue() {

@@ -15,6 +15,7 @@ import dev.snowballclient.client.module.misc.ServerInfo;
 import dev.snowballclient.client.module.misc.SessionTimer;
 import dev.snowballclient.client.module.qol.CpsCounter;
 import dev.snowballclient.client.module.qol.Keystrokes;
+import dev.snowballclient.client.module.qol.NetherTravelModule;
 import dev.snowballclient.client.module.qol.Snaplook;
 import dev.snowballclient.client.module.qol.ToggleSprint;
 import dev.snowballclient.client.module.qol.Waypoints;
@@ -24,6 +25,7 @@ import dev.snowballclient.client.module.render.FovSettings;
 import dev.snowballclient.client.module.render.Fullbright;
 import dev.snowballclient.client.module.render.PotionHud;
 import dev.snowballclient.client.module.render.RenderDistance;
+import dev.snowballclient.client.module.render.VisualModules;
 import dev.snowballclient.client.module.storage.StorageScreens;
 import dev.snowballclient.client.perf.ModRequests;
 import dev.snowballclient.client.waypoint.WaypointStore;
@@ -49,6 +51,7 @@ public final class ModuleRegistry {
 	public static Waypoints WAYPOINTS;
 	public static Zoom ZOOM;
 	public static Fullbright FULLBRIGHT;
+	public static VisualModules.LowFire LOW_FIRE;
 
 	public static void registerAll(ModuleManager m, WaypointStore waypoints, Theme theme, ClientSettings clientSettings,
 								   ModRequests requests, Predicate<String> isLoaded, Map<String, String> disabledJars) {
@@ -75,6 +78,7 @@ public final class ModuleRegistry {
 		m.register(new FovSettings());
 		m.register(new RenderDistance());
 		m.register(new PotionHud());
+		LOW_FIRE = m.register(new VisualModules.LowFire());
 
 		// MISC
 		m.register(new ClientHudModules.Clock());
@@ -89,6 +93,7 @@ public final class ModuleRegistry {
 		ZOOM = m.register(new Zoom());
 		m.register(new CpsCounter());
 		m.register(new Snaplook());
+		m.register(new NetherTravelModule());
 
 		// STORAGE
 		m.register(new StorageScreens.Screenshots());
@@ -97,8 +102,8 @@ public final class ModuleRegistry {
 
 		m.order(ModuleCategory.CLIENT, "client_hud", "hud_layout", "fps_counter", "ping_display", "coordinates", "direction_hud",
 				"speed_display", "combo_counter", "reach_display", "memory_usage", "armor_hud", "interface");
-		m.order(ModuleCategory.RENDER, "fps_boost", "fullbright", "zoom", "potion_hud", "fov_settings", "render_distance");
+		m.order(ModuleCategory.RENDER, "fps_boost", "fullbright", "zoom", "potion_hud", "low_fire", "fov_settings", "render_distance");
 		m.order(ModuleCategory.MISC, "notifications", "clock", "server_info", "session_timer");
-		m.order(ModuleCategory.QOL, "keystrokes", "toggle_sprint", "zoom", "snaplook", "waypoints", "cps_counter", "coordinates");
+		m.order(ModuleCategory.QOL, "keystrokes", "toggle_sprint", "zoom", "snaplook", "waypoints", "nether_travel", "cps_counter", "coordinates");
 	}
 }

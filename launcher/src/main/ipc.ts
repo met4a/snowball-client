@@ -12,7 +12,8 @@ import { loadChangelog, notesFor } from './releaseNotes.js';
 import { backgroundDataUrl, clearBackground, pickBackground } from './appearance.js';
 import { openMicrosoftLogin } from './microsoftLogin.js';
 import type { ChatClient } from '../core/social/ChatClient.js';
-import type { UpdateService } from './updates.js';
+import { DOWNLOAD_PAGE, type UpdateService } from './updates.js';
+import type { LauncherPresence } from './presence.js';
 
 const log = getLogger('ipc');
 const MOD_LOADERS = ['fabric', 'legacy-fabric', 'quilt', 'forge', 'neoforge'];
@@ -48,11 +49,12 @@ function toDto(summary: InstanceSummary, launcher: Launcher): Snowball.Instance 
     lastPlayed: c.timestamps.lastPlayed,
     totalPlayMs: c.timestamps.totalPlayMs,
     running: launcher.processes.isRunning(c.id),
+    launchPhase: launcher.launchPhase(c.id),
     error: summary.error,
   };
 }
 
-export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: UpdateService, chat?: ChatClient): void {
+export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: UpdateService, chat?: ChatClient, presence?: LauncherPresence): void {
   const toRenderer = (event: string, payload: unknown) => {
     if (!win.isDestroyed()) win.webContents.send(`evt:${event}`, payload);
   };
@@ -112,10 +114,22 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
       ?? { ok: false, reason: 'Chat is not available.' });
   ipcMain.handle('mods:scan', (_e, id: unknown) => launcher.scanMods(str(id, 'instance id')));
   ipcMain.handle('import:detect', () => launcher.findOtherLaunchers());
-  ipcMain.handle('import:run', async (_e, found: unknown, options: unknown) => {
-    const f = found as { id?: unknown; gameDir?: unknown; name?: unknown; minecraftVersion?: unknown; loader?: unknown; loaderVersion?: unknown; launcher?: unknown };
-    const known = (await launcher.findOtherLaunchers()).find((i) => i.id === f?.id);
+  // Folders are chosen here, in the main process, and remembered: an import only ever reads a
+  // folder a launcher was found in or one the player picked in this dialog, never a path the page sent.
+  const pickedImports = new Map<string, Awaited<ReturnType<Launcher['inspectImportFolder']>>>();
+  ipcMain.handle('import:pick-folder', async () => {
+    const result = await dialog.showOpenDialog(win, { title: 'Choose the folder to import', properties: ['openDirectory'] });
+    if (result.canceled || !result.filePaths[0]) return null;
+    const found = await launcher.inspectImportFolder(result.filePaths[0]);
+    if (found) pickedImports.set(found.id, found);
+    return found;
+  });
+  ipcMain.handle('import:run', async (_e, found: unknown, options: unknown, version: unknown) => {
+    const f = found as { id?: unknown };
+    let known = pickedImports.get(String(f?.id)) ?? (await launcher.findOtherLaunchers()).find((i) => i.id === f?.id);
     if (!known) throw new Error('That instance is no longer where it was; scan again.');
+    // Only a folder that does not say its version takes one from the page, and only a release number.
+    if (!known.minecraftVersion && typeof version === 'string' && /^\d+\.\d+(\.\d+)?$/.test(version)) known = { ...known, minecraftVersion: version };
     const o = (options ?? {}) as Record<string, unknown>;
     const pick = (key: string) => o[key] !== false;
     return launcher.importFromLauncher(known, {
@@ -134,6 +148,8 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
   ipcMain.handle('updates:state', () => updates?.current() ?? { status: 'manual', version: app.getVersion(), message: 'Updates are not available in this build.' });
   ipcMain.handle('updates:check', () => updates?.check(true) ?? null);
   ipcMain.handle('updates:install', () => updates?.install());
+  // Only ever the one fixed page: the renderer cannot ask for any other address to be opened.
+  ipcMain.handle('updates:open-download', () => shell.openExternal(DOWNLOAD_PAGE));
   ipcMain.handle('app:release-notes', (_e, version: unknown) => {
     const notes = loadChangelog(join(app.getAppPath(), 'dist', 'CHANGELOG.md'));
     return typeof version === 'string' && version ? notesFor(notes, version) : notes.slice(0, 8);
@@ -162,10 +178,9 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
   launcher.on('progress', (p) => send('progress', p));
   launcher.activity.on('activity', (e) => send('activity', e));
   launcher.processes.on('log', (l) => send('game-log', l));
-  launcher.processes.on('started', () => {
-    send('state', null);
-    if (launcher.settings.get().game.closeLauncherOnLaunch) win.minimize();
-  });
+  launcher.processes.on('started', () => send('state', null));
+  launcher.on('phase', () => send('state', null));
+  presence?.rpc.on('status', () => send('state', null));
   launcher.processes.on('exit', (e) => {
     send('game-exit', e);
     send('state', null);
@@ -208,8 +223,11 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
       dataRoot: launcher.paths.root,
       snowballBuilds: launcher.core.registry.builds.map((b) => ({ version: b.version, minecraft: b.label })),
       canAddOffline: launcher.auth.canAddOffline(),
+      discord: { configured: presence?.rpc.configured ?? false, status: presence?.rpc.status ?? 'off' },
       microsoftSignInConfigured: launcher.microsoftSignInConfigured,
-      launcherVersion: process.env.npm_package_version ?? '1.5.1',
+      // From the app itself: the npm variable this used to read only exists in development, so every
+      // installed copy said 1.5.1.
+      launcherVersion: app.getVersion(),
     };
   });
 
@@ -236,7 +254,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
 
   handle('instances:update', async (id: unknown, patch: Snowball.InstancePatch) => {
     const iid = await instanceId(id);
-    if (launcher.processes.isRunning(iid)) throw new Error('Stop the game before editing this instance.');
+    if (launcher.processes.isRunning(iid) || launcher.launchPhase(iid)) throw new Error('Stop the game before editing this instance.');
     await launcher.instances.update(iid, (c) => {
       if (typeof patch.name === 'string') c.name = str(patch.name, 'name', 64);
       if (typeof patch.minecraftVersion === 'string' && patch.minecraftVersion !== c.minecraftVersion) {
@@ -260,7 +278,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
 
   handle('instances:delete', async (id: unknown) => {
     const iid = await instanceId(id);
-    if (launcher.processes.isRunning(iid)) throw new Error('Stop the game before deleting this instance.');
+    if (launcher.processes.isRunning(iid) || launcher.launchPhase(iid)) throw new Error('Stop the game before deleting this instance.');
     await launcher.instances.delete(iid);
   });
 
@@ -341,7 +359,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
 
   handle('browse:install', async (id: unknown, projectId: unknown) => {
     const iid = await instanceId(id);
-    if (launcher.processes.isRunning(iid)) throw new Error('Stop the game before installing mods.');
+    if (launcher.processes.isRunning(iid) || launcher.launchPhase(iid)) throw new Error('Stop the game before installing mods.');
     const project = str(projectId, 'project id', 64);
     if (!/^[A-Za-z0-9_.-]+$/.test(project)) throw new Error('Invalid project id');
     return launcher.modrinth.install(await modTarget(iid), project);
@@ -354,7 +372,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
 
   handle('mods:update', async (id: unknown, fileName: unknown) => {
     const iid = await instanceId(id);
-    if (launcher.processes.isRunning(iid)) throw new Error('Stop the game before updating mods.');
+    if (launcher.processes.isRunning(iid) || launcher.launchPhase(iid)) throw new Error('Stop the game before updating mods.');
     return launcher.updateMod(iid, str(fileName, 'file name'));
   });
 
@@ -376,19 +394,19 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
     // Runs in the background so the window never blocks on downloads or installers.
     launcher.launch(iid).catch((err: Error) => send('launch-error', { instanceId: iid, message: err.message }));
   });
-  handle('game:stop', async (id: unknown) => launcher.processes.kill(await instanceId(id)));
+  handle('game:stop', async (id: unknown) => launcher.stop(await instanceId(id)));
   handle('game:logs', async (id: unknown) => launcher.processes.recentLines(await instanceId(id)));
   handle('game:activity', async (id: unknown) => launcher.activity.recent(await instanceId(id)));
 
   handle('core:status', async (id: unknown) => launcher.inspectCore(await instanceId(id)));
   handle('core:repair', async (id: unknown) => {
     const iid = await instanceId(id);
-    if (launcher.processes.isRunning(iid)) throw new Error('Stop the game before repairing Snowball Client.');
+    if (launcher.processes.isRunning(iid) || launcher.launchPhase(iid)) throw new Error('Stop the game before repairing Snowball Client.');
     return launcher.repairCore(iid);
   });
   handle('game:verify-files', async (id: unknown) => {
     const iid = await instanceId(id);
-    if (launcher.processes.isRunning(iid)) throw new Error('Stop the game before checking its files.');
+    if (launcher.processes.isRunning(iid) || launcher.launchPhase(iid)) throw new Error('Stop the game before checking its files.');
     return launcher.verifyGameFiles(iid);
   });
 
@@ -397,12 +415,14 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
 
   handle('settings:update', async (patch: Partial<Snowball.Settings>) => {
     const updated = await launcher.settings.update((s) => {
-      for (const key of ['appearance', 'downloads', 'java', 'game', 'accounts', 'updates', 'logs'] as const) {
+      // performance was missing, so the "Install optimisation mods" switch never saved.
+      for (const key of ['appearance', 'downloads', 'java', 'game', 'accounts', 'updates', 'performance', 'discord', 'logs'] as const) {
         if (patch && typeof patch[key] === 'object' && patch[key] !== null) Object.assign(s[key], patch[key]);
       }
       if (patch && 'selectedInstanceId' in patch) s.selectedInstanceId = typeof patch.selectedInstanceId === 'string' ? patch.selectedInstanceId : null;
     });
     logSink.configure({ minLevel: updated.logs.debug ? 10 : 20 });
+    if (patch && typeof patch.discord === 'object') await presence?.setEnabled(updated.discord.enabled);
     return updated;
   });
 

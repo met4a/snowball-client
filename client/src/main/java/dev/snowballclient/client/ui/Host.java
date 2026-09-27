@@ -30,7 +30,14 @@ public interface Host {
 
 	boolean isControlDown();
 
+	boolean isShiftDown();
+
 	String clipboard();
+
+	void copyToClipboard(String text);
+
+	/** Where the player is, or null when no world is open. */
+	PlayerSpot playerSpot();
 
 	/** Opens a file or folder with the operating system. */
 	void openPath(Path path);

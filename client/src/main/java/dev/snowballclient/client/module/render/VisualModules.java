@@ -1,5 +1,7 @@
 package dev.snowballclient.client.module.render;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import dev.snowballclient.client.module.Module;
 import dev.snowballclient.client.module.ModuleCategory;
 import dev.snowballclient.client.module.setting.ChoiceSetting;
@@ -23,15 +25,64 @@ public final class VisualModules {
 		}
 	}
 
+	/**
+	 * Makes the burning overlay shorter and optionally see-through. Only the local player's view
+	 * changes; the flames always stay partly visible so being on fire is never hidden.
+	 *
+	 * <p>The flames are squashed towards the bottom of the screen rather than slid down. Sliding them
+	 * pushes their solid base off the screen and leaves only the loose tips, which blink in and out as
+	 * the fire animates; squashing keeps the whole flame, just shorter.
+	 */
 	public static final class LowFire extends Module {
-		public final NumberSetting height = setting(new NumberSetting("height", "Lower by", "How far the burning overlay moves down", 0.3, 0.05, 0.5, 0.05));
+		/**
+		 * tan(35 degrees). The overlay is drawn with a fixed 70 degree view whatever the FOV setting,
+		 * resolution or GUI scale, so in the camera's space the bottom edge of the screen is the plane
+		 * y = SLOPE * z (z is negative in front of the eye).
+		 */
+		private static final float SLOPE = 0.7002075f;
+		/** How far the flames used to move down before 1.8.0 translates into a height: their on-screen part. */
+		private static final float OLD_VISIBLE = 0.55f;
+
+		public final NumberSetting height = setting(new NumberSetting("fire_height", "Flame height",
+				"How tall the flames are, compared with normal", 45, 10, 100, 5).unit("%"));
+		public final NumberSetting opacity = setting(new NumberSetting("fire_opacity", "Flame opacity",
+				"Lower to see through the flames", 100, 30, 100, 5).unit("%"));
 
 		public LowFire() {
 			super("low_fire", "Low Fire", "Lower the fire overlay", ModuleCategory.RENDER);
 		}
 
-		public float offset() {
-			return isEnabled() ? height.floatValue() : 0f;
+		/** How tall the flames are drawn, 1 being the game's own height. */
+		public float scale() {
+			return isEnabled() ? height.floatValue() / 100f : 1f;
+		}
+
+		/**
+		 * Paired with {@link #scale}: y' = scale * y + shear * z keeps the bottom edge of the screen where
+		 * it is while every height above it, as seen on screen, shrinks by {@code scale}.
+		 */
+		public float shear() {
+			return SLOPE * (1f - scale());
+		}
+
+		/** The flames' opacity, given the game's own. */
+		public float alpha(float vanilla) {
+			return isEnabled() ? vanilla * opacity.floatValue() / 100f : vanilla;
+		}
+
+		/** The flames' colour with {@link #alpha} applied to its alpha channel. */
+		public int color(int argb) {
+			if (!isEnabled()) return argb;
+			int a = Math.round((argb >>> 24) * opacity.floatValue() / 100f);
+			return (a << 24) | (argb & 0xFFFFFF);
+		}
+
+		@Override
+		protected void migrateSettings(JsonObject saved) {
+			// Before 1.8.0 this was "height", how far down the flames moved in drawing units (0.05 to 0.5).
+			JsonElement old = saved.get("height");
+			if (saved.has("fire_height") || old == null || !old.isJsonPrimitive() || !old.getAsJsonPrimitive().isNumber()) return;
+			saved.addProperty("fire_height", 100 * (1 - old.getAsDouble() / OLD_VISIBLE));
 		}
 	}
 
