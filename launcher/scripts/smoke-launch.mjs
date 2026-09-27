@@ -6,7 +6,7 @@
 //   npm run build && node scripts/smoke-launch.mjs 1.21.11 fabric
 //
 // The account is an offline stand-in: nothing here signs in to Microsoft or joins a server.
-import { mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,7 +43,7 @@ const tail = [];
 launcher.processes.on('log', (entry) => {
   const line = typeof entry === 'string' ? entry : entry?.message ?? JSON.stringify(entry);
   tail.push(line);
-  if (tail.length > 80) tail.shift();
+  if (tail.length > 300) tail.shift();
 });
 launcher.activity?.on?.('entry', (e) => console.log(`[launcher] ${e.level ?? ''} ${e.message ?? ''}`));
 
@@ -90,6 +90,17 @@ if (result.ok) {
   setTimeout(() => process.exit(0), 3_000);
 } else {
   console.log(tail.join('\n'));
+  // What the game left behind: Minecraft's crash report, and the JVM's own report when it died natively.
+  const gameDir = launcher.instances.gameDir(instance.id);
+  const crashDir = join(gameDir, 'crash-reports');
+  const reports = [
+    ...(existsSync(crashDir) ? readdirSync(crashDir).map((f) => join(crashDir, f)) : []),
+    ...readdirSync(gameDir).filter((f) => /^hs_err_pid\d+\.log$/.test(f)).map((f) => join(gameDir, f)),
+  ];
+  for (const file of reports) {
+    console.log(`\n[smoke] ----- ${file} -----`);
+    console.log(readFileSync(file, 'utf8').split('\n').slice(0, 120).join('\n'));
+  }
   launcher.stop(instance.id);
   console.error(`[smoke] FAILED after ${seconds}s: ${result.why}`);
   setTimeout(() => process.exit(1), 3_000);

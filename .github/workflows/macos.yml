@@ -114,6 +114,29 @@ jobs:
           npm run build
           npx electron-builder --mac --arm64 --x64 --publish never
 
+      - name: Open the Mac app and wait for its interface
+        working-directory: launcher
+        run: |
+          export SNOWBALLCLIENT_LAUNCHER_HOME="$RUNNER_TEMP/snowball-home"
+          APP="$(ls -d release/mac-arm64/*.app | head -1)"
+          echo "Opening $APP"
+          "$APP/Contents/MacOS/Snowball Client Launcher" > "$RUNNER_TEMP/app.log" 2>&1 &
+          PID=$!
+          for i in $(seq 1 45); do
+            if grep -rqs "Start-up timings" "$SNOWBALLCLIENT_LAUNCHER_HOME/logs"; then
+              echo "The launcher opened and its interface finished loading:"
+              grep -rh "Start-up timings" "$SNOWBALLCLIENT_LAUNCHER_HOME/logs" | head -1
+              kill $PID
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "The launcher did not finish opening within 90 seconds"
+          cat "$RUNNER_TEMP/app.log"
+          ls -R "$SNOWBALLCLIENT_LAUNCHER_HOME" | head -40
+          kill $PID || true
+          exit 1
+
       - name: Checksums
         working-directory: launcher/release
         run: shasum -a 256 *.dmg *.zip | tee SHA256SUMS-mac.txt

@@ -116,3 +116,9 @@ ul.checks.columns li:last-child {
   width: 100%;
   height: auto;
 }
+
+/* The at-a-glance band states facts in words; the numbers it used to show could not all be stood behind. */
+.stats.facts strong { font-size: clamp(16px, 1.9vw, 22px); line-height: 1.35; }
+.stats.facts strong a { color: inherit; text-decoration: none; border-bottom: 1px dashed currentColor; }
+.stats.facts span { display: block; margin-top: 4px; text-transform: none; letter-spacing: 0.02em; font-size: 12px; }
+@media (max-width: 720px) { .stats.facts { grid-template-columns: 1fr 1fr; } .stats.facts div:nth-child(3) { border-left: 0; } .stats.facts div:nth-child(n + 3) { border-top: 1px solid var(--border); } }

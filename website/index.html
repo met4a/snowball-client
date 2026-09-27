@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="styles.css?v=5" />
     <link rel="stylesheet" href="demo.css?v=1" />
     <link rel="stylesheet" href="refresh.css?v=1" />
-    <link rel="stylesheet" href="polish.css?v=1" />
+    <link rel="stylesheet" href="polish.css?v=2" />
     <script>document.documentElement.classList.add('js');</script>
   </head>
   <body>
@@ -57,11 +57,11 @@
       </section>
 
       <section class="stats-band" aria-label="At a glance">
-        <div class="wrap stats">
-          <div><strong>50+</strong><span>modules</span></div>
-          <div><strong>3</strong><span>Minecraft versions</span></div>
-          <div><strong>4</strong><span>mod loaders</span></div>
-          <div><strong>0</strong><span>cheats</span></div>
+        <div class="wrap stats facts">
+          <div><strong>Old and new</strong><span>Minecraft 1.8.9, 1.21.11 and 26.2</span></div>
+          <div><strong>Imports</strong><span>from Lunar, Feather, Modrinth and more</span></div>
+          <div><strong>Visual only</strong><span>no X-ray, reach or aim assist</span></div>
+          <div><strong><a href="https://github.com/met4a/snowball-client">Open source</a></strong><span>MIT licence, on GitHub</span></div>
         </div>
       </section>
 
@@ -91,13 +91,14 @@
             <div class="card reveal"><span class="tag">QOL</span><h3>Keystrokes and waypoints</h3><p>Keys, clicks per second, toggle sprint, and waypoints with on-screen markers.</p></div>
             <div class="card reveal"><span class="tag">MENU</span><h3>Search everything</h3><p>Start typing in the menu to find any module. Every row explains what it does in a few words.</p></div>
             <div class="card reveal"><span class="tag">STORAGE</span><h3>Profiles and packs</h3><p>Save module setups, switch mod sets, browse screenshots, peek inside shulker boxes and search chests.</p></div>
-            <div class="card reveal"><span class="tag">NEW</span><h3>EZ Pots</h3><p>Hear a potion before it drops. Every effect gets its own sound, pitch and warning times, so Strength and Speed never sound the same.</p></div>
-            <div class="card reveal"><span class="tag">NEW</span><h3>Discord presence</h3><p>Show what you are up to, with the server read from the game itself so nobody can fake where they are playing.</p></div>
-            <div class="card reveal"><span class="tag">NEW</span><h3>Snowball loading screen</h3><p>The red Mojang screen becomes a Snowball one, with a real progress bar while the game loads.</p></div>
-            <div class="card reveal"><span class="tag">NEW</span><h3>Snowball in the player list</h3><p>Players on Snowball Client get a snowball next to their name when you hold Tab.</p></div>
-            <div class="card reveal"><span class="tag">NEW</span><h3>Your colours</h3><p>Pick the colour of every Snowball menu, and the tint behind them, from swatches or a full colour picker. It changes as you drag.</p></div>
-            <div class="card reveal"><span class="tag">NEW</span><h3>Badges above heads</h3><p>Snowball players carry their rank badge on the name above their head, so you can spot them in the world and in third person.</p></div>
-            <div class="card reveal"><span class="tag">NEW</span><h3>Known mods, recognised</h3><p>The mod check knows Modrinth's releases by fingerprint, so Fabric API and friends are set aside and only files it cannot vouch for are read.</p></div>
+            <div class="card reveal"><span class="tag">NEW</span><h3>Nether Travel</h3><p>Type a position and see where a portal comes out on the other side: X and Z divided or multiplied by 8, Y unchanged, negative and decimal numbers included. Copy it for /tp, or add the other side's coordinates to your HUD.</p></div>
+            <div class="card reveal"><span class="tag">NEW</span><h3>Low Fire that stays whole</h3><p>The burning overlay is squashed towards the bottom of the screen instead of slid off it, so the flames keep their shape and never blink. Choose the height and how see-through they are - on 1.8.9 too.</p></div>
+            <div class="card reveal"><span class="tag">MISC</span><h3>EZ Pots</h3><p>Hear a potion before it drops. Every effect gets its own sound, pitch and warning times, so Strength and Speed never sound the same.</p></div>
+            <div class="card reveal"><span class="tag">CLIENT</span><h3>Snowball loading screen</h3><p>The red Mojang screen becomes a Snowball one, with a real progress bar while the game loads.</p></div>
+            <div class="card reveal"><span class="tag">CLIENT</span><h3>Snowball in the player list</h3><p>Players on Snowball Client get a snowball next to their name when you hold Tab, and Snowball's staff a small pixel-art comet instead of a text tag.</p></div>
+            <div class="card reveal"><span class="tag">MENU</span><h3>Your colours</h3><p>Pick the colour of every Snowball menu, and the tint behind them, from swatches or a full colour picker. It changes as you drag.</p></div>
+            <div class="card reveal"><span class="tag">CLIENT</span><h3>Badges above heads</h3><p>Snowball players carry their rank badge on the name above their head, so you can spot them in the world and in third person.</p></div>
+            <div class="card reveal"><span class="tag">LAUNCHER</span><h3>Known mods, recognised</h3><p>The mod check knows Modrinth's releases by fingerprint, so Fabric API and friends are set aside and only files it cannot vouch for are read.</p></div>
             <div class="card reveal"><span class="tag">MENU</span><h3>Your own main menu</h3><p>The title screen becomes the Snowball menu: your account, Singleplayer, Multiplayer and quick buttons for the game's own screens, over Minecraft's own panorama. Switch it off any time.</p></div>
           </div>
         </div>
@@ -137,7 +138,9 @@
           </div>
           <ul class="checks columns reveal">
               <li><strong>Updates itself</strong>: new versions arrive in the background and install when you restart, so you never run an installer again</li>
-              <li><strong>Escaping another launcher?</strong> Import instances, mods, worlds and settings from Modrinth, CurseForge, Prism, MultiMC, ATLauncher, GDLauncher or the official launcher</li>
+              <li><strong>Escaping another launcher?</strong> Import mods, worlds, packs, keybinds and servers from Lunar Client, Feather, the Modrinth App, CurseForge, Prism, MultiMC, ATLauncher, GDLauncher or your .minecraft folder (Minecraft Launcher, Badlion, LabyMod) - or point it at any folder</li>
+              <li><strong>Keeps going in the background</strong>: minimise it while it downloads, it tucks itself away when the game opens, and pressing Play twice never starts two games</li>
+              <li><strong>Says what went wrong</strong>: a failed launch explains itself in plain words, with a button that fixes it where it can and the technical details one click away</li>
               <li><strong>Check mods</strong>: releases from Modrinth are recognised by fingerprint, and every other jar is read on your computer and told back to you in plain language - what it can run, read or send</li>
               <li><strong>Snowball Client built in</strong>: loaded by the launcher, never a mod file you can lose, checked and repaired before every launch</li>
               <li><strong>Readable activity log</strong>: see each step, from checking files to joining a world, with the full game log one click away</li>
