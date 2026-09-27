@@ -22,6 +22,14 @@
   --speed: 180ms;
 }
 
+/* Scrollbars in the launcher's colours: the system one is a white bar across a dark window. */
+html {
+  scrollbar-color: rgba(221, 243, 255, 0.18) transparent;
+}
+* {
+  scrollbar-width: thin;
+}
+
 body.reduce-motion {
   --speed: 0ms;
 }
@@ -2373,3 +2381,7 @@ body.reduce-motion *::after {
 .import-other { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
 .import-version-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
 .import-version { width: auto; min-width: 150px; max-width: 220px; padding: 4px 8px; font-size: 12px; }
+.import-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 6px; margin-top: 8px; }
+.import-options .list-row { padding-top: 8px; padding-bottom: 8px; }
+.import-filter { width: 100%; margin: 8px 0; }
+.import-list { max-height: min(44vh, 420px); overflow-y: auto; margin-top: 8px; padding-right: 2px; }

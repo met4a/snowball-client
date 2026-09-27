@@ -1,6 +1,7 @@
 package dev.snowballclient.gametest;
 
 import dev.snowballclient.client.SnowballClient;
+import dev.snowballclient.client.gui.ModuleSettingsView;
 import dev.snowballclient.client.gui.NetherTravelView;
 import dev.snowballclient.client.module.ModuleRegistry;
 import dev.snowballclient.client.module.render.VisualModules;
@@ -61,7 +62,9 @@ public final class SnowballRenderGameTest implements FabricClientGameTest {
 			context.waitTicks(220);
 			lowFire(context, world);
 			netherTravel(context, world);
+			layoutSweep(context, true);
 		}
+		layoutSweep(context, false);
 		ClientSteps.endOnTitle(context);
 	}
 
@@ -154,9 +157,11 @@ public final class SnowballRenderGameTest implements FabricClientGameTest {
 
 	/** The calculator, driven from the keyboard the way a player would, then photographed at every GUI scale. */
 	private static void netherTravel(ClientGameTestContext context, TestSingleplayerContext world) {
-		world.getServer().runCommand("execute as @a run tp @s 800 70 -240");
-		// Let the player land: the height is read from wherever they stand.
-		context.waitTicks(40);
+		// Creative, and moved at ground level: a survival player dropped from above a flat world dies,
+		// and the death screen then swallows every key the rest of the test presses.
+		world.getServer().runCommand("gamemode creative @a");
+		world.getServer().runCommand("execute as @a at @s run tp @s 800 ~ -240");
+		context.waitTicks(20);
 		String y = onClient(context, mc -> String.valueOf(mc.player.getBlockY()));
 		onClient(context, mc -> {
 			ViewScreen.show(new NetherTravelView(SnowballClient.get()));
@@ -216,6 +221,57 @@ public final class SnowballRenderGameTest implements FabricClientGameTest {
 		context.getInput().pressKey(ClientSteps.KEY_ESCAPE);
 		context.waitForScreen(null);
 		if (!problems.isEmpty()) throw new AssertionError("Nether Travel:\n  " + String.join("\n  ", problems));
+	}
+
+	private static final int[][] LAYOUT_SIZES = {{1280, 720}, {1920, 1080}, {3440, 1440}};
+
+	/**
+	 * Photographs the busiest screens at every GUI scale on a small, a common and an ultrawide window,
+	 * to look for text that runs out of its box: in a world the menu and the Interface settings,
+	 * outside one the main menu.
+	 */
+	private static void layoutSweep(ClientGameTestContext context, boolean inWorld) {
+		int guiScaleBefore = onClient(context, mc -> mc.options.guiScale().get());
+		for (int[] size : LAYOUT_SIZES) {
+			context.getInput().resizeWindow(size[0], size[1]);
+			context.waitTicks(5);
+			for (int scale = 1; scale <= 4; scale++) {
+				setGuiScale(context, scale);
+				String at = size[0] + "x" + size[1] + "_gui" + scale;
+				if (inWorld) {
+					ClientSteps.openMenu(context);
+					context.takeScreenshot("layout_menu_" + at);
+					ClientSteps.closeMenu(context);
+					onClient(context, mc -> {
+						ViewScreen.show(new ModuleSettingsView(ModuleRegistry.INTERFACE, SnowballClient.get()));
+						return null;
+					});
+					context.waitTicks(12);
+					context.takeScreenshot("layout_interface_" + at);
+					context.setScreen(() -> null);
+					context.waitTicks(5);
+				} else {
+					context.waitTicks(10);
+					context.takeScreenshot("layout_title_" + at);
+				}
+			}
+		}
+		setGuiScale(context, guiScaleBefore);
+		context.getInput().resizeWindow(1920, 1080);
+		context.waitTicks(5);
+	}
+
+	private static void setGuiScale(ClientGameTestContext context, int scale) {
+		onClient(context, mc -> {
+			mc.options.guiScale().set(scale);
+			//? if >=26.1 {
+			mc.resizeGui();
+			//?} else {
+			/*mc.resizeDisplay();
+			*///?}
+			return null;
+		});
+		context.waitTicks(3);
 	}
 
 	private static NetherTravelView travel(net.minecraft.client.Minecraft mc) {

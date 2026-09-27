@@ -97,7 +97,7 @@ public final class ModuleSettingsView extends View {
 		GuiDraw.roundedRect(c, panelX + 2, panelY + 4, panelW, panelH, 7, scaleAlpha(0x70000000, a));
 		GuiDraw.roundedRect(c, panelX, panelY, panelW, panelH, 6, scaleAlpha(theme.surface(theme.panelOpacity), a));
 		GuiDraw.roundedOutline(c, panelX, panelY, panelW, panelH, 6, scaleAlpha(theme.border(), a));
-		UiText.draw(c, module.name().toUpperCase(Locale.ROOT), UiText.TITLE, panelX + 12, panelY + 9, scaleAlpha(theme.text(), a));
+		UiText.draw(c, module.name().toUpperCase(Locale.ROOT), UiText.titleFor(c, 16), panelX + 12, panelY + 9, scaleAlpha(theme.text(), a));
 		UiText.draw(c, UiText.fit(c, module.description(), UiText.DETAIL, panelW - 24), UiText.DETAIL, panelX + 12, panelY + 25, scaleAlpha(theme.mutedText(), a));
 		c.fill(panelX + 10, panelY + HEADER_H - 3, panelX + panelW - 10, panelY + HEADER_H - 2, scaleAlpha(Theme.withAlpha(theme.highlight(), 0.08f), a));
 		c.fill(panelX + 10, panelY + HEADER_H - 3, panelX + 42, panelY + HEADER_H - 2, scaleAlpha(theme.accent(), a));

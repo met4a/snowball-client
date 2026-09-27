@@ -57,6 +57,15 @@ public final class UiText {
 		return Math.max(1, (int) Math.floor(density * kind.factor + kind.bias) + kind.extraPixels);
 	}
 
+	/**
+	 * The title size that fits in {@code room} units of height: the large one where it does, the
+	 * smaller one otherwise. Titles are drawn a pixel larger per font pixel, which at GUI scale 1 made
+	 * them taller than the header they sit in and ran them into the line below.
+	 */
+	public static Kind titleFor(Canvas c, float room) {
+		return lineHeight(c, Kind.TITLE) <= room ? Kind.TITLE : Kind.TITLE_SMALL;
+	}
+
 	/** Height of one line of this kind of text, in the units it is drawn in. */
 	public static float lineHeight(Canvas c, Kind kind) {
 		return c.lineHeight() * scaleFor(kind);

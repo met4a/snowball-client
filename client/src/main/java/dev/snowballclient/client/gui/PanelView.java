@@ -61,7 +61,7 @@ public abstract class PanelView extends View {
 		GuiDraw.roundedRect(c, panelX + 2, panelY + 4, panelW, panelH, 7, scaleAlpha(0x70000000, a));
 		GuiDraw.roundedRect(c, panelX, panelY, panelW, panelH, 6, scaleAlpha(theme.surface(theme.panelOpacity), a));
 		GuiDraw.roundedOutline(c, panelX, panelY, panelW, panelH, 6, scaleAlpha(theme.border(), a));
-		UiText.draw(c, title(), UiText.TITLE, panelX + 12, panelY + 10, scaleAlpha(theme.text(), a));
+		UiText.draw(c, title(), UiText.titleFor(c, 17), panelX + 12, panelY + 10, scaleAlpha(theme.text(), a));
 		c.fill(panelX + 10, panelY + HEADER_H - 3, panelX + panelW - 10, panelY + HEADER_H - 2, scaleAlpha(Theme.withAlpha(theme.highlight(), 0.08f), a));
 		c.fill(panelX + 10, panelY + HEADER_H - 3, panelX + 42, panelY + HEADER_H - 2, scaleAlpha(theme.accent(), a));
 		renderContent(c, mouseX, mouseY);

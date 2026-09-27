@@ -365,12 +365,12 @@ public final class RadialMenuView extends View {
 		int right = x + PANEL_W - 11;
 		if (searching()) {
 			magnifier(c, x + 15, top + 14, accent);
-			UiText.draw(c, "SEARCH", UiText.TITLE, x + 26, top + 10, scaleAlpha(theme.text(), alpha));
+			UiText.draw(c, "SEARCH", UiText.titleFor(c, 18), x + 26, top + 10, scaleAlpha(theme.text(), alpha));
 			UiText.drawRight(c, rows.size() + (rows.size() == 1 ? " result" : " results"), UiText.UI_SMALL, right, top + 11, scaleAlpha(theme.mutedText(), alpha));
 		} else {
 			ModuleCategory cat = categories[selected];
 			CategoryIcons.draw(c, cat, x + 11, top + 10, accent);
-			UiText.draw(c, cat.displayName(), UiText.TITLE, x + 26, top + 10, scaleAlpha(theme.text(), alpha));
+			UiText.draw(c, cat.displayName(), UiText.titleFor(c, 18), x + 26, top + 10, scaleAlpha(theme.text(), alpha));
 			if (cat == ModuleCategory.FPS_BOOST) {
 				UiText.drawRight(c, host.fps() + " FPS", UiText.UI_SMALL, right, top + 11, accent);
 			} else {

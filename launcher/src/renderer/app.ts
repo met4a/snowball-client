@@ -2108,7 +2108,7 @@
     const picks: Snowball.ImportOptions = { mods: true, config: true, resourcePacks: true, shaderPacks: true, saves: true, options: true };
     const optionRow = (label: string, key: keyof Snowball.ImportOptions) =>
       h('div', { class: 'list-row' }, h('div', { class: 'grow' }, label), toggle(picks[key], (v) => { picks[key] = v; }));
-    const options = h('div', { class: 'list', style: 'margin-top:12px' },
+    const options = h('div', { class: 'import-options' },
       optionRow('Mods', 'mods'),
       optionRow('Mod settings (config)', 'config'),
       optionRow('Resource packs', 'resourcePacks'),
@@ -2122,14 +2122,29 @@
         if (found) list.prepend(foundRow(found));
       },
     }, 'Choose a folder...');
+    // With many launchers installed the list runs long, so it scrolls on its own and can be searched,
+    // and what to bring across is chosen first rather than below every entry.
+    const filter = h('input', {
+      class: 'input import-filter',
+      type: 'search',
+      placeholder: 'Search by name, launcher or version',
+      'aria-label': 'Search what was found',
+      hidden: true,
+      onInput: (e: Event) => {
+        const q = (e.target as HTMLInputElement).value.trim().toLowerCase();
+        for (const row of list.children) (row as HTMLElement).hidden = !!q && !(row.textContent ?? '').toLowerCase().includes(q);
+      },
+    }) as HTMLInputElement;
     const body = h('div', {},
       h('p', { class: 'muted' }, 'Nothing is moved or deleted: your other launcher keeps working exactly as it does now.'),
-      list,
+      h('div', { class: 'section-title' }, 'BRING ACROSS'),
+      options,
+      h('div', { class: 'section-title', style: 'margin-top:16px' }, 'FOUND ON THIS COMPUTER'),
+      filter,
+      h('div', { class: 'import-list' }, list),
       h('div', { class: 'import-other' },
         h('span', { class: 'muted' }, 'Using a launcher that is not listed?'),
-        chooseFolder),
-      h('div', { class: 'section-title', style: 'margin-top:16px' }, 'BRING ACROSS'),
-      options);
+        chooseFolder));
     const close = modal('IMPORT FROM ANOTHER LAUNCHER', body, [{ label: 'Close', kind: 'ghost', onClick: (c) => c() }]);
 
     /** Releases for a folder that does not say its version, fetched once when first needed. */
@@ -2186,6 +2201,7 @@
         return;
       }
       list.replaceChildren(...found.map(foundRow));
+      filter.hidden = found.length < 7;
     }).catch((err) => list.replaceChildren(h('div', { class: 'muted' }, errorMessage(err))));
   }
 

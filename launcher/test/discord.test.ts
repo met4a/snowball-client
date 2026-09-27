@@ -21,6 +21,9 @@ class FakeDiscord {
     this.server = createServer((socket) => {
       this.sockets.add(socket);
       socket.on('close', () => this.sockets.delete(socket));
+      // The launcher hanging up while an answer is on its way is normal; on macOS the write then
+      // fails with EPIPE, which Discord itself shrugs off too.
+      socket.on('error', () => undefined);
       let buffer = Buffer.alloc(0);
       socket.on('data', (chunk) => {
         buffer = Buffer.concat([buffer, chunk]);
@@ -56,7 +59,7 @@ class FakeDiscord {
     const header = Buffer.alloc(8);
     header.writeInt32LE(op, 0);
     header.writeInt32LE(body.length, 4);
-    socket.write(Buffer.concat([header, body]));
+    if (socket.writable) socket.write(Buffer.concat([header, body]));
   }
 }
 
