@@ -835,14 +835,54 @@
     const p = ui.progress.get(id);
     const pct = p?.total ? Math.round((100 * (p.completed ?? 0)) / p.total) : null;
     const current = stepIndex(p?.stage, phase);
-    return h('div', { class: 'launch-progress' },
+    return h('div', { class: 'launch-progress', 'data-instance': id, 'data-stage': phase === 'launching' ? '' : p?.stage ?? '', 'data-counted': String(pct !== null) },
       h('div', { class: 'launch-progress-head' },
         h('div', { class: 'launch-stage' }, phase === 'launching' ? 'Opening the game window' : p?.stage ?? 'Preparing'),
         h('div', { class: 'launch-pct' }, pct === null ? '' : `${pct}%`)),
       h('div', { class: `progress${pct === null ? ' indeterminate' : ''}` }, h('div', { style: pct === null ? '' : `width:${pct}%` })),
       h('div', { class: 'launch-steps' }, ...LAUNCH_STEPS.map((step, i) =>
         h('div', { class: `launch-step${i < current ? ' done' : i === current ? ' active' : ''}` }, h('span', { class: 'launch-step-dot' }), step))),
-      p && pct !== null ? h('div', { class: 'muted', style: 'font-size:12px' }, `${p.completed} of ${p.total} files`) : null);
+      p && pct !== null ? h('div', { class: 'muted launch-files', style: 'font-size:12px' }, `${p.completed} of ${p.total} files`) : null);
+  }
+
+  /**
+   * Moves the numbers on launch cards already on screen. A stage reports its count several times
+   * a second, and rebuilding the page for each one swapped the Cancel button out from under the
+   * pointer and asked for the mod list every time. Returns false when the cards have to be drawn
+   * again: a new stage, a count appearing, or no card to update.
+   */
+  function paintProgress(p: Snowball.Progress): boolean {
+    const cards = [...document.querySelectorAll<HTMLElement>('.launch-progress')].filter((c) => c.dataset.instance === p.instanceId);
+    const pct = p.total ? Math.round((100 * (p.completed ?? 0)) / p.total) : null;
+    if (!cards.length || cards.some((c) => c.dataset.stage !== p.stage || c.dataset.counted !== String(pct !== null))) return false;
+    for (const card of cards) {
+      const label = card.querySelector('.launch-pct');
+      if (label) label.textContent = pct === null ? '' : `${pct}%`;
+      const fill = card.querySelector<HTMLElement>('.progress > div');
+      if (fill && pct !== null) fill.style.width = `${pct}%`;
+      const files = card.querySelector('.launch-files');
+      if (files) files.textContent = `${p.completed} of ${p.total} files`;
+    }
+    return true;
+  }
+
+  /**
+   * The home card's mod count. Counting reads every mod jar, so a request already on its way is
+   * shared rather than repeated each time home is drawn, and the last count stays up meanwhile.
+   */
+  const modCounts = new Map<string, { text: string; request?: Promise<string> }>();
+  function fillModCount(id: string, into: HTMLElement): void {
+    const entry = modCounts.get(id) ?? { text: '...' };
+    modCounts.set(id, entry);
+    into.textContent = entry.text;
+    entry.request ??= api.listMods(id)
+      .then((r) => `${r.mods.filter((m) => m.enabled).length} enabled`, () => '-')
+      .then((text) => {
+        entry.text = text;
+        entry.request = undefined;
+        return text;
+      });
+    void entry.request.then((text) => (into.textContent = text));
   }
 
   // ---------- views ----------
@@ -856,7 +896,7 @@
 
     const modsValue = h('div', { class: 'stat-value' }, '...');
     if (inst.loader !== 'vanilla') {
-      void api.listMods(inst.id).then((r) => (modsValue.textContent = `${r.mods.filter((m) => m.enabled).length} enabled`)).catch(() => (modsValue.textContent = '-'));
+      fillModCount(inst.id, modsValue);
     } else {
       modsValue.textContent = 'None';
     }
@@ -2581,7 +2621,7 @@
     ui.progress.set(p.instanceId, p);
     if (p.stage === 'Running') ui.busy.delete(p.instanceId);
     else ui.busy.add(p.instanceId);
-    if (ui.view === 'home' || ui.view === 'instances') render();
+    if ((ui.view === 'home' || ui.view === 'instances') && !paintProgress(p)) render();
   });
   const appendToOutput = (instanceId: string, mode: 'activity' | 'technical', row: HTMLElement) => {
     const view = document.getElementById('home-log');

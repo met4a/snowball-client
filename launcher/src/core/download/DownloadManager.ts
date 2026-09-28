@@ -134,17 +134,20 @@ export class DownloadManager extends EventEmitter {
     }
   }
 
+  /** True when the file is already in place and matches what the task expects. */
+  private async isPresent(task: DownloadTask): Promise<boolean> {
+    if (task.sha1 && (await this.verified?.isVerified(task.dest, task.sha1))) return true;
+    if (!(await isFileValid(task.dest, { sha1: task.sha1, size: task.size }))) return false;
+    // A file is complete unless it is empty: downloads are written to .part and renamed when finished.
+    // Loader libraries from Maven repositories publish no checksum, so presence is all there is to check.
+    if ((task.size ?? (await fileSize(task.dest)) ?? 0) <= 0) return false;
+    if (task.sha1) await this.verified?.record(task.dest, task.sha1);
+    return true;
+  }
+
   async download(task: DownloadTask, signal?: AbortSignal): Promise<'downloaded' | 'cached'> {
     assertHttps(task.url);
-    if (task.sha1 && (await this.verified?.isVerified(task.dest, task.sha1))) return 'cached';
-    if (await isFileValid(task.dest, { sha1: task.sha1, size: task.size })) {
-      // A file is complete unless it is empty: downloads are written to .part and renamed when finished.
-      // Loader libraries from Maven repositories publish no checksum, so presence is all there is to check.
-      if ((task.size ?? (await fileSize(task.dest)) ?? 0) > 0) {
-        if (task.sha1) await this.verified?.record(task.dest, task.sha1);
-        return 'cached';
-      }
-    }
+    if (await this.isPresent(task)) return 'cached';
     await mkdir(dirname(task.dest), { recursive: true });
     const part = `${task.dest}.part`;
     let lastError: unknown;
@@ -198,6 +201,34 @@ export class DownloadManager extends EventEmitter {
   async forgetVerifiedFiles(): Promise<void> {
     this.verified?.clear();
     await this.verified?.save();
+  }
+
+  /**
+   * The tasks whose files are missing or do not match, found without downloading anything, so a
+   * launch can say it is checking files rather than downloading them, and count only what really
+   * has to come over the network.
+   */
+  async missing(tasks: DownloadTask[], signal?: AbortSignal, onProgress?: (p: DownloadProgress) => void): Promise<DownloadTask[]> {
+    const unique = dedupeTasks(tasks);
+    const needed = new Array<boolean>(unique.length).fill(false);
+    const progress: DownloadProgress = { completed: 0, total: unique.length, bytes: 0 };
+    let index = 0;
+    const worker = async () => {
+      while (index < unique.length) {
+        if (signal?.aborted) return;
+        const i = index++;
+        needed[i] = !(await this.isPresent(unique[i]).catch(() => false));
+        progress.completed++;
+        onProgress?.({ ...progress });
+      }
+    };
+    try {
+      await Promise.all(Array.from({ length: Math.min(this.concurrency, unique.length) }, worker));
+    } finally {
+      await this.verified?.save();
+    }
+    if (signal?.aborted) throw new Error('Download cancelled');
+    return unique.filter((_, i) => needed[i]);
   }
 
   async downloadAll(tasks: DownloadTask[], signal?: AbortSignal, onProgress?: (p: DownloadProgress) => void): Promise<void> {

@@ -202,6 +202,23 @@ describe('downloads', () => {
     expect(await reloaded.isVerified(dest, 'f'.repeat(40))).toBe(false);
   });
 
+  it('tells files that are already there from files that have to be downloaded, without fetching', async () => {
+    const dir = tempDir();
+    let fetches = 0;
+    const verified = new VerifiedFiles(join(dir, 'verified.json'));
+    const manager = new DownloadManager({ verified, fetchImpl: async () => (fetches++, new Response('x')) });
+    writeFileSync(join(dir, 'present'), 'hello world');
+    writeFileSync(join(dir, 'wrong'), 'hello worle');
+    const task = (name: string) => ({ url: `https://example.invalid/${name}`, dest: join(dir, name), sha1: '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed', size: 11 });
+    const counts: number[] = [];
+    const missing = await manager.missing([task('present'), task('wrong'), task('absent'), task('present')], undefined, (p) => counts.push(p.completed));
+    expect(missing.map((t) => t.dest)).toEqual([join(dir, 'wrong'), join(dir, 'absent')]);
+    expect(counts).toEqual([1, 2, 3]);
+    expect(fetches).toBe(0);
+    // What was found intact is remembered, so the next check does not hash it again.
+    expect(await verified.isVerified(join(dir, 'present'), task('present').sha1)).toBe(true);
+  });
+
   it('aggregates failures and refuses plain HTTP', async () => {
     const manager = new DownloadManager({ retries: 0, fetchImpl: async () => new Response('nope', { status: 404 }) });
     await expect(manager.downloadAll([{ url: 'https://example.invalid/a', dest: join(tempDir(), 'a') }])).rejects.toThrow(/1 download\(s\) failed/);

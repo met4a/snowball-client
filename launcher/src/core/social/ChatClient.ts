@@ -362,7 +362,9 @@ export class ChatClient extends EventEmitter {
     socket.addEventListener('open', () => {
       if (this.socket !== socket) return;
       this.retryMs = 3000;
-      this.set({ status: 'online', admin: session.uuid.replace(/-/g, '') === this.adminUuid.replace(/-/g, ''), message: undefined });
+      // Whoever just joined is online, so the count is at least one until the room sends its own;
+      // it used to say "0 online" for a moment after joining.
+      this.set({ status: 'online', online: Math.max(this.state.online, 1), admin: session.uuid.replace(/-/g, '') === this.adminUuid.replace(/-/g, ''), message: undefined });
     });
     // Only the current socket is listened to, so a socket being replaced cannot deliver anything.
     socket.addEventListener('message', (event: MessageEvent) => {

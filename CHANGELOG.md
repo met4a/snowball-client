@@ -9,6 +9,24 @@ installer once.
 
 ---
 
+## 1.8.1
+
+### Fixed
+- Pressing Play could sit on "Downloading game assets" for around two minutes
+  before Minecraft started, though nothing was being downloaded. For each of
+  the 4,600 or so game files it checked, the launcher redrew the whole page,
+  and every redraw counted your mods again by reading each mod file, which
+  kept it too busy to get on with the launch. On our test machine those checks
+  now take under half a second instead of 111 seconds.
+- The launch card says "Checking game assets" while it checks, and only says
+  "Downloading" when something is actually being downloaded.
+- Cancel could miss your click during a launch: the button was being replaced
+  several times a second.
+- The Mods count on Home showed "..." for the whole launch.
+- Chat could stay on "Connecting..." until a launch had finished, and said
+  "0 online" for a moment after you joined.
+- The launch log in Output listed some steps twice.
+
 ## 1.8.0
 
 ### What's new

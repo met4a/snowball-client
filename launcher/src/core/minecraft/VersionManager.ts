@@ -222,11 +222,10 @@ export class VersionManager {
       const f = version.logging.client.file;
       tasks.push({ url: f.url, dest: safeJoin(this.paths.assets, 'log_configs', f.id), sha1: f.sha1, size: f.size, label: f.id });
     }
-    onProgress?.('Downloading libraries');
-    await this.downloads.downloadAll(tasks, signal, (p) => onProgress?.('Downloading libraries', p));
+    await this.fetchMissing(tasks, 'libraries', signal, onProgress);
 
     if (version.assetIndex) {
-      onProgress?.('Downloading game assets');
+      onProgress?.('Checking game assets');
       const idx = version.assetIndex;
       const indexPath = safeJoin(this.paths.assets, 'indexes', `${idx.id}.json`);
       await this.downloads.download({ url: idx.url, dest: indexPath, sha1: idx.sha1, size: idx.size, label: `asset index ${idx.id}` }, signal);
@@ -237,9 +236,21 @@ export class VersionManager {
         const sub = `${o.hash.slice(0, 2)}/${o.hash}`;
         return { url: `${RESOURCES_URL}/${sub}`, dest: safeJoin(this.paths.assets, 'objects', sub), sha1: o.hash, size: o.size, label: `asset ${o.hash.slice(0, 8)}` };
       });
-      await this.downloads.downloadAll(assetTasks, signal, (p) => onProgress?.('Downloading game assets', p));
+      await this.fetchMissing(assetTasks, 'game assets', signal, onProgress);
       if (index.value.virtual || index.value.map_to_resources) await this.materializeLegacyAssets(idx.id, index.value);
     }
+  }
+
+  /**
+   * Checks the files first and downloads only what is missing, so the launcher says "Downloading"
+   * only when something is, and its count is of files that really come over the network.
+   */
+  private async fetchMissing(tasks: DownloadTask[], what: string, signal?: AbortSignal, onProgress?: (stage: string, p?: DownloadProgress) => void): Promise<void> {
+    onProgress?.(`Checking ${what}`);
+    const missing = await this.downloads.missing(tasks, signal, (p) => onProgress?.(`Checking ${what}`, p));
+    if (!missing.length) return;
+    onProgress?.(`Downloading ${what}`);
+    await this.downloads.downloadAll(missing, signal, (p) => onProgress?.(`Downloading ${what}`, p));
   }
 
   /** Pre-1.7 versions read assets by name from a virtual directory instead of the object store. */

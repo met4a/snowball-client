@@ -30,6 +30,8 @@ const log = getLogger('launcher');
 
 /** Progress stages that are not worth a line in the activity timeline. */
 const QUIET_STAGES = new Set(['Preparing', 'Running']);
+/** How often a stage's file count is sent to the window while it runs. */
+const PROGRESS_EVERY_MS = 100;
 
 export interface LaunchProgress {
   instanceId: string;
@@ -88,7 +90,10 @@ export class Launcher extends EventEmitter {
   readonly activity = new ActivityLog();
   private readonly interpreters = new Map<string, GameActivityInterpreter>();
   private readonly discordAppId: string;
-  private readonly lastStage = new Map<string, string>();
+  /** The stages already written to the activity view during the current launch. */
+  private readonly saidStages = new Map<string, Set<string>>();
+  /** When each instance's stage last sent a file count, so counts go out a few times a second. */
+  private readonly lastCount = new Map<string, number>();
   private readonly phases = new Map<string, LaunchPhase>();
   /** Cancels a launch that is still preparing, when Stop is pressed before the game has started. */
   private readonly preparing = new Map<string, AbortController>();
@@ -151,7 +156,7 @@ export class Launcher extends EventEmitter {
     processes.on('exit', (exit: GameExit) => {
       instances.markPlayed(exit.instanceId, exit.durationMs).catch((err) => log.warn('Could not record play time', { error: String(err) }));
       launcher.interpreters.delete(exit.instanceId);
-      launcher.lastStage.delete(exit.instanceId);
+      launcher.saidStages.delete(exit.instanceId);
       launcher.setPhase(exit.instanceId, null);
       void launcher.reportExit(exit);
     });
@@ -187,11 +192,25 @@ export class Launcher extends EventEmitter {
   }
 
   private progress(instanceId: string, stage: string, p?: DownloadProgress): void {
+    // Checks and downloads count every file, thousands a launch. The window only needs a few of
+    // those a second; sending each one kept the launcher busy redrawing instead of launching.
+    // The first and last count of a stage always go through. Kept per stage, because steps that
+    // run side by side (Java and the game files) take turns reporting.
+    if (p && p.completed < p.total) {
+      const key = `${instanceId}\n${stage}`;
+      const now = Date.now();
+      const last = this.lastCount.get(key);
+      if (last !== undefined && now - last < PROGRESS_EVERY_MS) return;
+      this.lastCount.set(key, now);
+    }
     const event: LaunchProgress = { instanceId, stage, completed: p?.completed, total: p?.total };
     this.emit('progress', event);
-    // A new stage is also a readable activity line; download counters for the same stage are not repeated.
-    if (!QUIET_STAGES.has(stage) && this.lastStage.get(instanceId) !== stage) this.activity.add(instanceId, 'info', stage);
-    this.lastStage.set(instanceId, stage);
+    // A new stage is also a readable activity line, once per launch: steps that run side by side
+    // take turns reporting, and comparing with the previous stage alone wrote them out again.
+    const said = this.saidStages.get(instanceId) ?? new Set<string>();
+    this.saidStages.set(instanceId, said);
+    if (!QUIET_STAGES.has(stage) && !said.has(stage)) this.activity.add(instanceId, 'info', stage);
+    said.add(stage);
   }
 
   /** True when an Azure client ID is available, so Microsoft sign-in can be offered. */
@@ -563,7 +582,7 @@ export class Launcher extends EventEmitter {
       const accountId = this.settings.get().accounts.selectedAccountId ?? accounts[0]?.id;
       if (!accountId || !accounts.some((a) => a.id === accountId)) throw new Error('Add an account in Settings before playing.');
 
-      this.lastStage.delete(instanceId);
+      this.saidStages.delete(instanceId);
       this.progress(instanceId, 'Preparing');
       say('info', `Preparing ${(await this.instances.load(instanceId)).name}`);
       // Stop can arrive before preparation has begun; it must not be missed.
