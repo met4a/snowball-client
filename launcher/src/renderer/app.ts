@@ -657,7 +657,7 @@
 
     const actions: ModalAction[] = [{ label: 'Close', kind: 'ghost', onClick: (c) => c() }];
     if (state.status === 'ready') actions.push({ label: 'Restart now', kind: 'primary', onClick: (c) => { c(); void api.installUpdate(); } });
-    else if (state.status === 'manual' && state.downloadUrl) actions.push({ label: 'Open the download page', kind: 'primary', onClick: () => void api.openDownloadPage() });
+    else if ((state.status === 'manual' || state.status === 'error') && state.downloadUrl) actions.push({ label: 'Open the download page', kind: 'primary', onClick: () => void api.openDownloadPage() });
     else if (state.status === 'up-to-date' || state.status === 'idle') actions.push({ label: 'Check again', kind: 'primary', onClick: () => void retryUpdate() });
     modal('Snowball Client update', body, actions);
   }

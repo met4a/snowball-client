@@ -1,8 +1,9 @@
 import { app, type BrowserWindow } from 'electron';
+import { execFile } from 'node:child_process';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getLogger } from '../core/logging/Logger.js';
-import { compareVersions, describeUpdateFailure, isValidVersion } from './updateRules.js';
+import { compareVersions, describeUpdateFailure, isValidVersion, requireSignatureWhenSigned, type VerifyCodeSignature } from './updateRules.js';
 
 export { compareVersions, describeUpdateFailure, isValidVersion };
 
@@ -40,6 +41,29 @@ const HANDOVER = 'pending-update.json';
 
 /** Where a build that cannot replace itself sends people for the new version. */
 export const DOWNLOAD_PAGE = 'https://met4a.github.io/snowball-website/';
+
+/** A failure as the window shows it: when Retry cannot help, the website is offered instead. */
+function shown(described: ReturnType<typeof describeUpdateFailure>): Partial<UpdateState> {
+  const { manualInstall, ...rest } = described;
+  return manualInstall ? { ...rest, downloadUrl: DOWNLOAD_PAGE } : rest;
+}
+
+let signedCopy: Promise<boolean> | null = null;
+/**
+ * Whether this running copy carries a valid Authenticode signature, asked once. When Windows
+ * cannot say, it counts as unsigned, the same leniency electron-updater's own check shows.
+ */
+function thisCopyIsSigned(): Promise<boolean> {
+  signedCopy ??= new Promise((resolve) => {
+    const file = process.execPath.replace(/'/g, "''");
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `(Get-AuthenticodeSignature -LiteralPath '${file}').Status`], { timeout: 20_000, windowsHide: true }, (err, stdout) => {
+      const signed = !err && String(stdout).trim() === 'Valid';
+      log.info('Launcher signature', { signed });
+      resolve(signed);
+    });
+  });
+  return signedCopy;
+}
 
 export type UpdateStatus =
   | 'idle'
@@ -210,7 +234,7 @@ export class UpdateService {
     } catch (err) {
       const described = describeUpdateFailure(err);
       log.warn('Update check failed', { error: described.detail.split('\n')[0], manual });
-      return this.set({ status: 'error', version, ...described });
+      return this.set({ status: 'error', version, ...shown(described) });
     }
   }
 
@@ -236,7 +260,7 @@ export class UpdateService {
         rmSync(this.handoverFile, { force: true });
         const described = describeUpdateFailure(err);
         log.error('Handing over to the new version failed', { error: described.detail.split('\n')[0] });
-        this.set({ status: 'error', version: app.getVersion(), newVersion, ...described });
+        this.set({ status: 'error', version: app.getVersion(), newVersion, ...shown(described) });
       }
     });
   }
@@ -271,6 +295,11 @@ export class UpdateService {
     // The swap happens when the user agrees to it, not silently behind them on quit.
     autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.allowDowngrade = false;
+    // Windows only (NsisUpdater): see requireSignatureWhenSigned for why a signature is not always asked for.
+    const nsis = autoUpdater as unknown as { verifyUpdateCodeSignature?: VerifyCodeSignature };
+    if (process.platform === 'win32' && typeof nsis.verifyUpdateCodeSignature === 'function') {
+      nsis.verifyUpdateCodeSignature = requireSignatureWhenSigned(nsis.verifyUpdateCodeSignature, thisCopyIsSigned);
+    }
     autoUpdater.logger = {
       info: (m: unknown) => log.info(String(m)),
       warn: (m: unknown) => log.warn(String(m)),
@@ -325,7 +354,7 @@ export class UpdateService {
     autoUpdater.on('error', (err) => {
       const described = describeUpdateFailure(err);
       log.warn('Updater reported an error', { error: described.detail.split('\n')[0] });
-      this.set({ status: 'error', version: app.getVersion(), newVersion: this.state.newVersion, ...described });
+      this.set({ status: 'error', version: app.getVersion(), newVersion: this.state.newVersion, ...shown(described) });
     });
 
     this.updater = autoUpdater;

@@ -9,6 +9,21 @@ installer once.
 
 ---
 
+## 1.8.2
+
+### Fixed
+- **Snowball updates itself again.** Since 1.7.0 the launcher would only
+  install an update signed with Snowball's code-signing certificate, which
+  Snowball does not have yet, so every update was downloaded and then refused
+  with "not signed by the application owner". It now asks for a signature only
+  once your copy is signed itself. Until then, an update is checked against
+  the checksum published with the release, as before. **On 1.7.0, 1.8.0 or
+  1.8.1, download 1.8.2 from the website and install it once**; your
+  instances, mods and worlds stay where they are, and from then on Snowball
+  updates itself.
+- When an update cannot be installed, Snowball says why and offers the
+  download page, instead of "Something unexpected went wrong".
+
 ## 1.8.1
 
 ### Fixed

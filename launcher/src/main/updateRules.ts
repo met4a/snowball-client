@@ -18,15 +18,43 @@ export function isValidVersion(v: unknown): v is string {
   return typeof v === 'string' && /^v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(v.trim());
 }
 
+/** electron-updater's check of a downloaded installer: null when it may be installed, otherwise why not. */
+export type VerifyCodeSignature = (publisherNames: string[], file: string) => Promise<string | null>;
+
+/**
+ * Asks for a signed update only from a copy that is signed itself.
+ *
+ * Snowball has no code-signing certificate yet, so no installer is signed, and 1.7.0 to 1.8.1
+ * insisted on a signature anyway: every one of them refused every update. An unsigned copy now
+ * takes an unsigned update, which electron-updater has already checked against the SHA-512 in the
+ * release feed. From the first signed release on, the copy is signed, and an update has to be
+ * signed by the same publisher again.
+ */
+export function requireSignatureWhenSigned(verify: VerifyCodeSignature, thisCopyIsSigned: () => Promise<boolean>): VerifyCodeSignature {
+  return async (publisherNames, file) => ((await thisCopyIsSigned()) ? verify(publisherNames, file) : null);
+}
+
 /**
  * Turns whatever the updater threw into something a player can act on. The raw text is kept in
- * `detail` so a bug report still carries it, but it never becomes the headline.
+ * `detail` so a bug report still carries it, but it never becomes the headline. `manualInstall`
+ * means pressing Retry cannot help and the new version has to come from the website.
  */
-export function describeUpdateFailure(raw: unknown): { title: string; message: string; hints: string[]; detail: string; canRetry: boolean } {
+export function describeUpdateFailure(raw: unknown): { title: string; message: string; hints: string[]; detail: string; canRetry: boolean; manualInstall?: boolean } {
   const detail = raw instanceof Error ? `${raw.name}: ${raw.message}${raw.stack ? `\n${raw.stack}` : ''}` : String(raw);
   const text = detail.toLowerCase();
   const of = (title: string, message: string, hints: string[], canRetry = true) => ({ title, message, hints, detail, canRetry });
 
+  if (/not signed by the application owner|sign verification failed|signed with incorrect certificate/.test(text)) {
+    return {
+      ...of(
+        "This update can't install itself",
+        'Snowball downloaded the new version, but it is not signed the way this copy expects, so it was not installed. Your launcher is unchanged.',
+        ['Download the new version from the Snowball website and run it once. Your instances, mods and worlds stay where they are.'],
+        false,
+      ),
+      manualInstall: true,
+    };
+  }
   if (/err_internet_disconnected|enotfound|eai_again|getaddrinfo|err_name_not_resolved/.test(text)) {
     return of(
       'No internet connection',

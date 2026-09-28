@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareVersions, describeUpdateFailure, isValidVersion } from '../src/main/updateRules.js';
+import { compareVersions, describeUpdateFailure, isValidVersion, requireSignatureWhenSigned } from '../src/main/updateRules.js';
 
 describe('compareVersions', () => {
   it('orders releases', () => {
@@ -82,5 +82,37 @@ describe('describeUpdateFailure', () => {
   it('marks every described failure as retryable', () => {
     // Nothing here is permanent: the launcher always leaves a way forward.
     for (const [, raw] of cases) expect(describeUpdateFailure(new Error(raw)).canRetry).toBe(true);
+  });
+});
+
+describe('update signatures', () => {
+  // What electron-updater said to every 1.7.0 - 1.8.1 launcher offered 1.8.1.
+  const refusal = 'New version 1.8.1 is not signed by the application owner: publisherNames: Snowball Client, raw info: {"SignerCertificate":null,"Status":2}';
+
+  it('lets an unsigned copy take an unsigned update, without asking Windows about the file', async () => {
+    let asked = 0;
+    const verify = async () => (asked++, refusal);
+    const check = requireSignatureWhenSigned(verify, async () => false);
+    expect(await check(['Snowball Client'], 'C:/update/setup.exe')).toBeNull();
+    expect(asked).toBe(0);
+  });
+
+  it('holds a signed copy to a signed update from the same publisher', async () => {
+    const seen: string[] = [];
+    const verify = async (_names: string[], file: string) => (seen.push(file), file.includes('unsigned') ? refusal : null);
+    const check = requireSignatureWhenSigned(verify, async () => true);
+    expect(await check(['Snowball Client'], 'C:/update/unsigned-setup.exe')).toBe(refusal);
+    expect(await check(['Snowball Client'], 'C:/update/signed-setup.exe')).toBeNull();
+    expect(seen).toEqual(['C:/update/unsigned-setup.exe', 'C:/update/signed-setup.exe']);
+  });
+
+  it('explains a refused signature and sends people to the website instead of offering Retry', () => {
+    const described = describeUpdateFailure(new Error(refusal));
+    // It used to say "Something unexpected went wrong while looking for a new version".
+    expect(described.title).toBe("This update can't install itself");
+    expect(described.canRetry).toBe(false);
+    expect(described.manualInstall).toBe(true);
+    expect(described.message).not.toMatch(/publisherNames|SignerCertificate/);
+    expect(described.detail).toContain('not signed by the application owner');
   });
 });
