@@ -83,7 +83,9 @@ jobs:
       # only while no certificate exists, and only because it is stated explicitly here.
       - name: Verify signatures
         working-directory: launcher
-        shell: pwsh
+        # Windows PowerShell, which the script runs in: started from pwsh it inherits PowerShell 7's
+        # module path and cannot load Get-AuthenticodeSignature.
+        shell: powershell
         env:
           SNOWBALL_ALLOW_UNSIGNED: ${{ secrets.SIGNPATH_API_TOKEN == '' && '1' || '0' }}
         run: npm run verify:signature
