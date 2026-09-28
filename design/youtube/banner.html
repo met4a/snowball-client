@@ -1,0 +1,79 @@
+<!doctype html>
+<!-- YouTube channel banner, 2560x1440. TVs show all of it, desktops a 2560x423 band through the
+     middle, phones only the 1546x423 centre: the logo and every word sit inside that centre
+     (render.cjs checks). Only facts that are true of Snowball: free, client + launcher, the three
+     Minecraft versions it supports, and the website. Rendered by render.cjs. -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: 'Monocraft'; src: url('../../website/assets/fonts/monocraft.ttf') format('truetype'); }
+  :root { --bg: #05070a; --accent: #7fcbff; --text: #f2f6fa; --muted: #8a94a0; }
+  html, body { margin: 0; width: 2560px; height: 1440px; overflow: hidden; background: var(--bg); }
+  .art {
+    position: relative; width: 2560px; height: 1440px; overflow: hidden;
+    background:
+      radial-gradient(ellipse 1500px 700px at 50% 50%, rgba(36, 104, 198, 0.34) 0%, rgba(36, 104, 198, 0) 70%),
+      linear-gradient(180deg, #0a1a33 0%, #081326 45%, var(--bg) 100%);
+  }
+  canvas { position: absolute; inset: 0; }
+  .safe {
+    position: absolute; left: 507px; top: 508px; width: 1546px; height: 423px;
+    display: flex; align-items: center; justify-content: center; gap: 64px;
+  }
+  .logo { position: relative; width: 512px; height: 512px; margin: -44px -70px; flex: none; }
+  .logo .glow {
+    position: absolute; inset: 40px;
+    background: radial-gradient(circle, rgba(170, 225, 255, 0.30) 0%, rgba(127, 203, 255, 0.10) 45%, rgba(127, 203, 255, 0) 70%);
+  }
+  .logo img { position: absolute; inset: 0; width: 512px; height: 512px; image-rendering: pixelated; filter: drop-shadow(0 16px 24px rgba(0, 0, 0, 0.5)); }
+  .words { font-family: 'Monocraft', monospace; color: var(--text); display: flex; flex-direction: column; gap: 26px; }
+  .name { font-size: 100px; line-height: 1; letter-spacing: 4px; white-space: nowrap; text-shadow: 0 6px 0 rgba(0, 0, 0, 0.35); }
+  .name b { color: var(--accent); font-weight: inherit; }
+  .line { font-size: 42px; line-height: 1.1; color: #cfe6f7; white-space: nowrap; }
+  .facts { display: flex; align-items: center; gap: 18px; font-size: 32px; white-space: nowrap; }
+  .chip { padding: 10px 20px; border: 3px solid rgba(127, 203, 255, 0.45); background: rgba(127, 203, 255, 0.10); color: var(--accent); }
+  .site { margin-left: 14px; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="art">
+    <canvas id="snow" width="2560" height="1440"></canvas>
+    <div class="safe" id="safe">
+      <div class="logo"><div class="glow"></div><img src="../../website/assets/logo.png" alt=""></div>
+      <div class="words" id="words">
+        <div class="name">SNOWBALL <b>CLIENT</b></div>
+        <div class="line">Free Minecraft client and launcher</div>
+        <div class="facts"><span class="chip">1.8.9</span><span class="chip">1.21.11</span><span class="chip">26.2</span><span class="site">snowball.krakensmp.xyz</span></div>
+      </div>
+    </div>
+  </div>
+<script>
+  // Pixel snow, the same every time it is drawn (seeded), thinner behind the words.
+  let seed = 20260928;
+  const rand = () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const ctx = document.getElementById('snow').getContext('2d');
+  const inCentre = (x, y) => x > 440 && x < 2120 && y > 470 && y < 970;
+  const inWords = (x, y) => x > 1060 && x < 2100 && y > 490 && y < 950;
+  for (let i = 0; i < 1400; i++) {
+    const x = Math.floor(rand() * 2560), y = Math.floor(rand() * 1440);
+    if (inWords(x, y) || (inCentre(x, y) && rand() < 0.85)) continue;
+    const size = [6, 6, 8, 8, 10, 12, 16][Math.floor(rand() * 7)];
+    const alpha = 0.10 + rand() * (size >= 12 ? 0.55 : 0.35);
+    ctx.fillStyle = `rgba(${rand() < 0.3 ? '180, 225, 255' : '242, 246, 250'}, ${alpha.toFixed(2)})`;
+    ctx.fillRect(x - (x % 2), y - (y % 2), size, size);
+  }
+  // Drifts of snow blocks along the bottom, seen on TVs only.
+  for (let x = 0; x < 2560; x += 32) {
+    const h = 64 + Math.floor((Math.sin(x / 210) * 0.5 + 0.5) * 3) * 32 + (rand() < 0.3 ? 32 : 0);
+    for (let y = 1440 - h; y < 1440; y += 32) {
+      const shade = 225 + Math.floor(rand() * 25);
+      ctx.fillStyle = `rgba(${shade - 20}, ${shade}, ${Math.min(255, shade + 8)}, ${y === 1440 - h ? 0.95 : 0.8})`;
+      ctx.fillRect(x, y, 32, 32);
+      ctx.fillStyle = 'rgba(5, 7, 10, 0.10)';
+      ctx.fillRect(x, y + 28, 32, 4);
+    }
+  }
+</script>
+</body>
+</html>

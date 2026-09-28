@@ -1,0 +1,51 @@
+<!doctype html>
+<!-- How YouTube shows the two images: the banner on a TV, a computer and a phone, and the profile
+     picture as the circles YouTube cuts it into. Not uploaded anywhere; render.cjs draws it. -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: 'Monocraft'; src: url('../../website/assets/fonts/monocraft.ttf') format('truetype'); }
+  html, body { margin: 0; width: 1600px; height: 1500px; background: #0f0f0f; color: #aaa; font: 22px 'Monocraft', monospace; }
+  .wrap { padding: 36px 40px; display: flex; flex-direction: column; gap: 14px; }
+  h2 { margin: 18px 0 4px; font-size: 22px; font-weight: normal; color: #f1f1f1; }
+  .crop { overflow: hidden; position: relative; border-radius: 12px; }
+  .crop img { position: absolute; display: block; }
+  .tv { width: 1024px; height: 576px; }
+  .tv img { width: 1024px; left: 0; top: 0; }
+  .safe { position: absolute; left: 202.8px; top: 203.2px; width: 618.4px; height: 169.2px; outline: 2px dashed rgba(255, 90, 90, 0.9); }
+  /* Desktop: the full width, 423 of 1440 rows through the middle, shown 1520 wide. */
+  .desk { width: 1520px; height: 251px; }
+  .desk img { width: 1520px; left: 0; top: -304.8px; }
+  /* Phone: the 1546x423 centre, shown 740 wide. */
+  .phone { width: 740px; height: 202.5px; }
+  .phone img { width: 1225.4px; left: -242.7px; top: -243.2px; }
+  .row { display: flex; align-items: center; gap: 40px; }
+  .avatar { border-radius: 50%; display: block; }
+  .channel { display: flex; align-items: center; gap: 22px; }
+  .channel .t { color: #f1f1f1; font-size: 30px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h2>TV (whole banner; red line = what every device shows)</h2>
+    <div class="row">
+      <div class="crop tv"><img src="snowball-youtube-banner.png" alt=""><div class="safe"></div></div>
+      <div>
+        <h2>Profile picture</h2>
+        <div class="row" style="gap:24px">
+          <img class="avatar" src="snowball-youtube-profile.png" width="176" height="176" alt="">
+          <img class="avatar" src="snowball-youtube-profile.png" width="98" height="98" alt="">
+          <img class="avatar" src="snowball-youtube-profile.png" width="40" height="40" alt="">
+          <img class="avatar" src="snowball-youtube-profile.png" width="24" height="24" alt="">
+        </div>
+        <div class="channel" style="margin-top:36px"><img class="avatar" src="snowball-youtube-profile.png" width="80" height="80" alt=""><span class="t">Snowball Client</span></div>
+      </div>
+    </div>
+    <h2>Computer</h2>
+    <div class="crop desk"><img src="snowball-youtube-banner.png" alt=""></div>
+    <h2>Phone</h2>
+    <div class="crop phone"><img src="snowball-youtube-banner.png" alt=""></div>
+  </div>
+</body>
+</html>
