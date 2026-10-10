@@ -23,6 +23,7 @@ import dev.snowballclient.client.platform.ViewScreen;
 import dev.snowballclient.client.social.Rank;
 import dev.snowballclient.client.social.SnowballPlayers;
 import dev.snowballclient.client.social.SnowballPresence;
+import dev.snowballclient.client.spotify.NowPlaying;
 import dev.snowballclient.client.util.OptionsSaver;
 import dev.snowballclient.client.waypoint.WaypointStore;
 import net.fabricmc.api.ClientModInitializer;
@@ -65,6 +66,9 @@ public final class SnowballClient implements ClientModInitializer {
 	private ModRequests modRequests;
 	private KeybindTracker keybinds;
 	private KeyMapping openMenuKey;
+	private KeyMapping spotifyPlayPause;
+	private KeyMapping spotifyNext;
+	private KeyMapping spotifyPrevious;
 	private int autosaveCountdown = AUTOSAVE_TICKS;
 	private int warmupCountdown = 1;
 	private boolean wasInWorld;
@@ -166,6 +170,12 @@ public final class SnowballClient implements ClientModInitializer {
 
 		KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "main"));
 		openMenuKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.snowballclient.open_menu", InputConstants.Type.KEYSYM, DEFAULT_MENU_KEY, category));
+		// Unbound until the player picks keys under Controls.
+		spotifyPlayPause = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.snowballclient.spotify_play_pause", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), category));
+		spotifyNext = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.snowballclient.spotify_next", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), category));
+		spotifyPrevious = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.snowballclient.spotify_previous", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), category));
+		NowPlaying.start();
+		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> NowPlaying.get().stop());
 		modules.onKeybindChanged(m -> config.saveKeybinds(modules));
 		modules.onStateChanged(m -> {
 			// Only keybind toggles (no screen open) produce notifications; menu clicks are already visible.
@@ -214,6 +224,9 @@ public final class SnowballClient implements ClientModInitializer {
 		while (openMenuKey.consumeClick()) {
 			if (mc.gui.screen() == null && mc.player != null) ViewScreen.show(new RadialMenuView(this));
 		}
+		while (spotifyPlayPause.consumeClick()) NowPlaying.get().control(NowPlaying.Action.PLAY_PAUSE);
+		while (spotifyNext.consumeClick()) NowPlaying.get().control(NowPlaying.Action.NEXT);
+		while (spotifyPrevious.consumeClick()) NowPlaying.get().control(NowPlaying.Action.PREVIOUS);
 		if (mc.gui.screen() == null && mc.player != null && mc.isWindowActive()) {
 			keybinds.tick(key -> InputConstants.isKeyDown(mc.getWindow(), key), true);
 		} else {

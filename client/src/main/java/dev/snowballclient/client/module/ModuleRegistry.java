@@ -25,6 +25,7 @@ import dev.snowballclient.client.module.misc.Notifications;
 import dev.snowballclient.client.module.misc.ScreenshotUtility;
 import dev.snowballclient.client.module.misc.ServerInfo;
 import dev.snowballclient.client.module.misc.SessionTimer;
+import dev.snowballclient.client.module.misc.SpotifyHud;
 import dev.snowballclient.client.module.misc.DiscordPresenceModule;
 import dev.snowballclient.client.module.qol.CpsCounter;
 import dev.snowballclient.client.module.qol.EzPots;
@@ -170,6 +171,7 @@ public final class ModuleRegistry {
 		m.register(new SessionTimer());
 		NICK_HIDER = m.register(new NickHider());
 		m.register(new DiscordPresenceModule(SharedConstants.getCurrentVersion().name()));
+		m.register(new SpotifyHud());
 
 		// QOL
 		m.register(new Keystrokes());
@@ -201,7 +203,7 @@ public final class ModuleRegistry {
 		m.order(ModuleCategory.MOVEMENT, "toggle_sprint", "speed_display");
 		m.order(ModuleCategory.VISUALS, "glass_gui", "menu_3d", "fullbright", "zoom", "freelook", "snaplook", "hit_color");
 		m.order(ModuleCategory.WORLD, "waypoints", "render_distance", "entity_distance");
-		m.order(ModuleCategory.MISC, "chat_settings", "nick_hider", "discord_presence", "screenshot_utility", "notifications", "clock", "server_info", "session_timer");
+		m.order(ModuleCategory.MISC, "chat_settings", "nick_hider", "spotify", "discord_presence", "screenshot_utility", "notifications", "clock", "server_info", "session_timer");
 		m.order(ModuleCategory.QOL, "keystrokes", "ez_pots", "item_counter");
 	}
 

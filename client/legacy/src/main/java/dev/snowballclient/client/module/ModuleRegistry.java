@@ -14,6 +14,7 @@ import dev.snowballclient.client.module.fps.FpsBoost;
 import dev.snowballclient.client.module.misc.Notifications;
 import dev.snowballclient.client.module.misc.ServerInfo;
 import dev.snowballclient.client.module.misc.SessionTimer;
+import dev.snowballclient.client.module.misc.SpotifyHud;
 import dev.snowballclient.client.module.qol.CpsCounter;
 import dev.snowballclient.client.module.qol.Keystrokes;
 import dev.snowballclient.client.module.qol.NetherTravelModule;
@@ -90,6 +91,7 @@ public final class ModuleRegistry {
 		m.register(new ServerInfo());
 		NOTIFICATIONS = m.register(new Notifications());
 		m.register(new SessionTimer());
+		m.register(new SpotifyHud());
 
 		// QOL
 		m.register(new Keystrokes());
@@ -108,7 +110,7 @@ public final class ModuleRegistry {
 		m.order(ModuleCategory.CLIENT, "client_hud", "hud_layout", "fps_counter", "ping_display", "coordinates", "direction_hud",
 				"speed_display", "combo_counter", "reach_display", "memory_usage", "armor_hud", "interface", "menu_3d");
 		m.order(ModuleCategory.RENDER, "fps_boost", "fullbright", "zoom", "potion_hud", "low_fire", "fov_settings", "render_distance");
-		m.order(ModuleCategory.MISC, "notifications", "clock", "server_info", "session_timer");
+		m.order(ModuleCategory.MISC, "spotify", "notifications", "clock", "server_info", "session_timer");
 		m.order(ModuleCategory.QOL, "keystrokes", "toggle_sprint", "zoom", "snaplook", "waypoints", "nether_travel", "cps_counter", "coordinates");
 	}
 }
