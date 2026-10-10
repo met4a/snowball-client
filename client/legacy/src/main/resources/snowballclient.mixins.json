@@ -3,7 +3,9 @@
 	"package": "dev.snowballclient.client.mixin",
 	"compatibilityLevel": "JAVA_${java}",
 	"client": [
+		"BlockEntityCullingMixin",
 		"ClientPlayerInteractionManagerMixin",
+		"EntityCullingMixin",
 		"GameRendererMixin",
 		"HeldItemRendererMixin",
 		"KeyBindingMixin",

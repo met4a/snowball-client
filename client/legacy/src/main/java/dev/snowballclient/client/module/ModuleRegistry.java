@@ -11,6 +11,7 @@ import dev.snowballclient.client.module.client.InterfaceSettings;
 import dev.snowballclient.client.module.client.Menu3D;
 import dev.snowballclient.client.module.client.PvpHudModules;
 import dev.snowballclient.client.module.fps.FpsBoost;
+import dev.snowballclient.client.module.fps.SmartCulling;
 import dev.snowballclient.client.module.misc.Notifications;
 import dev.snowballclient.client.module.misc.ServerInfo;
 import dev.snowballclient.client.module.misc.SessionTimer;
@@ -50,6 +51,7 @@ public final class ModuleRegistry {
 	public static InterfaceSettings INTERFACE;
 	public static Menu3D MENU_3D;
 	public static FpsBoost FPS_BOOST;
+	public static SmartCulling CULLING;
 	public static Notifications NOTIFICATIONS;
 	public static Waypoints WAYPOINTS;
 	public static Zoom ZOOM;
@@ -78,6 +80,7 @@ public final class ModuleRegistry {
 
 		// FPS BOOST
 		FPS_BOOST = m.register(new FpsBoost());
+		CULLING = m.register(new SmartCulling());
 
 		// RENDER
 		FULLBRIGHT = m.register(new Fullbright());
