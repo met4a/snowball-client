@@ -339,6 +339,22 @@ declare namespace Snowball {
     replaces: boolean;
   }
 
+  /** Somebody holding a rank above plain Snowball, for the Ranks overview. */
+  interface RankedPerson {
+    uuid: string;
+    name: string;
+    rank: string;
+    at: number;
+    byName: string;
+  }
+
+  /** The server's answer to an admin action: done, or refused with the reason. */
+  interface AdminResult {
+    action: string;
+    ok: boolean;
+    message: string;
+  }
+
   interface SnowballPerson {
     uuid: string;
     name: string;
@@ -389,7 +405,7 @@ declare namespace Snowball {
     canRetry?: boolean;
   }
 
-  type EventName = 'progress' | 'game-log' | 'game-exit' | 'launch-error' | 'launcher-log' | 'state' | 'activity' | 'update' | 'chat-state' | 'chat-message' | 'chat-history' | 'chat-people' | 'chat-bugs' | 'chat-bug-filed' | 'chat-lookup' | 'chat-rank-set' | 'chat-history-ranks' | 'chat-capes';
+  type EventName = 'progress' | 'game-log' | 'game-exit' | 'launch-error' | 'launcher-log' | 'state' | 'activity' | 'update' | 'chat-state' | 'chat-message' | 'chat-history' | 'chat-people' | 'chat-bugs' | 'chat-bug-filed' | 'chat-lookup' | 'chat-rank-set' | 'chat-history-ranks' | 'chat-capes' | 'chat-ranked' | 'chat-admin-result';
 
   interface Api {
     getState(): Promise<AppState>;
@@ -442,6 +458,8 @@ declare namespace Snowball {
     setSnowballPlus(uuid: string, on: boolean): Promise<{ ok: boolean; reason?: string }>;
     setRank(uuid: string, rank: string): Promise<{ ok: boolean; reason?: string }>;
     lookupPlayer(name: string): Promise<{ ok: boolean; reason?: string }>;
+    /** A Minecraft name's account id, from Mojang. */
+    resolvePlayer(name: string): Promise<{ ok: boolean; uuid?: string; name?: string; reason?: string }>;
     snowballStats(): Promise<SnowballStats | null>;
     reportBug(report: Record<string, string>): Promise<{ ok: boolean; reason?: string }>;
     chatAdmin(action: string, extra?: Record<string, unknown>): Promise<{ ok: boolean; reason?: string }>;

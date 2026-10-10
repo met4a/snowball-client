@@ -90,7 +90,8 @@ test('only ranks that review capes can see or decide them', async () => {
   await call(r, '/capes/submit', { ticket: plus, pixels: DESIGN });
   const tester = panel(r, FREE, 'tester');
   await r.onAdmin({ type: 'admin', action: 'cape-review', uuid: PLUS, approve: true }, tester, r.sockets.get(tester));
-  assert.equal(tester.got.at(-1).type, 'error');
+  assert.equal(tester.got.at(-1).type, 'admin-result');
+  assert.equal(tester.got.at(-1).ok, false);
   assert.equal(r.capes.get(PLUS).approved, null);
   // The owner always can.
   const owner = panel(r, OWNER, 'owner');

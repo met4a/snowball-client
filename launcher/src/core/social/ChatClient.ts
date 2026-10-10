@@ -230,6 +230,21 @@ export class ChatClient extends EventEmitter {
     }
   }
 
+  /** A Minecraft name's account id, from Mojang (asked from here for the same reason as lookup). */
+  async resolve(name: string): Promise<{ ok: boolean; uuid?: string; name?: string; reason?: string }> {
+    const wanted = name.trim();
+    if (!/^[A-Za-z0-9_]{3,16}$/.test(wanted)) return { ok: false, reason: 'That is not a Minecraft name.' };
+    try {
+      const response = await fetch(`https://api.mojang.com/users/profiles/minecraft/${encodeURIComponent(wanted)}`);
+      if (response.status !== 200) return { ok: false, reason: `Mojang has no account called ${wanted}.` };
+      const profile = (await response.json()) as { id?: string; name?: string };
+      if (!profile.id) return { ok: false, reason: `Mojang has no account called ${wanted}.` };
+      return { ok: true, uuid: profile.id, name: profile.name ?? wanted };
+    } catch (err) {
+      return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
   /**
    * The permission each admin action needs. It mirrors the map the chat server checks, so the
    * launcher refuses what would be refused anyway instead of sending it and showing an error.
@@ -239,6 +254,7 @@ export class ChatClient extends EventEmitter {
     people: 'users.view',
     lookup: 'users.view',
     history: 'users.view',
+    ranked: 'users.view',
     bugs: 'bugs.triage',
     'bug-status': 'bugs.triage',
     flag: 'flags.manage',
@@ -441,6 +457,13 @@ export class ChatClient extends EventEmitter {
         break;
       case 'capes':
         this.emit('capes', Array.isArray(payload.capes) ? payload.capes : []);
+        break;
+      case 'ranked':
+        this.emit('ranked', Array.isArray(payload.people) ? payload.people : []);
+        break;
+      case 'admin-result':
+        // Done or refused, shown in the panel that asked rather than as a chat message.
+        this.emit('admin-result', { action: String(payload.action ?? ''), ok: payload.ok === true, message: String(payload.message ?? '') });
         break;
       case 'bug-filed':
         this.emit('bug-filed', String(payload.id ?? ''));

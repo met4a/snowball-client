@@ -51,6 +51,7 @@ const MUTE_DEFAULT_MINUTES = 10;
 
 /** Ranks from least to most. The client displays these; this file is what actually decides them. */
 const RANKS = ['snowball', 'plus', 'tester', 'bug_hunter', 'partner', 'staff', 'developer', 'owner'];
+const RANK_NAMES = { plus: 'Snowball+', tester: 'Tester', bug_hunter: 'Bug Hunter', partner: 'Partner', staff: 'Staff', developer: 'Developer', owner: 'Owner' };
 
 /**
  * What each rank may do. A rank keeps everything the rank below it has, so a new ability given to
@@ -555,17 +556,35 @@ export class ChatRoom {
       people: 'users.view', bugs: 'bugs.triage', 'bug-status': 'bugs.triage', flag: 'flags.manage',
       clear: 'chat.moderate', mute: 'chat.moderate', unmute: 'chat.moderate',
       'rank-set': 'ranks.manage', 'rank-clear': 'ranks.manage', grant: 'ranks.manage', ungrant: 'ranks.manage',
-      history: 'users.view', lookup: 'users.view',
+      history: 'users.view', lookup: 'users.view', ranked: 'users.view',
       capes: 'capes.review', 'cape-review': 'capes.review',
     }[payload.action];
-    if (!needed || !can(member, needed)) return this.refuse(socket);
+    // Every action is answered in the panel, success or not, so a refusal never lands in chat
+    // while the panel says it worked.
+    const reply = (ok, message) => socket.send(JSON.stringify({ type: 'admin-result', action: String(payload.action ?? ''), ok, message }));
+    const nameOf = (id) => this.people.get(id)?.name ?? 'That player';
+    if (!needed) return reply(false, 'The panel asked for something this server does not know. Update the worker.');
+    if (!can(member, needed)) return reply(false, `Your rank cannot do that (it needs ${needed}).`);
+
+    if (payload.action === 'ranked') {
+      // Everyone holding a rank above plain Snowball, with who gave it, for the Ranks overview.
+      const owner = String(this.env.ADMIN_UUID ?? '').replace(/-/g, '');
+      const people = [...this.ranks].map(([uuid, given]) => ({ uuid, name: this.people.get(uuid)?.name ?? '', rank: given.rank, at: given.at ?? 0, byName: given.byName ?? '' }));
+      if (owner && !this.ranks.has(owner)) people.push({ uuid: owner, name: this.people.get(owner)?.name ?? '', rank: 'owner', at: 0, byName: '' });
+      people.sort((a, b) => RANKS.indexOf(b.rank) - RANKS.indexOf(a.rank) || a.name.localeCompare(b.name));
+      return socket.send(JSON.stringify({ type: 'ranked', people }));
+    }
 
     if (payload.action === 'capes') return socket.send(JSON.stringify({ type: 'capes', capes: this.pendingCapes() }));
     if (payload.action === 'cape-review') {
       const id = String(payload.uuid ?? '').replace(/-/g, '');
       const entry = this.capes.get(id);
-      if (!entry?.request || entry.request.status !== 'pending') return socket.send(JSON.stringify({ type: 'capes', capes: this.pendingCapes() }));
-      if (payload.approve === true) {
+      if (!entry?.request || entry.request.status !== 'pending') {
+        reply(false, 'Somebody already reviewed that design.');
+        return socket.send(JSON.stringify({ type: 'capes', capes: this.pendingCapes() }));
+      }
+      const approved = payload.approve === true;
+      if (approved) {
         entry.approved = { pixels: entry.request.pixels, version: (entry.approved?.version ?? 0) + 1, at: Date.now(), by: member.uuid };
         entry.request = null;
         // Someone already wearing their design sees the new one straight away.
@@ -577,6 +596,7 @@ export class ChatRoom {
       }
       entry.reviewedBy = member.name;
       await this.state.storage.put('capes', [...this.capes]);
+      reply(true, approved ? `${entry.name || nameOf(id)}'s cape is approved and showing.` : `${entry.name || nameOf(id)}'s cape is denied; they will see why.`);
       this.tellReviewers();
       return;
     }
@@ -616,33 +636,39 @@ export class ChatRoom {
       if (bug && allowed.includes(payload.status)) {
         bug.status = payload.status;
         await this.state.storage.put('bugs', this.bugs);
+        reply(true, `Marked ${payload.status}.`);
+      } else {
+        reply(false, bug ? 'That is not a state a report can be in.' : 'That report is gone.');
       }
       return socket.send(JSON.stringify({ type: 'bugs', bugs: this.bugs.slice(0, 50) }));
     }
     if (payload.action === 'flag') {
       const key = String(payload.key ?? '').trim().slice(0, 40);
-      if (!key) return;
+      if (!key) return reply(false, 'A flag needs a name.');
       if (payload.value === null) delete this.flags[key];
       else this.flags[key] = payload.value === true || payload.value === 'on';
       await this.state.storage.put('flags', this.flags);
+      reply(true, payload.value === null ? `${key} is back to its default.` : `${key} is ${this.flags[key] ? 'on' : 'off'} for everyone.`);
       // Everyone hears about a feature being switched on or off straight away.
       return this.broadcast({ type: 'flags', flags: this.flags });
     }
     if (payload.action === 'clear') {
       this.history = [];
       await this.state.storage.put('history', this.history);
+      reply(true, 'Chat cleared for everyone.');
       return this.broadcast({ type: 'history', messages: [] });
     }
     const uuid = String(payload.uuid ?? '').replace(/-/g, '');
-    if (!/^[a-f0-9]{32}$/.test(uuid)) return;
+    if (!/^[a-f0-9]{32}$/.test(uuid)) return reply(false, 'That is not an account id.');
     if (payload.action === 'rank-set' || payload.action === 'rank-clear' || payload.action === 'grant' || payload.action === 'ungrant') {
       if (uuid === String(this.env.ADMIN_UUID ?? '').replace(/-/g, '')) {
-        return socket.send(JSON.stringify({ type: 'error', message: 'The owner account is set in the worker settings, not here.' }));
+        return reply(false, 'The owner account is set in the worker settings, not here.');
       }
+      if (payload.action === 'rank-set' && !RANKS.includes(payload.rank)) return reply(false, `There is no rank called ${String(payload.rank ?? '')}.`);
       let rank = 'snowball';
-      if (payload.action === 'rank-set') rank = RANKS.includes(payload.rank) ? payload.rank : 'snowball';
+      if (payload.action === 'rank-set') rank = payload.rank;
       else if (payload.action === 'grant') rank = 'plus';
-      if (rank === 'owner') return socket.send(JSON.stringify({ type: 'error', message: 'Owner cannot be handed out.' }));
+      if (rank === 'owner') return reply(false, 'Owner cannot be handed out.');
 
       const entry = { rank, at: Date.now(), by: member.uuid, byName: member.name };
       if (rank === 'snowball') this.ranks.delete(uuid);
@@ -661,15 +687,20 @@ export class ChatRoom {
         other.send(JSON.stringify({ type: 'you', rank, permissions: permissionsOf(rank), owner: person.owner, flags: this.flags }));
       }
       socket.send(JSON.stringify({ type: 'rank-set', uuid, rank, history: this.rankLog.get(uuid) ?? [] }));
+      reply(true, rank === 'snowball' ? `${nameOf(uuid)} is back to plain Snowball.` : `${nameOf(uuid)} is now ${RANK_NAMES[rank] ?? rank}. They see it straight away.`);
       return;
     }
     if (payload.action === 'unmute') {
       this.mutes.delete(uuid);
-    } else if (payload.action === 'mute') {
+      await this.state.storage.put('mutes', [...this.mutes]);
+      return reply(true, `${nameOf(uuid)} can talk again.`);
+    }
+    if (payload.action === 'mute') {
       const minutes = Number.isFinite(payload.minutes) ? Math.min(1440, Math.max(1, Math.round(payload.minutes))) : MUTE_DEFAULT_MINUTES;
       this.mutes.set(uuid, Date.now() + minutes * 60_000);
+      await this.state.storage.put('mutes', [...this.mutes]);
+      return reply(true, `${nameOf(uuid)} is muted for ${minutes} minute${minutes === 1 ? '' : 's'}.`);
     }
-    await this.state.storage.put('mutes', [...this.mutes]);
   }
 
   broadcast(payload) {

@@ -55,4 +55,35 @@ describe('chat client', () => {
     expect(chat.admin('cape-review', { uuid: 'a'.repeat(32), approve: true }).ok).toBe(true);
     expect(JSON.parse(sent.at(-1)!)).toMatchObject({ type: 'admin', action: 'cape-review', approve: true });
   });
+
+  it('hands the server\'s answer to an admin action to the panel, not to chat', async () => {
+    let room: OpeningSocket | null = null;
+    class RoomSocket extends OpeningSocket {
+      constructor(url: string) {
+        super(url);
+        room = this;
+      }
+    }
+    vi.stubGlobal('WebSocket', RoomSocket);
+    const chat = new ChatClient('https://chat.invalid', '');
+    (chat as unknown as { proveIdentity: () => Promise<string> }).proveIdentity = async () => 'ticket';
+    const results: unknown[] = [];
+    const chatLines: unknown[] = [];
+    const ranked: unknown[] = [];
+    chat.on('admin-result', (r: unknown) => results.push(r));
+    chat.on('message', (m: unknown) => chatLines.push(m));
+    chat.on('ranked', (people: unknown[]) => ranked.push(...people));
+    await chat.connect({ name: 'Alex', uuid: '0'.repeat(32), accessToken: 'token', type: 'msa' });
+    await new Promise((r) => setTimeout(r, 0));
+
+    room!.dispatchEvent(new MessageEvent('message', { data: JSON.stringify({ type: 'admin-result', action: 'rank-set', ok: false, message: 'There is no rank called wizard.' }) }));
+    expect(results).toEqual([{ action: 'rank-set', ok: false, message: 'There is no rank called wizard.' }]);
+    expect(chatLines).toEqual([]);
+
+    const person = { uuid: 'a'.repeat(32), name: 'Alex', rank: 'bug_hunter', at: 1, byName: 'Met4a' };
+    room!.dispatchEvent(new MessageEvent('message', { data: JSON.stringify({ type: 'ranked', people: [person] }) }));
+    expect(ranked).toEqual([person]);
+    // Seeing who holds a rank needs users.view, like the people list.
+    expect(chat.admin('ranked').ok).toBe(false);
+  });
 });

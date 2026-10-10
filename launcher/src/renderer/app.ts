@@ -44,6 +44,7 @@
     bugs: [] as Snowball.BugReport[],
     adminTab: 'chat' as 'chat' | 'ranks' | 'people' | 'bugs' | 'capes' | 'flags',
     capes: [] as Snowball.CapeRequest[],
+    ranked: [] as Snowball.RankedPerson[],
     lookup: null as Snowball.RankLookup | null,
     /** The chosen background picture as a data URL, read once at start-up. */
     background: null as string | null,
@@ -313,6 +314,18 @@
 
   const rankInfo = (id: string | undefined) => RANKS.find((r) => r.id === id) ?? RANKS[0];
 
+  /** What each rank adds, in plain words, for the Ranks tab. Mirrors PERMISSIONS in the chat worker. */
+  const RANK_ABILITIES: Record<string, string> = {
+    snowball: 'Wears the Snowball badge in game and can report bugs.',
+    plus: 'Snowball+ features, such as painting a custom cape.',
+    tester: 'Gets beta builds before everyone else.',
+    bug_hunter: 'Can sort bug reports in the Bugs tab.',
+    partner: 'Partner features.',
+    staff: 'Can mute people, see everyone in People, and approve or deny capes.',
+    developer: 'Can switch features on and off, and post announcements.',
+    owner: 'Can give and take ranks, and everything else.',
+  };
+
   /**
    * What this account may do, according to the server. The client never decides this: it only
    * reflects the permission list the chat server sent, and the server checks again on every
@@ -358,6 +371,30 @@
   function say(line: HTMLElement, message: string, kind: 'ok' | 'bad' = 'ok'): void {
     line.className = `admin-status show ${kind}`;
     line.textContent = message;
+  }
+
+  /**
+   * Sends an admin action and shows what the server made of it in `line`: "Sending..." at once,
+   * then the server's own answer, done or refused. Nothing says "done" until the server has done
+   * it. A server too old to answer is called out after a few seconds instead of passing silently.
+   */
+  const waitingFor = new Map<string, { line: HTMLElement; timer: number }>();
+  async function adminDo(action: string, send: () => Promise<{ ok: boolean; reason?: string }>, line: HTMLElement): Promise<void> {
+    say(line, 'Sending...');
+    const sent = await guard(send);
+    if (!sent) return;
+    if (!sent.ok) {
+      say(line, sent.reason ?? 'That did not work.', 'bad');
+      return;
+    }
+    const before = waitingFor.get(action);
+    if (before) clearTimeout(before.timer);
+    const timer = window.setTimeout(() => {
+      if (waitingFor.get(action)?.line !== line) return;
+      waitingFor.delete(action);
+      say(line, 'Sent, but the Snowball server did not confirm it. Its worker may need updating.', 'bad');
+    }, 6000);
+    waitingFor.set(action, { line, timer });
   }
 
   /** Whether this account can administer anything at all, which is what the nav item needs. */
@@ -1565,6 +1602,7 @@
       if (id === 'people') void api.chatAdmin('people');
       if (id === 'bugs') void api.chatAdmin('bugs');
       if (id === 'capes') void api.chatAdmin('capes');
+      if (id === 'ranks') void api.chatAdmin('ranked');
       render();
       // Focus follows the tab, so the keyboard does not jump back to the top of the page.
       setTimeout(() => document.querySelector<HTMLElement>(`#admin-tab-${id}`)?.focus(), 0);
@@ -1650,7 +1688,11 @@
       if (!typed) { say(line, 'Type who to mute first.', 'bad'); return null; }
       const found = ui.people.find((p) => p.name.toLowerCase() === typed.toLowerCase());
       if (found) return found.uuid;
-      say(line, `Nobody called ${typed} in the people list. Open People, or paste their account id.`, 'bad');
+      // Not in the list the panel has loaded: ask Mojang, so any Minecraft name works.
+      say(line, `Looking up ${typed}...`);
+      const resolved = await guard(() => api.resolvePlayer(typed));
+      if (resolved?.ok && resolved.uuid) return resolved.uuid;
+      say(line, resolved?.reason ?? `Mojang has no account called ${typed}.`, 'bad');
       return null;
     };
 
@@ -1674,8 +1716,8 @@
           h('span', { class: 'admin-for' }, 'min'),
         ], 'A Minecraft name from the People tab, or an account id.'),
         h('div', { class: 'row' },
-          h('button', { class: 'btn small primary', onClick: async () => { const id = await muteTarget(); if (id) void run(() => api.moderateChat('mute', id, Number(muteMinutes.value)), `Muted for ${muteMinutes.value} minutes.`); } }, 'Mute'),
-          h('button', { class: 'btn small', onClick: async () => { const id = await muteTarget(); if (id) void run(() => api.moderateChat('unmute', id), 'Unmuted.'); } }, 'Unmute'))));
+          h('button', { class: 'btn small primary', onClick: async () => { const id = await muteTarget(); if (id) void adminDo('mute', () => api.moderateChat('mute', id, Number(muteMinutes.value)), line); } }, 'Mute'),
+          h('button', { class: 'btn small', onClick: async () => { const id = await muteTarget(); if (id) void adminDo('unmute', () => api.moderateChat('unmute', id), line); } }, 'Unmute'))));
 
       rows.push(h('div', { class: 'admin-block danger-block' },
         h('div', { class: 'row admin-danger-row' },
@@ -1688,7 +1730,7 @@
               'Clear the chat?',
               'Every recent message is deleted for everyone, and nobody can get them back. Are you sure?',
               'Clear it',
-              async () => { await run(() => api.moderateChat('clear'), 'Chat cleared.'); }),
+              async () => { await adminDo('clear', () => api.moderateChat('clear'), line); }),
           }, 'Clear chat'))));
     }
 
@@ -1763,24 +1805,47 @@
     }
 
     search.placeholder = 'Minecraft name';
+
+    // Everyone holding a rank, so ranks can be seen at a glance instead of looked up one by one.
+    const holders = ui.ranked.length
+      ? h('ul', { class: 'admin-ranked', 'aria-label': 'Everyone who holds a rank' }, ...ui.ranked.map((person) =>
+          h('li', { class: 'list-row' },
+            rankChip(person.rank),
+            h('div', { class: 'grow' },
+              h('div', {}, person.name || person.uuid.slice(0, 8)),
+              h('div', { class: 'muted', style: 'font-size:11px' },
+                person.rank === 'owner' && !person.byName ? 'set in the worker settings' : `given by ${person.byName || 'someone'} ${fmtWhen(person.at)}`)),
+            person.name && person.rank !== 'owner'
+              ? h('button', {
+                  class: 'btn small',
+                  'aria-label': `Change ${person.name}'s rank`,
+                  onClick: () => { search.value = person.name; void find(); },
+                }, 'Change')
+              : null)))
+      : h('p', { class: 'muted', style: 'margin:0' }, 'Nobody holds a rank above Snowball yet, or the list is still coming.');
+
     return h('div', { class: 'admin-body' },
       line,
       h('div', { class: 'admin-block' },
         inlineField('Find a player', search, [findButton], 'Their Minecraft name. Enter searches too.')),
       // Beside the search on a wide window, under it on a narrow one.
-      result.length ? h('div', { class: 'admin-block' }, ...result) : null);
+      result.length ? h('div', { class: 'admin-block' }, ...result) : null,
+      h('div', { class: 'admin-block' },
+        h('div', { class: 'section-title' }, 'WHO HOLDS A RANK'),
+        holders),
+      h('div', { class: 'admin-block' },
+        h('div', { class: 'section-title' }, 'WHAT EACH RANK CAN DO'),
+        h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 8px' }, 'Each rank can also do everything the ranks above it in this list can.'),
+        h('ul', { class: 'admin-rank-guide' }, ...RANKS.map((rank) =>
+          h('li', { class: 'list-row' }, rankChip(rank.id), h('div', { class: 'grow muted', style: 'font-size:12px' }, RANK_ABILITIES[rank.id] ?? ''))))));
   }
+
+
   async function applyRank(uuid: string, rank: string, line?: HTMLElement): Promise<void> {
+    if (line) return adminDo('rank-set', () => api.setRank(uuid, rank), line);
+    // No line to answer in: the server's answer arrives as a toast.
     const result = await guard(() => api.setRank(uuid, rank));
-    if (!result) return;
-    if (!result.ok) {
-      if (line) say(line, result.reason ?? 'That rank was not changed.', 'bad');
-      else toast(result.reason ?? 'That rank was not changed.', 'error');
-      return;
-    }
-    const message = `Rank set to ${rankInfo(rank).name}. They see it straight away - nothing to reinstall.`;
-    if (line) say(line, message);
-    else toast(message);
+    if (result && !result.ok) toast(result.reason ?? 'That rank was not changed.', 'error');
   }
   /** Everyone the Snowball server has seen, newest first, with a filter for finding one. */
   function peopleList(): HTMLElement {
@@ -1815,9 +1880,7 @@
                 class: 'btn small',
                 'aria-label': `${person.muted ? 'Unmute' : 'Mute'} ${person.name}`,
                 onClick: async () => {
-                  const r = await guard(() => api.moderateChat(person.muted ? 'unmute' : 'mute', person.uuid, 10));
-                  if (r?.ok) say(line, `${person.name} ${person.muted ? 'can talk again' : 'is muted for 10 minutes'}.`);
-                  else if (r) say(line, r.reason ?? 'That did not work.', 'bad');
+                  await adminDo(person.muted ? 'unmute' : 'mute', () => api.moderateChat(person.muted ? 'unmute' : 'mute', person.uuid, 10), line);
                   setTimeout(() => void api.chatAdmin('people'), 400);
                 },
               }, person.muted ? 'Unmute' : 'Mute 10m')
@@ -1876,9 +1939,7 @@
         'aria-label': `State of ${bug.title}`,
         onChange: async (e: Event) => {
           const value = (e.target as HTMLSelectElement).value;
-          const r = await guard(() => api.chatAdmin('bug-status', { id: bug.id, status: value }));
-          if (r?.ok) say(line, `"${bug.title}" marked ${value}.`);
-          else if (r) say(line, r.reason ?? 'That did not work.', 'bad');
+          await adminDo('bug-status', () => api.chatAdmin('bug-status', { id: bug.id, status: value }), line);
         },
       }, ...states.map((state) => h('option', { value: state, selected: state === bug.status }, state)));
 
@@ -1918,9 +1979,7 @@
         'aria-label': `Why the cape by ${cape.name || cape.uuid} is not approved`,
       }) as HTMLInputElement;
       const decide = async (approve: boolean) => {
-        const r = await guard(() => api.chatAdmin('cape-review', { uuid: cape.uuid, approve, reason: reason.value.trim() }));
-        if (r?.ok) say(line, approve ? `Approved the cape by ${cape.name || 'that player'}.` : `Sent the cape by ${cape.name || 'that player'} back.`);
-        else if (r) say(line, r.reason ?? 'That did not work.', 'bad');
+        await adminDo('cape-review', () => api.chatAdmin('cape-review', { uuid: cape.uuid, approve, reason: reason.value.trim() }), line);
       };
       return h('div', { class: 'admin-cape' },
         picture,
@@ -1968,9 +2027,7 @@
           h('div', {}, label),
           h('div', { class: 'muted', style: 'font-size:11px' }, `${key} \u00b7 ${on ? 'on for everyone' : 'off for everyone'}`)),
         toggle(on, async (value) => {
-          const r = await guard(() => api.chatAdmin('flag', { key, value }));
-          if (r?.ok) say(line, `${label} turned ${value ? 'on' : 'off'} for everyone.`);
-          else if (r) say(line, r.reason ?? 'That did not work.', 'bad');
+          await adminDo('flag', () => api.chatAdmin('flag', { key, value }), line);
         }));
     };
 
@@ -1987,9 +2044,8 @@
             onClick: async () => {
               const key = custom.value.trim();
               if (!key) { say(line, 'Type a key first.', 'bad'); return; }
-              const r = await guard(() => api.chatAdmin('flag', { key, value: true }));
-              if (r?.ok) { say(line, `${key} added and turned on.`); custom.value = ''; }
-              else if (r) say(line, r.reason ?? 'That did not work.', 'bad');
+              await adminDo('flag', () => api.chatAdmin('flag', { key, value: true }), line);
+              custom.value = '';
             },
           }, 'Add'),
         ], 'For a feature that is not listed yet. It starts turned on.')));
@@ -2772,6 +2828,21 @@
   api.on('chat-bugs', (bugs: Snowball.BugReport[]) => {
     ui.bugs = bugs;
     if (ui.view === 'admin' && ui.adminTab === 'bugs') render();
+  });
+  api.on('chat-admin-result', (result: Snowball.AdminResult) => {
+    const waiting = waitingFor.get(result.action);
+    if (waiting) {
+      clearTimeout(waiting.timer);
+      waitingFor.delete(result.action);
+    }
+    // The panel may have redrawn since (a rank change does); then the answer is a toast instead.
+    if (waiting?.line.isConnected) say(waiting.line, result.message, result.ok ? 'ok' : 'bad');
+    else if (result.message) toast(result.message, result.ok ? undefined : 'error');
+    if (result.ok && result.action === 'rank-set') void api.chatAdmin('ranked');
+  });
+  api.on('chat-ranked', (people: Snowball.RankedPerson[]) => {
+    ui.ranked = people;
+    if (ui.view === 'admin' && ui.adminTab === 'ranks') render();
   });
   api.on('chat-capes', (capes: Snowball.CapeRequest[]) => {
     ui.capes = capes;
