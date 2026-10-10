@@ -18,6 +18,6 @@ test('cape ids match the client', () => {
 
 test('emote ids match the client', () => {
   const emotes = readFileSync(join(client, 'emote', 'Emote.java'), 'utf8');
-  const ids = [...emotes.matchAll(/^\t[A-Z]+\("([a-z_]+)", "/gm)].map((m) => m[1]);
+  const ids = [...emotes.matchAll(/^\t[A-Z_]+\("([a-z_]+)", "/gm)].map((m) => m[1]);
   assert.deepEqual(ids, list('EMOTES'));
 });

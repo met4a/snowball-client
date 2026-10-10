@@ -22,7 +22,7 @@ const PRESENCE_TICKET_MS = 12 * 60 * 60_000;
  * never forwards anything a modified client makes up.
  */
 const CAPES = ['snowball', 'aurora', 'northern_lights', 'frost', 'ember', 'sakura', 'midnight', 'void'];
-const EMOTES = ['wave', 'clap', 'cheer', 'dab', 'salute', 'facepalm', 'bow', 'tpose', 'dance', 'spin', 'think', 'point'];
+const EMOTES = ['wave', 'clap', 'cheer', 'dab', 'salute', 'facepalm', 'bow', 'tpose', 'dance', 'spin', 'think', 'point', 'zombie', 'star_jump', 'shrug', 'headbang'];
 /** An emote at most this often, and this many a minute. */
 const EMOTE_GAP_MS = 700;
 const EMOTES_PER_MINUTE = 24;

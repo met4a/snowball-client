@@ -126,6 +126,51 @@ public enum Emote {
 			p.set(Pose.RIGHT_ARM, -1.55f, 0f, 0f);
 			p.set(Pose.HEAD, 0f, 0f, 0f);
 		}
+	},
+	ZOMBIE("zombie", "Zombie", 3.2f) {
+		@Override
+		void pose(float t, Pose p) {
+			float sway = (float) Math.sin(t * Math.PI * 1.5);
+			p.set(Pose.RIGHT_ARM, -1.5f + 0.08f * sway, 0f, 0.05f);
+			p.set(Pose.LEFT_ARM, -1.5f - 0.08f * sway, 0f, -0.05f);
+			p.set(Pose.HEAD, 0.15f, 0f, 0.25f * sway);
+			p.set(Pose.BODY, 0f, 0f, 0.05f * sway);
+		}
+	},
+	STAR_JUMP("star_jump", "Star Jump", 2.4f) {
+		@Override
+		void pose(float t, Pose p) {
+			// Out and in twice a second, landing between jumps.
+			float out = (float) (0.5 - 0.5 * Math.cos(t * Math.PI * 4));
+			p.set(Pose.RIGHT_ARM, 0f, 0f, 0.2f + 2.6f * out);
+			p.set(Pose.LEFT_ARM, 0f, 0f, -0.2f - 2.6f * out);
+			p.set(Pose.RIGHT_LEG, 0f, 0f, 0.4f * out);
+			p.set(Pose.LEFT_LEG, 0f, 0f, -0.4f * out);
+			p.set(Pose.HEAD, 0f, 0f, 0f);
+			for (int part = 0; part < Pose.PARTS; part++) p.move(part, 0f, -2f * out, 0f);
+		}
+	},
+	SHRUG("shrug", "Shrug", 2.0f) {
+		@Override
+		void pose(float t, Pose p) {
+			// Shoulders up, hands out, head tipped: who knows.
+			float up = (float) Math.sin(Math.min(1f, t / 2.0f) * Math.PI);
+			p.set(Pose.RIGHT_ARM, -0.55f, 0f, 0.6f);
+			p.set(Pose.LEFT_ARM, -0.55f, 0f, -0.6f);
+			p.set(Pose.HEAD, 0f, 0f, 0.22f);
+			p.move(Pose.RIGHT_ARM, 0f, -1.4f * up, 0f).move(Pose.LEFT_ARM, 0f, -1.4f * up, 0f);
+		}
+	},
+	HEADBANG("headbang", "Headbang", 2.8f) {
+		@Override
+		void pose(float t, Pose p) {
+			float nod = (float) Math.abs(Math.sin(t * Math.PI * 3.5));
+			p.set(Pose.HEAD, -0.35f + 0.95f * nod, 0f, 0f);
+			p.set(Pose.BODY, 0.18f * nod, 0f, 0f);
+			p.set(Pose.RIGHT_ARM, -0.5f, 0f, 2.75f);
+			p.set(Pose.LEFT_ARM, -0.3f + 0.1f * nod, 0.3f, -0.35f);
+			p.move(Pose.HEAD, 0f, 0.8f * nod, -0.6f * nod);
+		}
 	};
 
 	/** How long fading in and out takes, in seconds. */

@@ -27,6 +27,11 @@ public final class Emotes {
 		self = id;
 	}
 
+	/** You, once you are in a world; null before. */
+	public static UUID self() {
+		return self;
+	}
+
 	/** Where your own emotes and stops go ("stop" for a stop). */
 	public static void setSender(Consumer<String> send) {
 		sender = send == null ? id -> {

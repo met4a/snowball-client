@@ -26,6 +26,7 @@ import dev.snowballclient.client.social.SnowballPresence;
 import dev.snowballclient.client.spotify.NowPlaying;
 import dev.snowballclient.client.cosmetics.CustomCapes;
 import dev.snowballclient.client.emote.Emotes;
+import dev.snowballclient.client.emote.SelfSkin;
 import dev.snowballclient.client.gui.EmoteWheelView;
 import dev.snowballclient.client.social.Looks;
 import dev.snowballclient.client.social.SnowballLive;
@@ -274,6 +275,7 @@ public final class SnowballClient implements ClientModInitializer {
 				// What you wear and the emotes you do are yours at once, before the backend hears of them.
 				Looks.setSelf(mc.getUser().getProfileId(), () -> ModuleRegistry.COSMETICS == null ? "" : ModuleRegistry.COSMETICS.wearing());
 				Emotes.setSelf(mc.getUser().getProfileId());
+				SelfSkin.prefetch(mc.getUser().getProfileId(), MinecraftTextures.INSTANCE);
 			}
 			SnowballLive.start(() -> {
 				if (mc.getConnection() == null) return java.util.List.of();
