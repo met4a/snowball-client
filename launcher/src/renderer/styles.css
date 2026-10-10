@@ -1402,13 +1402,14 @@ textarea.input {
   image-rendering: pixelated;
   flex: none;
 }
-/* Staff wear the 11x7 flying snowball on its own, at exactly twice its pixel size. */
+/* Staff wear the 11x7 flying snowball on its own. */
 .rank-chip.icon-only {
   padding: 0;
   border: 0;
   background: none;
 }
-.rank-mark.staff-mark {
+/* Every flying snowball is drawn at exactly twice its pixel size. */
+.rank-mark.flying {
   width: 22px;
   height: 14px;
 }

@@ -10,8 +10,9 @@ import java.util.Locale;
  * <p>Ranks are listed from least to most: {@link #outranks} compares them by that order.
  */
 public enum Rank {
-	// Each badge is the snowball with this rank's logo set into it, drawn from Snowball's own
-	// icon font. The glyphs are published by client/tools/make-rank-badges.mjs in this order.
+	// Each badge is a glyph of Snowball's own icon font, published by client/tools/make-rank-badges.mjs
+	// in this order: Snowball and Snowball+ wear the snowball, every rank above them the flying
+	// snowball with its trail in the rank's colour.
 	SNOWBALL("snowball", "Snowball", "Snowball", '\uE000', 0xFFC7D2DD),
 	PLUS("plus", "Snowball+", "Snowball+", '\uE001', 0xFF9FD8FF),
 	TESTER("tester", "Snowball Tester", "Tester", '\uE002', 0xFF5CD6A8),

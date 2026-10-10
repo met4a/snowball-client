@@ -298,16 +298,17 @@
 
   // ---------- layout ----------
   /** The ranks, their short tags and their colours: one table the whole launcher reads from. */
-  // Staff, Developer and Owner are shown by their flying-snowball icon alone, as in the game.
-  const RANKS: { id: string; tag: string; name: string; color: string; iconOnly?: boolean }[] = [
+  // Every rank above Snowball+ wears the flying snowball (an 11x7 picture, not a square one), its
+  // trail in the rank's colour. Staff, Developer and Owner are shown by that icon alone, as in the game.
+  const RANKS: { id: string; tag: string; name: string; color: string; flying?: boolean; iconOnly?: boolean }[] = [
     { id: 'snowball', tag: 'Snowball', name: 'Snowball', color: '#c7d2dd' },
     { id: 'plus', tag: 'Snowball+', name: 'Snowball Plus', color: '#9fd8ff' },
-    { id: 'tester', tag: 'Tester', name: 'Snowball Tester', color: '#5cd6a8' },
-    { id: 'bug_hunter', tag: 'Bug Hunter', name: 'Snowball Bug Hunter', color: '#ffd166' },
-    { id: 'partner', tag: 'Partner', name: 'Snowball Partner', color: '#ffa24d' },
-    { id: 'staff', tag: 'Staff', name: 'Snowball Staff', color: '#5c8cff', iconOnly: true },
-    { id: 'developer', tag: 'Developer', name: 'Snowball Developer', color: '#b57bff', iconOnly: true },
-    { id: 'owner', tag: 'Owner', name: 'Snowball Owner', color: '#7fcbff', iconOnly: true },
+    { id: 'tester', tag: 'Tester', name: 'Snowball Tester', color: '#5cd6a8', flying: true },
+    { id: 'bug_hunter', tag: 'Bug Hunter', name: 'Snowball Bug Hunter', color: '#ffd166', flying: true },
+    { id: 'partner', tag: 'Partner', name: 'Snowball Partner', color: '#ffa24d', flying: true },
+    { id: 'staff', tag: 'Staff', name: 'Snowball Staff', color: '#5c8cff', flying: true, iconOnly: true },
+    { id: 'developer', tag: 'Developer', name: 'Snowball Developer', color: '#b57bff', flying: true, iconOnly: true },
+    { id: 'owner', tag: 'Owner', name: 'Snowball Owner', color: '#7fcbff', flying: true, iconOnly: true },
   ];
 
   const rankInfo = (id: string | undefined) => RANKS.find((r) => r.id === id) ?? RANKS[0];
@@ -372,9 +373,9 @@
     // rank's name is still there, for a tooltip and a screen reader.
     const chip = rank.iconOnly
       ? h('span', { class: 'rank-chip icon-only' + (extra ? ' ' + extra : ''), title: rank.name, role: 'img', 'aria-label': rank.name },
-          h('img', { class: 'rank-mark staff-mark', src: `assets/ranks/${rank.id}.png`, alt: '' }))
+          h('img', { class: 'rank-mark flying', src: `assets/ranks/${rank.id}.png`, alt: '' }))
       : h('span', { class: 'rank-chip' + (extra ? ' ' + extra : '') },
-          h('img', { class: 'rank-mark', src: `assets/ranks/${rank.id}.png`, alt: '' }),
+          h('img', { class: 'rank-mark' + (rank.flying ? ' flying' : ''), src: `assets/ranks/${rank.id}.png`, alt: '' }),
           rank.tag);
     chip.style.setProperty('--rank', rank.color);
     return chip;

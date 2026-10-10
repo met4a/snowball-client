@@ -1,14 +1,16 @@
 /**
- * Builds Snowball's rank badges: the snowball, with the rank's emblem set into it.
+ * Builds Snowball's rank badges.
  *
  * Every Snowball player wears the snowball in the player list, the way a Lunar player wears the
- * moon, so a Snowball player is recognisable before you read a word. The rank's emblem is seated
- * into the lower-right of the ball, overlapping its edge, so the two read as one mark rather than
- * as two things standing next to each other.
+ * moon, so a Snowball player is recognisable before you read a word: Snowball and Snowball+ wear
+ * the ball itself. Every rank above them wears the flying snowball, the 11x7 ball with a trail
+ * behind it, and the trail takes the rank's colour - green for Tester, gold for Bug Hunter, orange
+ * for Partner - so the set reads as one family and the colour says which rank it is. Staff,
+ * Developer and Owner were drawn by hand first; the others follow the same pixels with their trail
+ * worked out from the rank colour (see flyingSnowball below).
  *
- * The emblems are drawn from geometry in rank-icons.mjs rather than stored as bitmaps, so one
- * definition renders sharply at the three sizes this needs: the player list's, the launcher's,
- * and the preview sheet's.
+ * (The older badges set a drawn emblem into the ball; rank-icons.mjs still draws those emblems
+ * for the preview sheet.)
  *
  * The badge is composed at 32x32 and the font draws it at 8, an exact quarter, so nothing lands
  * between pixels. The old badges were 16px art declared at height 9 - a fractional reduction, and
@@ -39,11 +41,11 @@ const EMBLEM = 15;
 const RANKS = [
   { id: 'snowball', name: 'Snowball', file: 'tab_snowball.png', ball: '_ball.png', emblem: null, color: '#C7D2DD' },
   { id: 'plus', name: 'Snowball+', file: 'tab_snowball_plus.png', ball: '_ball_plus.png', emblem: null, color: '#9FD8FF' },
-  { id: 'tester', name: 'Tester', file: 'rank/tester.png', ball: '_ball.png', emblem: 'tester', color: '#5CD6A8' },
-  { id: 'bug_hunter', name: 'Bug Hunter', file: 'rank/bug_hunter.png', ball: '_ball.png', emblem: 'bug_hunter', color: '#FFD166' },
-  { id: 'partner', name: 'Partner', file: 'rank/partner.png', ball: '_ball.png', emblem: 'partner', color: '#FFA24D' },
-  // Staff, Developer and Owner wear the flying snowball instead, drawn at its real size by
-  // make-staff-icons.mjs. They stay listed so the font keeps its order; this tool leaves their files alone.
+  { id: 'tester', name: 'Tester', file: 'rank/tester.png', flying: true, emblem: 'tester', color: '#5CD6A8' },
+  { id: 'bug_hunter', name: 'Bug Hunter', file: 'rank/bug_hunter.png', flying: true, emblem: 'bug_hunter', color: '#FFD166' },
+  { id: 'partner', name: 'Partner', file: 'rank/partner.png', flying: true, emblem: 'partner', color: '#FFA24D' },
+  // Staff, Developer and Owner wear the flying snowball with trails tuned by hand. They stay listed
+  // so the font keeps its order; this tool leaves their files alone.
   { id: 'staff', name: 'Staff', file: 'rank/staff.png', pixelArt: true },
   { id: 'developer', name: 'Developer', file: 'rank/developer.png', pixelArt: true },
   { id: 'owner', name: 'Owner', file: 'rank/owner.png', pixelArt: true },
@@ -182,7 +184,35 @@ function draw(target, sprite, ox, oy) {
 const ball = scaleTo(crop(decode(join(SOURCE, '_ball.png'))), SIZE);
 const ballPlus = scaleTo(crop(decode(join(SOURCE, '_ball_plus.png'))), SIZE);
 
+/**
+ * The flying snowball, 11x7, as the staff badges draw it: the same ball for every rank, with a trail
+ * (and two flecks of spray) in the rank's colour, paler towards the ball. Letters: a fleck, d the
+ * trail's faint edge, e the trail; b, c, f, g and h are the ball's own shades.
+ */
+const FLYING = [
+  '..a........',
+  '.......bcc.',
+  '...deebfccf',
+  '.deeeegfffb',
+  'a..dedgbfbg',
+  '.......hgg.',
+  '...a.......',
+];
+const BALL = { b: [0xb8, 0xe2, 0xff, 255], c: [255, 255, 255, 255], f: [0xe4, 0xf5, 0xff, 255], g: [0x7f, 0xcb, 0xff, 255], h: [0x4e, 0x9c, 0xd6, 255] };
+
+function flyingSnowball(color) {
+  const c = hexColour(color);
+  const toward = (t) => c.map((v) => Math.round(v + (255 - v) * t));
+  const trail = { a: [...toward(0.85), 0xe6], d: [...toward(0.14), 0xb0], e: [...toward(0.53), 255] };
+  return FLYING.map((row) => [...row].map((ch) => (ch === '.' ? [0, 0, 0, 0] : BALL[ch] ?? trail[ch])));
+}
+
+function hexColour(c) {
+  return [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+}
+
 function badge(rank) {
+  if (rank.flying) return flyingSnowball(rank.color);
   const canvas = blank(SIZE, SIZE);
   const base = rank.ball === '_ball_plus.png' ? ballPlus : ball;
   draw(canvas, base, Math.floor((SIZE - base.w) / 2), Math.floor((SIZE - base.h) / 2));
@@ -203,16 +233,18 @@ let count = 0;
 const write = (to, data) => { mkdirSync(dirname(to), { recursive: true }); writeFileSync(to, data); count++; };
 
 const built = RANKS.filter((rank) => !rank.pixelArt).map((rank) => ({ rank, data: encode(badge(rank)) }));
+// Small enough to read in the font: every flying snowball is drawn at its own 7-pixel height.
+const small = (rank) => rank.pixelArt || rank.flying;
 
 for (const tree of TREES) {
   for (const { rank, data } of built) write(join(tree, 'textures', 'gui', rank.file), data);
 
   /**
    * One bitmap provider per rank, in RANKS order. A 32px badge drawn at height 8 with ascent 7 sits on
-   * the baseline; the 11x7 staff icon is drawn at its own height, 7, so it lines up with capitals.
+   * the baseline; the 11x7 flying snowball is drawn at its own height, 7, so it lines up with capitals.
    * The last entry is the two-pixel gap RankText puts between the badge and the name.
    */
-  const providers = RANKS.map((rank, i) => ({ file: `gui/${rank.file}`, height: rank.pixelArt ? 7 : 8, char: `\\uE00${i}` }));
+  const providers = RANKS.map((rank, i) => ({ file: `gui/${rank.file}`, height: small(rank) ? 7 : 8, char: `\\uE00${i}` }));
   const json = `{\n\t"providers": [\n${providers
     .map((p) => `\t\t{ "type": "bitmap", "file": "snowballclient:${p.file}", "ascent": 7, "height": ${p.height}, "chars": ["${p.char}"] }`)
     .concat(['\t\t{ "type": "space", "advances": { "\\uE0F0": 2 } }'])
@@ -223,14 +255,14 @@ for (const tree of TREES) {
 // The launcher shows the same badge in chat, the people list and the admin panel.
 for (const { rank, data } of built) write(join(LAUNCHER, `${rank.id}.png`), data);
 
-for (const { rank } of built) console.log(`${rank.name.padEnd(12)} ${rank.emblem ? `ball + ${rank.emblem} at ${EMBLEM}px` : 'ball only'}`);
+for (const { rank } of built) console.log(`${rank.name.padEnd(12)} ${rank.flying ? `flying snowball, ${rank.color} trail` : rank.emblem ? `ball + ${rank.emblem} at ${EMBLEM}px` : 'ball only'}`);
 console.log(`\n${count} files written.`);
 
 if (process.argv.includes('--preview')) {
   // A page showing each badge at the size the player list draws it, magnified, and the emblem on
   // its own, which is how it appears in profiles and on the website.
   const b64 = (rank) => built.find((b) => b.rank.id === rank.id).data.toString('base64');
-  const solo = (rank) => (rank.emblem ? encode(renderEmblem(rank.emblem, rank.emblemColor ?? rank.color, 32)).toString('base64') : null);
+  const solo = (rank) => (rank.emblem && !rank.flying ? encode(renderEmblem(rank.emblem, rank.emblemColor ?? rank.color, 32)).toString('base64') : null);
   const row = (rank) => {
     const img = `<img src="data:image/png;base64,${b64(rank)}">`;
     const only = solo(rank);
@@ -250,16 +282,16 @@ if (process.argv.includes('--preview')) {
  th{text-align:left;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#6e7987;font-weight:600;padding:0 20px 8px 0;border-bottom:1px solid #222831}
  td{padding:10px 20px 10px 0;border-bottom:1px solid #1a1f27;vertical-align:middle}
  img{image-rendering:pixelated;display:inline-block;vertical-align:middle}
- .s8 img{width:8px;height:8px}
- .s16 img{width:16px;height:16px;margin-right:6px}
+ .s8 img{height:8px;width:auto}
+ .s16 img{height:16px;width:auto;margin-right:6px}
  .s32 img{width:32px;height:32px}
- .s64 img{width:64px;height:64px}
+ .s64 img{height:64px;width:auto}
  .tab{font:15px Consolas,monospace;white-space:nowrap}
  .pl{color:#fff}
  .f{font:12px Consolas,monospace;color:#6e7987}
 </style>
 <h1>Snowball rank badges</h1>
-<p class=sub>Every player wears the snowball. The rank's emblem is seated into its lower-right, overlapping the edge so the two read as one mark. Emblems are drawn from geometry, so they stay sharp at every size.</p>
+<p class=sub>Every player wears the snowball. Every rank above Snowball+ wears the flying snowball, its trail in the rank's colour, so the set reads as one family and the colour says which rank it is.</p>
 <table><tr><th>In game</th><th>Badge</th><th>Emblem</th><th>As it reads in TAB</th></tr>${built.map(({ rank }) => row(rank)).join('')}</table>`);
   console.log('preview: client/tools/rank-badges-preview.html');
 }
