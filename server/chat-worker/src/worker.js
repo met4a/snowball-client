@@ -29,10 +29,19 @@ const EMOTES_PER_MINUTE = 24;
 /** How many players one game may watch for emotes. */
 const WATCH_MAX = 200;
 
-/** The looks a game asked for, kept to what the client ships. */
-function looksOf(raw) {
+/** A custom cape's outer face: 10x16 colours as RRGGBB, 960 hex digits. */
+const CUSTOM_CAPE = /^[0-9a-f]{960}$/;
+/** A Snowball+ player may send a new design this often. */
+const CAPE_SUBMIT_GAP_MS = 60_000;
+
+/**
+ * The looks a game asked for, kept to what the client ships. "custom" only stands for a design
+ * staff approved, and carries its version so games fetch the new one when it changes.
+ */
+function looksOf(raw, approved) {
   if (!raw || typeof raw !== 'object') return null;
   const cape = String(raw.cape ?? '');
+  if (cape === 'custom') return approved ? { cape: 'custom', v: approved.version } : null;
   return CAPES.includes(cape) ? { cape } : null;
 }
 
@@ -53,7 +62,7 @@ const PERMISSIONS = {
   tester: ['beta.access'],
   bug_hunter: ['bugs.triage'],
   partner: ['partner.features'],
-  staff: ['chat.moderate', 'users.view'],
+  staff: ['chat.moderate', 'users.view', 'capes.review'],
   developer: ['dev.tools', 'flags.manage', 'chat.announce'],
   owner: ['ranks.manage', 'everything'],
 };
@@ -137,6 +146,9 @@ export class ChatRoom {
     this.looks = new Map();
     // Games listening for emotes: socket -> { uuid, watching, times }.
     this.live = new Map();
+    // Custom capes: account id -> { name, approved: { pixels, version, at, by } | null,
+    // request: { pixels, at, status: 'pending' | 'denied', reason } | null }.
+    this.capes = new Map();
     this.ready = state.blockConcurrencyWhile(async () => {
       this.history = (await state.storage.get('history')) ?? [];
       this.announcement = (await state.storage.get('announcement')) ?? null;
@@ -146,6 +158,7 @@ export class ChatRoom {
       this.people = new Map((await state.storage.get('people')) ?? []);
       this.bugs = (await state.storage.get('bugs')) ?? [];
       this.flags = (await state.storage.get('flags')) ?? {};
+      this.capes = new Map((await state.storage.get('capes')) ?? []);
     });
   }
 
@@ -186,7 +199,7 @@ export class ChatRoom {
       const failure = await this.verify(name, uuid, String(body.nonce ?? ''), body);
       if (typeof failure === 'string') return Response.json({ error: failure }, { status: 403 });
       const ticket = crypto.randomUUID().replace(/-/g, '');
-      this.presenceTickets.set(ticket, { uuid, until: now + PRESENCE_TICKET_MS });
+      this.presenceTickets.set(ticket, { uuid, name, until: now + PRESENCE_TICKET_MS });
       this.inClient.set(uuid, now);
       this.setLooks(uuid, body.looks);
       return Response.json({ ok: true, ticket, every: PRESENCE_EVERY_S });
@@ -211,6 +224,37 @@ export class ChatRoom {
         out[id] = this.ranks.get(id)?.rank ?? 'snowball';
       }
       return Response.json({ ranks: out, looks }, { headers: { 'cache-control': 'no-store' } });
+    }
+    // Custom capes. A Snowball+ player sends a design; it shows on nobody until staff approve it.
+    if (url.pathname.endsWith('/capes/submit') && request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const held = this.presenceTickets.get(String(body.ticket ?? ''));
+      if (!held || held.until < Date.now()) return Response.json({ error: 'Join a world first, so Snowball knows it is you' }, { status: 403 });
+      if (!can({ rank: this.rankOf(held.uuid) }, 'plus.features')) return Response.json({ error: 'Custom capes come with Snowball+' }, { status: 403 });
+      const pixels = String(body.pixels ?? '');
+      if (!CUSTOM_CAPE.test(pixels)) return Response.json({ error: 'That is not a cape design' }, { status: 400 });
+      const entry = this.capes.get(held.uuid) ?? { approved: null, request: null };
+      if (entry.request && Date.now() - entry.request.at < CAPE_SUBMIT_GAP_MS) return Response.json({ error: 'Wait a minute before sending another design' }, { status: 429 });
+      entry.name = held.name ?? this.people.get(held.uuid)?.name ?? '';
+      entry.request = { pixels, at: Date.now(), status: 'pending', reason: '' };
+      this.capes.set(held.uuid, entry);
+      await this.state.storage.put('capes', [...this.capes]);
+      this.tellReviewers();
+      return Response.json({ ok: true, status: 'pending' });
+    }
+    if (url.pathname.endsWith('/capes/status')) {
+      const held = this.presenceTickets.get(url.searchParams.get('ticket') ?? '');
+      if (!held) return Response.json({ error: 'that ticket is not valid any more' }, { status: 403 });
+      const entry = this.capes.get(held.uuid);
+      const request = entry?.request ? { status: entry.request.status, reason: entry.request.reason ?? '', at: entry.request.at } : null;
+      return Response.json({ approved: entry?.approved?.version ?? null, request }, { headers: { 'cache-control': 'no-store' } });
+    }
+    const capeFile = url.pathname.match(/\/capes\/([0-9a-f]{32})$/);
+    if (capeFile) {
+      // Approved designs are public: they are on show on the player's back anyway.
+      const approved = this.capes.get(capeFile[1])?.approved;
+      if (!approved) return new Response('Not found', { status: 404 });
+      return Response.json({ pixels: approved.pixels, version: approved.version });
     }
     // Emotes travel live: a game opens this with the ticket its heartbeat holds, says whose emotes it
     // wants (the players it can see), and hears theirs as they happen.
@@ -309,9 +353,37 @@ export class ChatRoom {
     return { id: uuid, name };
   }
 
+  /** The rank an account holds, as this room decides it. */
+  rankOf(uuid) {
+    if (uuid === String(this.env.ADMIN_UUID ?? '').replace(/-/g, '')) return 'owner';
+    return this.ranks.get(uuid)?.rank ?? 'snowball';
+  }
+
+  /** The designs waiting for staff, oldest first. */
+  pendingCapes() {
+    const out = [];
+    for (const [uuid, entry] of this.capes) {
+      if (entry.request?.status === 'pending') out.push({ uuid, name: entry.name ?? '', pixels: entry.request.pixels, at: entry.request.at, replaces: Boolean(entry.approved) });
+    }
+    return out.sort((a, b) => a.at - b.at).slice(0, 50);
+  }
+
+  /** Staff with the panel open see a new design straight away. */
+  tellReviewers() {
+    const data = JSON.stringify({ type: 'capes', capes: this.pendingCapes() });
+    for (const [socket, person] of this.sockets) {
+      if (!can(person, 'capes.review')) continue;
+      try {
+        socket.send(data);
+      } catch {
+        this.sockets.delete(socket);
+      }
+    }
+  }
+
   /** Stores what a player wears and tells the games watching them straight away when it changes. */
   setLooks(uuid, raw) {
-    const looks = looksOf(raw);
+    const looks = looksOf(raw, this.capes.get(uuid)?.approved);
     const before = JSON.stringify(this.looks.get(uuid) ?? null);
     if (looks) this.looks.set(uuid, looks);
     else this.looks.delete(uuid);
@@ -484,8 +556,30 @@ export class ChatRoom {
       clear: 'chat.moderate', mute: 'chat.moderate', unmute: 'chat.moderate',
       'rank-set': 'ranks.manage', 'rank-clear': 'ranks.manage', grant: 'ranks.manage', ungrant: 'ranks.manage',
       history: 'users.view', lookup: 'users.view',
+      capes: 'capes.review', 'cape-review': 'capes.review',
     }[payload.action];
     if (!needed || !can(member, needed)) return this.refuse(socket);
+
+    if (payload.action === 'capes') return socket.send(JSON.stringify({ type: 'capes', capes: this.pendingCapes() }));
+    if (payload.action === 'cape-review') {
+      const id = String(payload.uuid ?? '').replace(/-/g, '');
+      const entry = this.capes.get(id);
+      if (!entry?.request || entry.request.status !== 'pending') return socket.send(JSON.stringify({ type: 'capes', capes: this.pendingCapes() }));
+      if (payload.approve === true) {
+        entry.approved = { pixels: entry.request.pixels, version: (entry.approved?.version ?? 0) + 1, at: Date.now(), by: member.uuid };
+        entry.request = null;
+        // Someone already wearing their design sees the new one straight away.
+        const worn = this.looks.get(id);
+        if (worn?.cape === 'custom') this.setLooks(id, { cape: 'custom' });
+      } else {
+        entry.request.status = 'denied';
+        entry.request.reason = String(payload.reason ?? '').replace(INVISIBLE, '').trim().slice(0, 140);
+      }
+      entry.reviewedBy = member.name;
+      await this.state.storage.put('capes', [...this.capes]);
+      this.tellReviewers();
+      return;
+    }
 
     if (payload.action === 'lookup') {
       // The launcher resolved the name with Mojang, which refuses requests from here.
