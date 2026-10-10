@@ -45,6 +45,7 @@ import dev.snowballclient.client.module.render.Crosshair;
 import dev.snowballclient.client.module.render.FovSettings;
 import dev.snowballclient.client.module.render.Fullbright;
 import dev.snowballclient.client.module.render.GlassGui;
+import dev.snowballclient.client.module.render.CrystalGlow;
 import dev.snowballclient.client.module.render.HitColor;
 import dev.snowballclient.client.module.render.PotionHud;
 import dev.snowballclient.client.module.render.RenderDistance;
@@ -100,6 +101,7 @@ public final class ModuleRegistry {
 	public static EmotesModule EMOTES;
 	public static FpsBoost FPS_BOOST;
 	public static HitColor HIT_COLOR;
+	public static CrystalGlow CRYSTAL_GLOW;
 	public static VisualModules.NoHurtShake NO_HURT_SHAKE;
 	public static VisualModules.LowFire LOW_FIRE;
 	public static VisualModules.BlockOutline BLOCK_OUTLINE;
@@ -165,6 +167,7 @@ public final class ModuleRegistry {
 		WEATHER = m.register(new WeatherEffects());
 		m.register(new PotionHud());
 		HIT_COLOR = m.register(new HitColor());
+		CRYSTAL_GLOW = m.register(new CrystalGlow());
 		NO_HURT_SHAKE = m.register(new VisualModules.NoHurtShake());
 		LOW_FIRE = m.register(new VisualModules.LowFire());
 		BLOCK_OUTLINE = m.register(new VisualModules.BlockOutline());
@@ -210,7 +213,7 @@ public final class ModuleRegistry {
 				"time_changer", "weather_effects");
 		m.order(ModuleCategory.PVP, "crosshair", "armor_hud", "cps_counter", "combo_counter", "reach_display", "target_info");
 		m.order(ModuleCategory.MOVEMENT, "toggle_sprint", "speed_display");
-		m.order(ModuleCategory.VISUALS, "glass_gui", "menu_3d", "fullbright", "zoom", "freelook", "snaplook", "hit_color");
+		m.order(ModuleCategory.VISUALS, "glass_gui", "menu_3d", "fullbright", "zoom", "freelook", "snaplook", "hit_color", "crystal_glow");
 		m.order(ModuleCategory.WORLD, "waypoints", "render_distance", "entity_distance");
 		m.order(ModuleCategory.MISC, "chat_settings", "emotes", "nick_hider", "spotify", "discord_presence", "screenshot_utility", "notifications", "clock", "server_info", "session_timer");
 		m.order(ModuleCategory.QOL, "keystrokes", "ez_pots", "item_counter");
