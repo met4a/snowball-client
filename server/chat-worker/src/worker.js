@@ -17,6 +17,25 @@ const PRESENCE_TTL_MS = 5 * 60_000;
 /** How long a proved game may keep saying so on its ticket before proving the account again. */
 const PRESENCE_TICKET_MS = 12 * 60 * 60_000;
 
+/**
+ * Cosmetics and emotes the client ships. Only these ids are passed between players: the worker
+ * never forwards anything a modified client makes up.
+ */
+const CAPES = ['snowball', 'aurora', 'northern_lights', 'frost', 'ember', 'sakura', 'midnight', 'void'];
+const EMOTES = ['wave', 'clap', 'cheer', 'dab', 'salute', 'facepalm', 'bow', 'tpose', 'dance', 'spin', 'think', 'point'];
+/** An emote at most this often, and this many a minute. */
+const EMOTE_GAP_MS = 700;
+const EMOTES_PER_MINUTE = 24;
+/** How many players one game may watch for emotes. */
+const WATCH_MAX = 200;
+
+/** The looks a game asked for, kept to what the client ships. */
+function looksOf(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const cape = String(raw.cape ?? '');
+  return CAPES.includes(cape) ? { cape } : null;
+}
+
 const HISTORY = 60;
 const MAX_MESSAGE_LENGTH = 240;
 const MUTE_DEFAULT_MINUTES = 10;
@@ -114,6 +133,10 @@ export class ChatRoom {
     this.inClient = new Map();
     // Handed to a game after it proved its account, so its heartbeats need not prove it again.
     this.presenceTickets = new Map();
+    // What each player in the client wears (account id -> { cape }), sent with every heartbeat.
+    this.looks = new Map();
+    // Games listening for emotes: socket -> { uuid, watching, times }.
+    this.live = new Map();
     this.ready = state.blockConcurrencyWhile(async () => {
       this.history = (await state.storage.get('history')) ?? [];
       this.announcement = (await state.storage.get('announcement')) ?? null;
@@ -145,6 +168,7 @@ export class ChatRoom {
         const held = this.presenceTickets.get(String(body.ticket ?? ''));
         if (held) {
           this.inClient.delete(held.uuid);
+          this.looks.delete(held.uuid);
           this.presenceTickets.delete(String(body.ticket));
         }
         return Response.json({ ok: true });
@@ -154,6 +178,7 @@ export class ChatRoom {
         const held = this.presenceTickets.get(String(body.ticket));
         if (!held) return Response.json({ error: 'that ticket is not valid any more' }, { status: 403 });
         this.inClient.set(held.uuid, now);
+        this.setLooks(held.uuid, body.looks);
         return Response.json({ ok: true, ticket: String(body.ticket), every: PRESENCE_EVERY_S });
       }
       const name = String(body.name ?? '');
@@ -163,6 +188,7 @@ export class ChatRoom {
       const ticket = crypto.randomUUID().replace(/-/g, '');
       this.presenceTickets.set(ticket, { uuid, until: now + PRESENCE_TICKET_MS });
       this.inClient.set(uuid, now);
+      this.setLooks(uuid, body.looks);
       return Response.json({ ok: true, ticket, every: PRESENCE_EVERY_S });
     }
     // Which of these accounts are playing with Snowball Client right now, and what they hold. The
@@ -174,14 +200,32 @@ export class ChatRoom {
       const asked = Array.isArray(body.uuids) ? body.uuids : [];
       const owner = String(this.env.ADMIN_UUID ?? '').replace(/-/g, '');
       const out = {};
+      const looks = {};
       for (const raw of asked.slice(0, 200)) {
         const id = String(raw ?? '').replace(/-/g, '').toLowerCase();
         if (!/^[a-f0-9]{32}$/.test(id)) continue;
         if (!this.playingNow(id)) continue;
+        const worn = this.looks.get(id);
+        if (worn) looks[id] = worn;
         if (id === owner) { out[id] = 'owner'; continue; }
         out[id] = this.ranks.get(id)?.rank ?? 'snowball';
       }
-      return Response.json({ ranks: out }, { headers: { 'cache-control': 'no-store' } });
+      return Response.json({ ranks: out, looks }, { headers: { 'cache-control': 'no-store' } });
+    }
+    // Emotes travel live: a game opens this with the ticket its heartbeat holds, says whose emotes it
+    // wants (the players it can see), and hears theirs as they happen.
+    if (url.pathname.endsWith('/live')) {
+      if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected a WebSocket', { status: 426 });
+      const held = this.presenceTickets.get(url.searchParams.get('ticket') ?? '');
+      if (!held || held.until < Date.now()) return new Response('That ticket is not valid any more.', { status: 403 });
+      const pair = new WebSocketPair();
+      const [client, server] = Object.values(pair);
+      server.accept();
+      this.live.set(server, { uuid: held.uuid, watching: new Set(), times: [] });
+      server.addEventListener('message', (event) => this.onLive(server, event.data));
+      server.addEventListener('close', () => this.live.delete(server));
+      server.addEventListener('error', () => this.live.delete(server));
+      return new Response(null, { status: 101, webSocket: client });
     }
     if (url.pathname.endsWith('/nonce')) {
       const nonce = crypto.randomUUID().replace(/-/g, '');
@@ -263,6 +307,56 @@ export class ChatRoom {
     });
     if (failure) return failure;
     return { id: uuid, name };
+  }
+
+  /** Stores what a player wears and tells the games watching them straight away when it changes. */
+  setLooks(uuid, raw) {
+    const looks = looksOf(raw);
+    const before = JSON.stringify(this.looks.get(uuid) ?? null);
+    if (looks) this.looks.set(uuid, looks);
+    else this.looks.delete(uuid);
+    if (before !== JSON.stringify(looks)) this.liveSend(uuid, { type: 'looks', uuid, looks });
+  }
+
+  /** One message from a game on the live channel. */
+  onLive(socket, data) {
+    const member = this.live.get(socket);
+    if (!member) return;
+    let payload;
+    try {
+      payload = JSON.parse(String(data));
+    } catch {
+      return;
+    }
+    if (payload.type === 'watch') {
+      const ids = Array.isArray(payload.uuids) ? payload.uuids : [];
+      member.watching = new Set(ids.slice(0, WATCH_MAX).map((raw) => String(raw ?? '').replace(/-/g, '').toLowerCase()).filter((id) => /^[a-f0-9]{32}$/.test(id)));
+      return;
+    }
+    if (payload.type === 'emote') {
+      const id = String(payload.id ?? '');
+      if (!EMOTES.includes(id)) return;
+      const now = Date.now();
+      member.times = member.times.filter((t) => now - t < 60_000);
+      if (member.times.length >= EMOTES_PER_MINUTE || (member.times.length && now - member.times[member.times.length - 1] < EMOTE_GAP_MS)) return;
+      member.times.push(now);
+      this.liveSend(member.uuid, { type: 'emote', uuid: member.uuid, id, at: now });
+      return;
+    }
+    if (payload.type === 'stop') this.liveSend(member.uuid, { type: 'stop', uuid: member.uuid });
+  }
+
+  /** Sends to every game watching this player, never back to the player's own games. */
+  liveSend(uuid, payload) {
+    const data = JSON.stringify(payload);
+    for (const [socket, member] of this.live) {
+      if (member.uuid === uuid || !member.watching.has(uuid)) continue;
+      try {
+        socket.send(data);
+      } catch {
+        this.live.delete(socket);
+      }
+    }
   }
 
   /** Whether this account's game said it runs Snowball Client within the last few minutes. */
