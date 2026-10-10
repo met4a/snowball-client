@@ -36,59 +36,13 @@ jobs:
       - name: Build the 1.8.9 version
         if: always()
         working-directory: client
-        run: ./gradlew -p legacy build buildAndCollect --continue
+        run: |
+          set -o pipefail
+          ./gradlew -p legacy build buildAndCollect --continue 2>&1 | tee ../legacy-build.log
 
       - name: Check generated sources
         if: always()
         run: node client/tools/check-generated.mjs
-
-      - name: Minecraft signatures
-        if: always()
-        run: |
-          set +e
-          echo "== Minecraft jars =="
-          find ~/.gradle client -name '*.jar' 2>/dev/null | grep -iE 'minecraft' | grep -viE 'sources|fabric-api|fabric-loader|lwjgl' | xargs -r ls -la
-          classes="
-            net.minecraft.client.player.AbstractClientPlayer
-            net.minecraft.world.entity.player.PlayerSkin
-            net.minecraft.client.resources.PlayerSkin
-            net.minecraft.core.ClientAsset
-            net.minecraft.core.ClientAsset\$Texture
-            net.minecraft.core.ClientAsset\$ResourceTexture
-            net.minecraft.core.ClientAsset\$DownloadedTexture
-            net.minecraft.client.multiplayer.PlayerInfo
-            net.minecraft.client.renderer.entity.player.AvatarRenderer
-            net.minecraft.client.renderer.entity.player.PlayerRenderer
-            net.minecraft.client.renderer.entity.state.AvatarRenderState
-            net.minecraft.client.renderer.entity.state.PlayerRenderState
-            net.minecraft.client.renderer.entity.state.HumanoidRenderState
-            net.minecraft.client.renderer.entity.state.LivingEntityRenderState
-            net.minecraft.client.renderer.entity.state.EntityRenderState
-            net.minecraft.client.renderer.entity.LivingEntityRenderer
-            net.minecraft.client.renderer.entity.layers.CapeLayer
-            net.minecraft.client.model.player.PlayerModel
-            net.minecraft.client.model.PlayerModel
-            net.minecraft.client.model.HumanoidModel
-            net.minecraft.client.model.Model
-            net.minecraft.client.model.EntityModel
-            net.minecraft.client.model.geom.ModelPart
-            net.minecraft.client.gui.screens.Screen
-            net.minecraft.util.Util
-            net.minecraft.util.Util\$OS
-            net.minecraft.client.KeyMapping
-            net.minecraft.world.entity.Avatar
-            net.minecraft.world.entity.player.PlayerModelPart
-          "
-          for jar in $(find ~/.gradle client -name '*.jar' 2>/dev/null | grep -iE 'minecraft-(merged|client|common)|minecraft/.*client' | grep -viE 'sources|lwjgl' | sort -u); do
-            echo
-            echo "################ $jar"
-            unzip -l "$jar" | grep -iE 'Avatar|PlayerSkin|ClientAsset|CapeLayer|player/PlayerModel|PlayerRenderState|AvatarRenderState' | awk '{print $4}' | head -60
-            for c in $classes; do
-              out=$(javap -p -cp "$jar" "$c" 2>/dev/null)
-              if [ -n "$out" ]; then echo "---- $c"; echo "$out"; fi
-            done
-          done
-          exit 0
 
       - name: Start the game under a virtual display
         if: always()
@@ -96,9 +50,19 @@ jobs:
         env:
           LIBGL_ALWAYS_SOFTWARE: '1'
         run: |
+          set -o pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb mesa-utils libgl1-mesa-dri > /dev/null
-          xvfb-run -a -s "-screen 0 1920x1080x24" ./gradlew :26.2:runClientGameTest --stacktrace
+          xvfb-run -a -s "-screen 0 1920x1080x24" ./gradlew :26.2:runClientGameTest --stacktrace 2>&1 | tee ../gametest.log
+
+      # Last, so the end of the job log holds what failed without scrolling.
+      - name: Summary
+        if: always()
+        run: |
+          echo "==== 1.8.9 build ===="
+          grep -nE "error:|e: |What went wrong|> Could not|FAILED|BUILD (SUCCESSFUL|FAILED)" -A4 legacy-build.log | head -120 || true
+          echo "==== game test ===="
+          grep -nE "Flash:|Mixin apply|InvalidInjection|InjectionError|Caused by|Exception in|has crashed|No frame flashed|tests? (passed|failed)|BUILD (SUCCESSFUL|FAILED)" gametest.log | grep -v "OpenAL\|flite\|SignedJWT\|profile key pair\|certificates" | head -80 || true
 
       - name: Screenshots
         if: always()
