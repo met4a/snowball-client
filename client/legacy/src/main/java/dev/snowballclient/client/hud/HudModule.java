@@ -81,7 +81,7 @@ public abstract class HudModule extends Module {
 		if (angle != 0f) c.rotate(angle);
 		c.scale(s, s);
 		c.translate(-w / 2f, -h / 2f);
-		if (background.isOn()) GuiDraw.roundedRect(c, 0, 0, w, h, 3, theme.surface(backgroundOpacity.floatValue()));
+		if (background.isOn()) dev.snowballclient.client.gui.Glass.hud(c, theme, w, h, backgroundOpacity.floatValue());
 		renderContent(c, theme, w, h);
 		c.pop();
 	}

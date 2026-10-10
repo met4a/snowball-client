@@ -72,6 +72,9 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
   chat?.on('history', (messages) => toRenderer('chat-history', messages));
   chat?.on('people', (people) => toRenderer('chat-people', people));
   chat?.on('bugs', (bugs) => toRenderer('chat-bugs', bugs));
+  chat?.on('capes', (capes) => toRenderer('chat-capes', capes));
+  chat?.on('ranked', (people) => toRenderer('chat-ranked', people));
+  chat?.on('admin-result', (result) => toRenderer('chat-admin-result', result));
   chat?.on('bug-filed', (id) => toRenderer('chat-bug-filed', id));
   ipcMain.handle('chat:state', () => chat?.current() ?? { configured: false, status: 'offline', online: 0, announcement: null, admin: false });
   ipcMain.handle('chat:connect', async () => {
@@ -107,6 +110,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
     chat?.admin(str(action, 'action', 20), (extra ?? {}) as Record<string, unknown>) ?? { ok: false, reason: 'Chat is not available.' });
   ipcMain.handle('chat:set-plus', (_e, uuid: unknown, on: unknown) => chat?.setPlus(str(uuid, 'uuid', 40), on !== false) ?? { ok: false, reason: 'Chat is not available.' });
   ipcMain.handle('chat:lookup', (_e, name: unknown) => chat?.lookup(str(name, 'name', 16)) ?? { ok: false, reason: 'Chat is not available.' });
+  ipcMain.handle('chat:resolve', (_e, name: unknown) => chat?.resolve(str(name, 'name', 16)) ?? { ok: false, reason: 'Chat is not available.' });
   ipcMain.handle('chat:set-rank', (_e, uuid: unknown, rank: unknown) =>
     chat?.setRank(str(uuid, 'uuid', 40), str(rank, 'rank', 20) as never) ?? { ok: false, reason: 'Chat is not available.' });
   ipcMain.handle('chat:moderate', (_e, action: unknown, uuid: unknown, minutes: unknown) =>

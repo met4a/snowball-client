@@ -34,6 +34,11 @@ public final class ModuleSettingsView extends View {
 	private final List<Setting<?>> settings;
 	private final FrameClock clock = new FrameClock();
 	private final Smoothed open = new Smoothed(0f);
+	/** The highlight that glides to the row under the mouse. */
+	private final Smoothed glideY = new Smoothed(0f);
+	private final Smoothed glideAlpha = new Smoothed(0f);
+	/** Seconds since opening, at the menu's animation speed: rows slide in one after another. */
+	private float age;
 
 	private int panelX;
 	/** Narrower than designed on a small screen rather than hanging off its sides. */
@@ -84,28 +89,63 @@ public final class ModuleSettingsView extends View {
 
 	@Override
 	public void renderBackground(Canvas c, int mouseX, int mouseY, float partialTick) {
-		c.fill(0, 0, width, height, Theme.withAlpha(0xFF000000, theme.backgroundOpacity * 0.75f));
+		c.fill(0, 0, width, height, Theme.withAlpha(0xFF000000, backdropDim(theme.backgroundOpacity * 0.75f)));
 	}
 
 	@Override
 	public void render(Canvas c, int mouseX, int mouseY, float partialTick) {
-		float a = open.update(clock.tick(), theme.animationSpeed * 14f);
+		float dt = clock.tick();
+		float a = open.update(dt, theme.animationSpeed * 14f);
+		age = theme.animationSpeed <= 0f ? 10f : age + dt * theme.animationSpeed;
 		UiText.setDensity(c.guiScale());
 		hovered = rowAt(mouseX, mouseY);
 
 		int panelH = panelH();
-		GuiDraw.roundedRect(c, panelX + 2, panelY + 4, panelW, panelH, 7, scaleAlpha(0x70000000, a));
-		GuiDraw.roundedRect(c, panelX, panelY, panelW, panelH, 6, scaleAlpha(theme.surface(theme.panelOpacity), a));
-		GuiDraw.roundedOutline(c, panelX, panelY, panelW, panelH, 6, scaleAlpha(theme.border(), a));
+		// The panel rises a little and settles as it opens.
+		float rise = (1f - a) * 10f;
+		c.push();
+		c.translate(0f, rise);
+		Glass.panel(c, theme, panelX, panelY, panelW, panelH, 6, a);
 		UiText.draw(c, module.name().toUpperCase(Locale.ROOT), UiText.titleFor(c, 16), panelX + 12, panelY + 9, scaleAlpha(theme.text(), a));
 		UiText.draw(c, UiText.fit(c, module.description(), UiText.DETAIL, panelW - 24), UiText.DETAIL, panelX + 12, panelY + 25, scaleAlpha(theme.mutedText(), a));
 		c.fill(panelX + 10, panelY + HEADER_H - 3, panelX + panelW - 10, panelY + HEADER_H - 2, scaleAlpha(Theme.withAlpha(theme.highlight(), 0.08f), a));
 		c.fill(panelX + 10, panelY + HEADER_H - 3, panelX + 42, panelY + HEADER_H - 2, scaleAlpha(theme.accent(), a));
 
 		int end = Math.min(rowCount(), scroll + visibleRows);
-		for (int row = scroll; row < end; row++) {
-			drawRow(c, row, panelY + HEADER_H + 2 + (row - scroll) * ROW_H, a, row == hovered);
+		boolean onRow = hovered >= scroll && hovered < end && hovered < rowCount() - 1;
+		if (onRow) {
+			float target = panelY + HEADER_H + 2 + (hovered - scroll) * ROW_H;
+			if (glideAlpha.get() < 0.05f) glideY.snap(target);
+			glideY.setTarget(target);
 		}
+		glideAlpha.setTarget(onRow ? 1f : 0f);
+		float glide = glideAlpha.update(dt, theme.animationSpeed * 20f);
+		float gy = glideY.update(dt, theme.animationSpeed * 24f);
+		for (int row = scroll; row < end; row++) {
+			float t = arrive(row - scroll);
+			if (t <= 0f || row == rowCount() - 1) continue;
+			Glass.chip(c, theme, panelX + 6 + slide(t), panelY + HEADER_H + 2 + (row - scroll) * ROW_H, panelW - 12, ROW_H - 4, 4, 0f, a * t);
+		}
+		if (glide > 0.01f) Glass.chip(c, theme, panelX + 6, Math.round(gy), panelW - 12, ROW_H - 4, 4, 1f, a * glide);
+		for (int row = scroll; row < end; row++) {
+			float t = arrive(row - scroll);
+			if (t <= 0f) continue;
+			c.push();
+			c.translate(slide(t), 0f);
+			drawRow(c, row, panelY + HEADER_H + 2 + (row - scroll) * ROW_H, a * t, row == hovered);
+			c.pop();
+		}
+		c.pop();
+	}
+
+	/** How far row {@code k} on screen has slid in, 0 to 1. */
+	private float arrive(int k) {
+		return Math.max(0f, Math.min(1f, (age - 0.04f - k * 0.03f) / 0.2f));
+	}
+
+	private static int slide(float t) {
+		float k = 1f - t;
+		return Math.round(k * k * k * 12f);
 	}
 
 	private void drawRow(Canvas c, int row, int y, float a, boolean hover) {
@@ -126,9 +166,6 @@ public final class ModuleSettingsView extends View {
 			UiText.drawCentered(c, "Reset to defaults", UiText.UI_SMALL, bx + bw / 2, by + 4, hover ? text : muted);
 			return;
 		}
-
-		int card = Theme.lerpColor(theme.surface(1f), theme.highlight(), hover ? 0.08f : 0.035f);
-		GuiDraw.roundedRect(c, x, y, w, h, 4, scaleAlpha(Theme.withAlpha(card, Math.min(1f, theme.panelOpacity + 0.05f)), a));
 
 		if (row == 0) {
 			label(c, "Keybind", capturingKey ? "Press a key. Backspace clears it" : "Key that switches or holds this module", x, y, h, controlX, a);

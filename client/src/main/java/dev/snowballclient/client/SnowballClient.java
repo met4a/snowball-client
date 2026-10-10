@@ -21,8 +21,17 @@ import dev.snowballclient.client.perf.ModScanner;
 import dev.snowballclient.client.platform.MinecraftTextures;
 import dev.snowballclient.client.platform.ViewScreen;
 import dev.snowballclient.client.social.Rank;
+import dev.snowballclient.client.hud.NotificationCenter;
 import dev.snowballclient.client.social.SnowballPlayers;
 import dev.snowballclient.client.social.SnowballPresence;
+import dev.snowballclient.client.spotify.NowPlaying;
+import dev.snowballclient.client.cosmetics.CustomCapes;
+import dev.snowballclient.client.emote.Emotes;
+import dev.snowballclient.client.emote.SelfSkin;
+import dev.snowballclient.client.gui.EmoteWheelView;
+import dev.snowballclient.client.social.Looks;
+import dev.snowballclient.client.social.SnowballLive;
+import net.minecraft.client.CameraType;
 import dev.snowballclient.client.util.OptionsSaver;
 import dev.snowballclient.client.waypoint.WaypointStore;
 import net.fabricmc.api.ClientModInitializer;
@@ -65,6 +74,14 @@ public final class SnowballClient implements ClientModInitializer {
 	private ModRequests modRequests;
 	private KeybindTracker keybinds;
 	private KeyMapping openMenuKey;
+	private KeyMapping spotifyPlayPause;
+	private KeyMapping spotifyNext;
+	private KeyMapping spotifyPrevious;
+	private KeyMapping emoteWheelKey;
+	private boolean wasEmoting;
+	private double emoteX;
+	private double emoteZ;
+	private CameraType cameraBeforeEmote;
 	private int autosaveCountdown = AUTOSAVE_TICKS;
 	private int warmupCountdown = 1;
 	private boolean wasInWorld;
@@ -156,6 +173,8 @@ public final class SnowballClient implements ClientModInitializer {
 				loader::isModLoaded, ModScanner.disabledMods(loader.getGameDir().resolve("mods")));
 		config.loadAll(modules, theme, waypoints);
 		ModuleRegistry.INTERFACE.pullFromTheme(config.clientSettings());
+		// Snowball's screens blur the world behind them when the look and the setting ask for it.
+		dev.snowballclient.client.ui.View.setBackgroundBlur(() -> theme.glass() && theme.blurBehind);
 		for (ExternalModModule external : ModuleRegistry.EXTERNAL_MODS) external.syncFromRequests();
 		ModuleRegistry.FPS_BOOST.arm();
 		modules.clearDirty();
@@ -164,6 +183,16 @@ public final class SnowballClient implements ClientModInitializer {
 
 		KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "main"));
 		openMenuKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.snowballclient.open_menu", InputConstants.Type.KEYSYM, DEFAULT_MENU_KEY, category));
+		// Unbound until the player picks keys under Controls.
+		spotifyPlayPause = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.snowballclient.spotify_play_pause", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), category));
+		spotifyNext = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.snowballclient.spotify_next", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), category));
+		spotifyPrevious = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.snowballclient.spotify_previous", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), category));
+		NowPlaying.start();
+		emoteWheelKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.snowballclient.emote_wheel", InputConstants.Type.KEYSYM, 66, category));
+		CustomCapes.load(configDir);
+		Looks.setShowOthers(ModuleRegistry.COSMETICS.showOthers.isOn());
+		Emotes.setShowOthers(ModuleRegistry.EMOTES.isEnabled() && ModuleRegistry.EMOTES.showOthers.isOn());
+		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> NowPlaying.get().stop());
 		modules.onKeybindChanged(m -> config.saveKeybinds(modules));
 		modules.onStateChanged(m -> {
 			// Only keybind toggles (no screen open) produce notifications; menu clicks are already visible.
@@ -212,6 +241,12 @@ public final class SnowballClient implements ClientModInitializer {
 		while (openMenuKey.consumeClick()) {
 			if (mc.gui.screen() == null && mc.player != null) ViewScreen.show(new RadialMenuView(this));
 		}
+		while (emoteWheelKey.consumeClick()) {
+			if (mc.gui.screen() == null && mc.player != null && ModuleRegistry.EMOTES.isEnabled()) ViewScreen.show(new EmoteWheelView(this));
+		}
+		while (spotifyPlayPause.consumeClick()) NowPlaying.get().control(NowPlaying.Action.PLAY_PAUSE);
+		while (spotifyNext.consumeClick()) NowPlaying.get().control(NowPlaying.Action.NEXT);
+		while (spotifyPrevious.consumeClick()) NowPlaying.get().control(NowPlaying.Action.PREVIOUS);
 		if (mc.gui.screen() == null && mc.player != null && mc.isWindowActive()) {
 			keybinds.tick(key -> InputConstants.isKeyDown(mc.getWindow(), key), true);
 		} else {
@@ -236,7 +271,20 @@ public final class SnowballClient implements ClientModInitializer {
 		boolean inWorld = mc.level != null && mc.player != null;
 		if (inWorld && !wasInWorld) {
 			showMenuHint(mc);
-			if (mc.getUser() != null) SnowballPlayers.setSelf(mc.getUser().getProfileId());
+			if (mc.getUser() != null) {
+				SnowballPlayers.setSelf(mc.getUser().getProfileId());
+				// What you wear and the emotes you do are yours at once, before the backend hears of them.
+				Looks.setSelf(mc.getUser().getProfileId(), () -> ModuleRegistry.COSMETICS == null ? "" : ModuleRegistry.COSMETICS.wearing());
+				Emotes.setSelf(mc.getUser().getProfileId());
+				SelfSkin.prefetch(mc.getUser().getProfileId(), MinecraftTextures.INSTANCE);
+			}
+			SnowballLive.start(() -> {
+				if (mc.getConnection() == null) return java.util.List.of();
+				return mc.getConnection().getOnlinePlayers().stream()
+						.map(p -> p.getProfile().id())
+						.filter(java.util.Objects::nonNull)
+						.toList();
+			});
 			// Who is on Snowball is asked of the backend, so other people wear their badge too.
 			dev.snowballclient.client.social.RankLookup.reset();
 			dev.snowballclient.client.social.RankLookup.start(() -> {
@@ -249,16 +297,53 @@ public final class SnowballClient implements ClientModInitializer {
 		}
 		if (!inWorld && wasInWorld) {
 			ModuleRegistry.COMBAT.reset();
+			dev.snowballclient.client.platform.WorldCulling.forget();
 			SnowballPlayers.forgetOthers();
+			SnowballLive.stop();
+			Looks.forgetOthers();
+			CustomCapes.forgetOthers();
 			dev.snowballclient.client.social.RankLookup.stop();
 			saveIfDirty();
 		}
 		wasInWorld = inWorld;
+		if (inWorld) tickEmote(mc);
+		// Whether other players can see your badge, said once when it changes.
+		String badgeNews = SnowballPresence.takeNews();
+		if (badgeNews != null) NotificationCenter.post("Snowball badge", badgeNews);
 
 		if (--autosaveCountdown <= 0) {
 			autosaveCountdown = AUTOSAVE_TICKS;
 			saveIfDirty();
 		}
+	}
+
+	/**
+	 * Your own emote: it ends when you walk off or attack (if Emotes says so), and the camera steps
+	 * back into third person for it so you can see it, then returns.
+	 */
+	private void tickEmote(Minecraft mc) {
+		var emotes = ModuleRegistry.EMOTES;
+		boolean emoting = Emotes.playingSelf();
+		if (emoting && !wasEmoting) {
+			emoteX = mc.player.getX();
+			emoteZ = mc.player.getZ();
+		} else if (emoting && emotes.stopWhenMoving.isOn()) {
+			double dx = mc.player.getX() - emoteX;
+			double dz = mc.player.getZ() - emoteZ;
+			if (dx * dx + dz * dz > 0.04 || mc.player.swinging) {
+				Emotes.stopSelf();
+				emoting = false;
+			}
+		}
+		if (emoting && !wasEmoting && emotes.thirdPerson.isOn() && mc.options.getCameraType().isFirstPerson()) {
+			cameraBeforeEmote = mc.options.getCameraType();
+			mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
+		}
+		if (!emoting && cameraBeforeEmote != null) {
+			mc.options.setCameraType(cameraBeforeEmote);
+			cameraBeforeEmote = null;
+		}
+		wasEmoting = emoting;
 	}
 
 	private void showMenuHint(Minecraft mc) {

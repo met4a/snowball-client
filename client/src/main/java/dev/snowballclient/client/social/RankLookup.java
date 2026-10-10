@@ -34,11 +34,20 @@ import java.util.regex.Pattern;
 public final class RankLookup {
 	private static final Duration TIMEOUT = Duration.ofSeconds(8);
 	private static final long EVERY_MS = 30_000;
-	/** When each player was last asked about, so the same faces are not looked up every half minute. */
+	/** When each player is next asked about, so the same faces are not looked up every half minute. */
 	private static final Map<UUID, Long> ASKED = new ConcurrentHashMap<>();
+	/** How many answers in a row said a player is not on Snowball yet. */
+	private static final Map<UUID, Integer> MISSES = new ConcurrentHashMap<>();
 	/** How long an answer stands before the player is asked about again. */
 	private static final long REASK_MS = 120_000;
+	/**
+	 * Somebody who joined at the same moment as you may not have told the backend they play yet:
+	 * they are asked about again soon, a few times, before settling to the usual pace.
+	 */
+	private static final long SOON_MS = 30_000;
+	private static final int SOON_TIMES = 4;
 	private static final Pattern ENTRY = Pattern.compile("\"([0-9a-f]{32})\"\\s*:\\s*\"([a-z_]+)\"");
+	private static final Pattern CAPE = Pattern.compile("\"([0-9a-f]{32})\"\\s*:\\s*\\{\\s*\"cape\"\\s*:\\s*\"([a-z_]+)\"(?:\\s*,\\s*\"v\"\\s*:\\s*(\\d{1,9}))?");
 
 	private static ScheduledExecutorService timer;
 	private static HttpClient http;
@@ -74,6 +83,7 @@ public final class RankLookup {
 		if (timer != null) timer.shutdownNow();
 		timer = null;
 		ASKED.clear();
+		MISSES.clear();
 	}
 
 	/** Forgets what it asked, so a fresh server is looked up again. */
@@ -91,12 +101,12 @@ public final class RankLookup {
 		List<UUID> wanted = new ArrayList<>();
 		for (UUID id : players) {
 			if (wanted.size() >= 200) break;
-			Long asked = id == null ? null : ASKED.get(id);
-			if (id != null && (asked == null || now - asked >= REASK_MS)) wanted.add(id);
+			Long next = id == null ? null : ASKED.get(id);
+			if (id != null && (next == null || now >= next)) wanted.add(id);
 		}
 		if (wanted.isEmpty()) return;
 		lastRun = now;
-		for (UUID id : wanted) ASKED.put(id, now);
+		for (UUID id : wanted) ASKED.put(id, now + REASK_MS);
 
 		StringBuilder body = new StringBuilder("{\"uuids\":[");
 		for (int i = 0; i < wanted.size(); i++) {
@@ -118,13 +128,32 @@ public final class RankLookup {
 			// A tiny reader rather than a JSON library: the shape is one flat object of id to rank,
 			// and the client has no JSON dependency to spend on it.
 			Map<UUID, Rank> playing = new HashMap<>();
-			Matcher m = ENTRY.matcher(response.body());
+			String answer = response.body();
+			// Looks come after the ranks, in their own object; read the ranks from before it.
+			int looksAt = answer.indexOf("\"looks\"");
+			Matcher m = ENTRY.matcher(looksAt >= 0 ? answer.substring(0, looksAt) : answer);
 			while (m.find()) playing.put(uuidOf(m.group(1)), Rank.byId(m.group(2)));
+			Map<UUID, String> capes = new HashMap<>();
+			Map<UUID, Integer> versions = new HashMap<>();
+			if (looksAt >= 0) {
+				Matcher c = CAPE.matcher(answer.substring(looksAt));
+				while (c.find()) {
+					capes.put(uuidOf(c.group(1)), c.group(2));
+					if (c.group(3) != null) versions.put(uuidOf(c.group(1)), Integer.parseInt(c.group(3)));
+				}
+			}
+			for (UUID id : wanted) Looks.setCape(id, capes.get(id), versions.getOrDefault(id, 0));
 			// Everyone asked about and not in the answer is not playing with Snowball Client now.
 			for (UUID id : wanted) {
 				Rank rank = playing.get(id);
-				if (rank != null) SnowballPlayers.add(id, rank);
-				else SnowballPlayers.remove(id);
+				if (rank != null) {
+					SnowballPlayers.add(id, rank);
+					MISSES.remove(id);
+				} else {
+					SnowballPlayers.remove(id);
+					int misses = MISSES.merge(id, 1, Integer::sum);
+					if (misses <= SOON_TIMES) ASKED.put(id, now + SOON_MS);
+				}
 			}
 		} catch (Exception e) {
 			SnowballClient.LOGGER.debug("Could not look up ranks: {}", e.toString());

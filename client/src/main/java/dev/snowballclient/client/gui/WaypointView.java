@@ -101,15 +101,19 @@ public final class WaypointView extends View {
 
 	@Override
 	public void renderBackground(Canvas c, int mouseX, int mouseY, float partialTick) {
-		c.fill(0, 0, width, height, Theme.withAlpha(0xFF000000, theme.backgroundOpacity * 0.75f));
+		c.fill(0, 0, width, height, Theme.withAlpha(0xFF000000, backdropDim(theme.backgroundOpacity * 0.75f)));
 	}
 
 	@Override
 	public void render(Canvas c, int mouseX, int mouseY, float partialTick) {
 		UiText.setDensity(c.guiScale());
 		int panelH = HEADER_H + listRows * ROW_H + 56;
-		GuiDraw.roundedRect(c, panelX, panelY, PANEL_W, panelH, theme.cornerRadius, theme.surface(theme.panelOpacity));
-		GuiDraw.roundedOutline(c, panelX, panelY, PANEL_W, panelH, theme.cornerRadius, theme.border());
+		if (theme.glass()) {
+			Glass.panel(c, theme, panelX, panelY, PANEL_W, panelH, theme.cornerRadius, 1f);
+		} else {
+			GuiDraw.roundedRect(c, panelX, panelY, PANEL_W, panelH, theme.cornerRadius, theme.surface(theme.panelOpacity));
+			GuiDraw.roundedOutline(c, panelX, panelY, PANEL_W, panelH, theme.cornerRadius, theme.border());
+		}
 		c.drawText("WAYPOINTS", panelX + 10, panelY + 9, theme.text(), false);
 		String where = worldKey == null ? "not in a world" : worldKey.substring(3) + "  " + dimension.replace("minecraft:", "");
 		c.drawText(where, panelX + PANEL_W - 10 - c.textWidth(where), panelY + 9, theme.mutedText(), false);

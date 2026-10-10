@@ -21,7 +21,7 @@
   const CATS = [
     { name: 'CLIENT', rows: ['client_hud', 'crosshair', 'fps_counter', 'ping_display', 'coordinates', 'direction_hud', 'speed_display', 'combo_counter', 'reach_display', 'memory_usage', 'pack_display', 'armor_hud', 'interface'] },
     { name: 'FPS BOOST', cards: true, rows: ['fps_boost', 'advanced', 'mod_sodium', 'mod_lithium', 'mod_ferritecore', 'mod_entityculling', 'mod_immediatelyfast', 'animation_optimization', 'inactive_fps', 'particle_limiter', 'performance_advisor'] },
-    { name: 'RENDER', rows: ['fps_boost', 'fullbright', 'zoom', 'freelook', 'third_person', 'time_changer', 'hit_color', 'block_outline', 'no_hurt_shake', 'low_fire', 'fov_settings', 'render_distance', 'entity_distance', 'weather_effects', 'potion_hud'] },
+    { name: 'RENDER', rows: ['fps_boost', 'fullbright', 'zoom', 'freelook', 'third_person', 'time_changer', 'hit_color', 'crystal_glow', 'block_outline', 'no_hurt_shake', 'low_fire', 'fov_settings', 'render_distance', 'entity_distance', 'weather_effects', 'potion_hud'] },
     { name: 'MISC', rows: ['chat_settings', 'nick_hider', 'screenshot_utility', 'notifications', 'clock', 'server_info', 'session_timer'] },
     { name: 'QOL', rows: ['keystrokes', 'toggle_sprint', 'zoom', 'freelook', 'snaplook', 'third_person', 'waypoints', 'cps_counter', 'coordinates'] },
     { name: 'STORAGE', rows: ['screenshots', 'config_profiles', 'mod_profiles', 'resource_packs', 'shader_packs', 'container_preview', 'container_search', 'item_counter'] },
@@ -60,6 +60,7 @@
     third_person: ['Third-Person Camera', 'Set third-person distance', 't', false, true],
     time_changer: ['Time Changer', 'Pick the time of day you see', 't', false, true],
     hit_color: ['Hit Colour', 'Colour of the hit flash', 't', false, true],
+    crystal_glow: ['Crystal Glow', 'End crystals in your colour, glowing', 't', false, true],
     block_outline: ['Block Outline', 'Colour of the block outline', 't', false, true],
     no_hurt_shake: ['No Hurt Shake', 'No camera shake when hurt', 't', false, false],
     low_fire: ['Low Fire', 'Lower the fire overlay', 't', false, true],

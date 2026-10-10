@@ -20,6 +20,7 @@ public abstract class View {
 
 	/** Called when the view is shown and again whenever the window size changes. */
 	public final void attach(Host host, int width, int height) {
+		if (host != null) dev.snowballclient.client.gui.icons.Icons.use(host.textures());
 		this.host = host;
 		this.width = width;
 		this.height = height;
@@ -36,6 +37,64 @@ public abstract class View {
 	}
 
 	public abstract void render(Canvas c, int mouseX, int mouseY, float partialTick);
+
+	/** Whether this view leans in 3D while 3D Menus is on. Views that need exact positions say no. */
+	protected boolean allowsDepth() {
+		return true;
+	}
+
+	/** Whether the game should blur what is behind this view (where the version can). */
+	public boolean blursBackground() {
+		return !showsPanorama() && backgroundBlur.getAsBoolean();
+	}
+
+	private static java.util.function.BooleanSupplier backgroundBlur = () -> false;
+
+	/** A view's dimming over the world: lighter when the world behind is blurred, which already sets the menu apart. */
+	protected final float backdropDim(float alpha) {
+		return blursBackground() && host != null && host.inWorld() ? alpha * 0.6f : alpha;
+	}
+
+	/** Set once by the client: whether Snowball's screens blur what is behind them. */
+	public static void setBackgroundBlur(java.util.function.BooleanSupplier blur) {
+		backgroundBlur = blur == null ? () -> false : blur;
+	}
+
+	// ---- What the platform screens call: drawing and the mouse go through 3D Menus first ----
+
+	/** Draws one frame, leaning in 3D when that is on; the mouse is mapped onto the leaning page. */
+	public final void renderFrame(Canvas c, int mouseX, int mouseY, float partialTick) {
+		if (!Depth.begin(this, c, width, height, mouseX, mouseY, allowsDepth(), showsPanorama())) {
+			render(c, mouseX, mouseY, partialTick);
+			return;
+		}
+		try {
+			double[] p = Depth.toPage(this, mouseX, mouseY);
+			render(c, (int) Math.floor(p[0]), (int) Math.floor(p[1]), partialTick);
+		} finally {
+			Depth.end(c);
+		}
+	}
+
+	public final boolean clickFrame(double mouseX, double mouseY, int button) {
+		double[] p = Depth.toPage(this, mouseX, mouseY);
+		return mouseClicked(p[0], p[1], button);
+	}
+
+	public final boolean releaseFrame(double mouseX, double mouseY, int button) {
+		double[] p = Depth.toPage(this, mouseX, mouseY);
+		return mouseReleased(p[0], p[1], button);
+	}
+
+	public final boolean dragFrame(double mouseX, double mouseY, int button) {
+		double[] p = Depth.toPage(this, mouseX, mouseY);
+		return mouseDragged(p[0], p[1], button);
+	}
+
+	public final boolean scrollFrame(double mouseX, double mouseY, double amount) {
+		double[] p = Depth.toPage(this, mouseX, mouseY);
+		return mouseScrolled(p[0], p[1], amount);
+	}
 
 	public boolean mouseClicked(double mouseX, double mouseY, int button) {
 		return false;

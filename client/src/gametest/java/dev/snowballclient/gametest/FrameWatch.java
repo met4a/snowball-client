@@ -17,16 +17,27 @@ import java.util.function.Consumer;
  * frames. A flash is a frame much brighter or darker than both of its neighbours - a menu fading in
  * changes brightness steadily, a flicker jumps for a frame and comes back - or a frame that is
  * almost entirely black or white between two that are not.
+ *
+ * <p>Consecutive frames are not always close in time, though: on a slow machine (software rendering
+ * in CI) the first frames of a resource reload came 350-450 ms apart, so the half-second fade over
+ * the game showed as one big step. A jump only counts as a cut when the two frames were close enough
+ * together that no fade could explain it.
  */
 final class FrameWatch {
 	/** Mean brightness difference, out of 255, that counts as a jump. */
 	private static final double JUMP = 18;
 	/** A change this large in one frame, ending near black or white, is a cut rather than a fade. */
 	private static final double CUT = 60;
+	/**
+	 * Frames further apart than this can hold a big step of a fade: Minecraft's shortest fade (the
+	 * reload overlay's, 500 ms) moves brightness at most about 55 in 250 ms, under {@link #CUT}.
+	 */
+	private static final long CUT_WINDOW_MS = 250;
 
 	private static int watched;
 
-	record Frame(int index, double luma, double black, double white) {
+	/** {@code at}: when the frame was taken, in ms from the start of the watch. */
+	record Frame(int index, double luma, double black, double white, long at) {
 	}
 
 	private FrameWatch() {
@@ -39,13 +50,29 @@ final class FrameWatch {
 	static List<String> watch(ClientGameTestContext context, String name, int before, int after, Consumer<ClientGameTestContext> change) {
 		watched++;
 		List<Path> shots = new ArrayList<>();
-		for (int i = 0; i < before; i++) shots.add(context.takeScreenshot("flicker_" + name + "_" + i));
+		// When each frame was taken, so a report can tell a real cut from a fade that a slow machine
+		// rendered too few frames of.
+		List<Long> at = new ArrayList<>();
+		long start = System.nanoTime();
+		for (int i = 0; i < before; i++) {
+			shots.add(context.takeScreenshot("flicker_" + name + "_" + i));
+			at.add((System.nanoTime() - start) / 1_000_000);
+		}
 		change.accept(context);
-		for (int i = 0; i < after; i++) shots.add(context.takeScreenshot("flicker_" + name + "_" + (before + i)));
+		for (int i = 0; i < after; i++) {
+			shots.add(context.takeScreenshot("flicker_" + name + "_" + (before + i)));
+			at.add((System.nanoTime() - start) / 1_000_000);
+		}
 
 		List<Frame> frames = new ArrayList<>();
-		for (int i = 0; i < shots.size(); i++) frames.add(measure(i, shots.get(i)));
-		return flashes(name, frames);
+		for (int i = 0; i < shots.size(); i++) frames.add(measure(i, shots.get(i), at.get(i)));
+		List<String> found = flashes(name, frames);
+		if (!found.isEmpty()) {
+			StringBuilder timeline = new StringBuilder(name).append(" frames (brightness @ ms):");
+			for (int i = 0; i < frames.size(); i++) timeline.append(String.format(" %d:%.0f@%d", i, frames.get(i).luma(), at.get(i)));
+			System.out.println("[FrameWatch] " + timeline);
+		}
+		return found;
 	}
 
 	/** How many changes have been watched in this run. */
@@ -66,7 +93,7 @@ final class FrameWatch {
 			boolean whiteout = cur.white() > 0.97 && prev.white() < 0.5 && next.white() < 0.5;
 			// Opening a menu can dim the screen at once; cutting the whole picture to black or white cannot be
 			// anything but a flash, even when it stays there for a while afterwards.
-			boolean cut = Math.abs(in) > CUT && (cur.luma() < 30 || cur.luma() > 225);
+			boolean cut = Math.abs(in) > CUT && (cur.luma() < 30 || cur.luma() > 225) && cur.at() - prev.at() <= CUT_WINDOW_MS;
 			if (spike || blackout || whiteout || cut) {
 				found.add(String.format("%s frame %d: brightness %.0f between %.0f and %.0f%s", name, cur.index(), cur.luma(), prev.luma(), next.luma(),
 						blackout ? " (black frame)" : whiteout ? " (white frame)" : cut ? " (cut, not a fade)" : ""));
@@ -76,7 +103,7 @@ final class FrameWatch {
 	}
 
 	/** Brightness of a screenshot, sampled on a grid: every pixel is not needed to see a flash. */
-	private static Frame measure(int index, Path file) {
+	private static Frame measure(int index, Path file, long at) {
 		BufferedImage image;
 		try {
 			image = ImageIO.read(file.toFile());
@@ -99,6 +126,6 @@ final class FrameWatch {
 				count++;
 			}
 		}
-		return new Frame(index, sum / count, black / (double) count, white / (double) count);
+		return new Frame(index, sum / count, black / (double) count, white / (double) count, at);
 	}
 }

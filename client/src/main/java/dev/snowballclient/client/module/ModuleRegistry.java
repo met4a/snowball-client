@@ -6,9 +6,11 @@ import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.module.client.ClientHud;
 import dev.snowballclient.client.module.client.ClientHudModules;
 import dev.snowballclient.client.module.client.ClientHudExtras;
+import dev.snowballclient.client.module.client.Cosmetics;
 import dev.snowballclient.client.module.client.HudLayout;
 import dev.snowballclient.client.module.client.Presets;
 import dev.snowballclient.client.module.client.InterfaceSettings;
+import dev.snowballclient.client.module.client.Menu3D;
 import dev.snowballclient.client.module.client.PvpHudModules;
 import dev.snowballclient.client.module.fps.AdvancedOptions;
 import dev.snowballclient.client.module.fps.AnimationOptimization;
@@ -18,13 +20,16 @@ import dev.snowballclient.client.module.fps.FpsBoost;
 import dev.snowballclient.client.module.fps.InactiveFpsLimiter;
 import dev.snowballclient.client.module.fps.ParticleLimiter;
 import dev.snowballclient.client.module.fps.PerformanceAdvisor;
+import dev.snowballclient.client.module.fps.SmartCulling;
 import dev.snowballclient.client.module.misc.ChatSettings;
 import dev.snowballclient.client.module.misc.NickHider;
 import dev.snowballclient.client.module.misc.Notifications;
 import dev.snowballclient.client.module.misc.ScreenshotUtility;
 import dev.snowballclient.client.module.misc.ServerInfo;
 import dev.snowballclient.client.module.misc.SessionTimer;
+import dev.snowballclient.client.module.misc.SpotifyHud;
 import dev.snowballclient.client.module.misc.DiscordPresenceModule;
+import dev.snowballclient.client.module.misc.EmotesModule;
 import dev.snowballclient.client.module.qol.CpsCounter;
 import dev.snowballclient.client.module.qol.EzPots;
 import dev.snowballclient.client.module.qol.NetherTravelModule;
@@ -40,6 +45,7 @@ import dev.snowballclient.client.module.render.Crosshair;
 import dev.snowballclient.client.module.render.FovSettings;
 import dev.snowballclient.client.module.render.Fullbright;
 import dev.snowballclient.client.module.render.GlassGui;
+import dev.snowballclient.client.module.render.CrystalGlow;
 import dev.snowballclient.client.module.render.HitColor;
 import dev.snowballclient.client.module.render.PotionHud;
 import dev.snowballclient.client.module.render.RenderDistance;
@@ -80,6 +86,7 @@ public final class ModuleRegistry {
 	public static ParticleLimiter PARTICLES;
 	public static AnimationOptimization ANIMATIONS;
 	public static EntityRenderDistance ENTITY_DISTANCE;
+	public static SmartCulling CULLING;
 	public static WeatherEffects WEATHER;
 	public static ChatSettings CHAT;
 	public static ScreenshotUtility SCREENSHOTS;
@@ -89,8 +96,12 @@ public final class ModuleRegistry {
 	public static Crosshair CROSSHAIR;
 	public static Waypoints WAYPOINTS;
 	public static InterfaceSettings INTERFACE;
+	public static Menu3D MENU_3D;
+	public static Cosmetics COSMETICS;
+	public static EmotesModule EMOTES;
 	public static FpsBoost FPS_BOOST;
 	public static HitColor HIT_COLOR;
+	public static CrystalGlow CRYSTAL_GLOW;
 	public static VisualModules.NoHurtShake NO_HURT_SHAKE;
 	public static VisualModules.LowFire LOW_FIRE;
 	public static VisualModules.BlockOutline BLOCK_OUTLINE;
@@ -125,9 +136,12 @@ public final class ModuleRegistry {
 		m.register(new HudLayout());
 		m.register(new Presets());
 		INTERFACE = m.register(new InterfaceSettings(theme, clientSettings));
+		MENU_3D = m.register(new Menu3D());
+		COSMETICS = m.register(new Cosmetics());
 
 		// FPS BOOST: one Boost switch with preset cards; the fine-tuning modules sit under Advanced.
 		FPS_BOOST = m.register(new FpsBoost(requests));
+		CULLING = m.register(new SmartCulling());
 		m.register(new AdvancedOptions(ModuleCategory.FPS_BOOST));
 		EXTERNAL_MODS.clear();
 		String[][] external = {
@@ -153,6 +167,7 @@ public final class ModuleRegistry {
 		WEATHER = m.register(new WeatherEffects());
 		m.register(new PotionHud());
 		HIT_COLOR = m.register(new HitColor());
+		CRYSTAL_GLOW = m.register(new CrystalGlow());
 		NO_HURT_SHAKE = m.register(new VisualModules.NoHurtShake());
 		LOW_FIRE = m.register(new VisualModules.LowFire());
 		BLOCK_OUTLINE = m.register(new VisualModules.BlockOutline());
@@ -167,6 +182,8 @@ public final class ModuleRegistry {
 		m.register(new SessionTimer());
 		NICK_HIDER = m.register(new NickHider());
 		m.register(new DiscordPresenceModule(SharedConstants.getCurrentVersion().name()));
+		m.register(new SpotifyHud());
+		EMOTES = m.register(new EmotesModule());
 
 		// QOL
 		m.register(new Keystrokes());
@@ -190,15 +207,15 @@ public final class ModuleRegistry {
 		CONTAINER_SEARCH = m.register(new ContainerSearch());
 		m.register(new ItemCounter());
 
-		m.order(ModuleCategory.CLIENT, "client_hud", "presets", "hud_layout", "interface", "watermark", "fps_counter", "ping_display", "coordinates",
+		m.order(ModuleCategory.CLIENT, "client_hud", "presets", "hud_layout", "interface", "cosmetics", "menu_3d", "watermark", "fps_counter", "ping_display", "coordinates",
 				"direction_hud", "custom_text", "memory_usage", "pack_display");
 		m.order(ModuleCategory.RENDER, "fps_boost", "fov_settings", "potion_hud", "block_outline", "no_hurt_shake", "low_fire", "third_person",
 				"time_changer", "weather_effects");
 		m.order(ModuleCategory.PVP, "crosshair", "armor_hud", "cps_counter", "combo_counter", "reach_display", "target_info");
 		m.order(ModuleCategory.MOVEMENT, "toggle_sprint", "speed_display");
-		m.order(ModuleCategory.VISUALS, "glass_gui", "fullbright", "zoom", "freelook", "snaplook", "hit_color");
+		m.order(ModuleCategory.VISUALS, "glass_gui", "menu_3d", "fullbright", "zoom", "freelook", "snaplook", "hit_color", "crystal_glow");
 		m.order(ModuleCategory.WORLD, "waypoints", "render_distance", "entity_distance");
-		m.order(ModuleCategory.MISC, "chat_settings", "nick_hider", "discord_presence", "screenshot_utility", "notifications", "clock", "server_info", "session_timer");
+		m.order(ModuleCategory.MISC, "chat_settings", "emotes", "nick_hider", "spotify", "discord_presence", "screenshot_utility", "notifications", "clock", "server_info", "session_timer");
 		m.order(ModuleCategory.QOL, "keystrokes", "ez_pots", "item_counter");
 	}
 

@@ -79,33 +79,36 @@ public final class ViewScreen extends Screen implements Host {
 
 	@Override
 	public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
+		// The game's own backdrop first: in a world that is the blur (which Glass GUI can swap for
+		// clear glass), then the view's dimming on top.
+		if (view.blursBackground()) super.extractBackground(g, mouseX, mouseY, partialTick);
 		view.renderBackground(canvas.wrap(g), mouseX, mouseY, partialTick);
 	}
 
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
 		super.extractRenderState(g, mouseX, mouseY, partialTick);
-		view.render(canvas.wrap(g), mouseX, mouseY, partialTick);
+		view.renderFrame(canvas.wrap(g), mouseX, mouseY, partialTick);
 	}
 
 	@Override
 	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-		return view.mouseClicked(event.x(), event.y(), event.buttonInfo().button()) || super.mouseClicked(event, doubleClick);
+		return view.clickFrame(event.x(), event.y(), event.buttonInfo().button()) || super.mouseClicked(event, doubleClick);
 	}
 
 	@Override
 	public boolean mouseReleased(MouseButtonEvent event) {
-		return view.mouseReleased(event.x(), event.y(), event.buttonInfo().button()) || super.mouseReleased(event);
+		return view.releaseFrame(event.x(), event.y(), event.buttonInfo().button()) || super.mouseReleased(event);
 	}
 
 	@Override
 	public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
-		return view.mouseDragged(event.x(), event.y(), event.buttonInfo().button()) || super.mouseDragged(event, dx, dy);
+		return view.dragFrame(event.x(), event.y(), event.buttonInfo().button()) || super.mouseDragged(event, dx, dy);
 	}
 
 	@Override
 	public boolean mouseScrolled(double x, double y, double scrollX, double scrollY) {
-		return view.mouseScrolled(x, y, scrollY) || super.mouseScrolled(x, y, scrollX, scrollY);
+		return view.scrollFrame(x, y, scrollY) || super.mouseScrolled(x, y, scrollX, scrollY);
 	}
 
 	@Override

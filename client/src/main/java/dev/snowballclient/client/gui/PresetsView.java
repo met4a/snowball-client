@@ -77,7 +77,7 @@ public final class PresetsView extends PanelView {
 			Preset preset = PRESETS.get(i);
 			int y = panelY + HEADER_H + 6 + i * ROW_H;
 			boolean hover = inside(panelX + 8, y, panelW - 16, ROW_H - 4, mouseX, mouseY);
-			GuiDraw.roundedRect(c, panelX + 8, y, panelW - 16, ROW_H - 4, 4, Theme.lerpColor(theme.surface(1f), theme.highlight(), hover ? 0.08f : 0.035f));
+			Glass.chip(c, theme, panelX + 8, y, panelW - 16, ROW_H - 4, 4, hover ? 1f : 0f, 1f);
 			UiText.draw(c, preset.name(), UiText.UI, panelX + 16, y + 5, theme.text());
 			UiText.draw(c, UiText.fit(c, preset.detail(), UiText.DETAIL, panelW - 110), UiText.DETAIL, panelX + 16, y + 17, theme.mutedText());
 			button(c, panelX + panelW - 78, y + 6, 62, ROW_H - 16, preset.name().equals(applied) ? "DONE" : "APPLY", false, mouseX, mouseY);

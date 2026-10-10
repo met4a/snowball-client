@@ -9,6 +9,49 @@ installer once.
 
 ---
 
+## 1.9.0
+
+### What's new
+- **Liquid glass.** Menus, panels and the HUD can be liquid glass (light runs
+  along the edges), frosted glass, or the classic flat look, under Menu &
+  Accessibility.
+- **3D Menus.** Snowball's menus lean towards the mouse, with layers that float
+  apart and glass edges you can see the thickness of. Tilt, depth, motion and
+  shadows are all adjustable, and it can be turned off.
+- **Cleaner menus.** Every icon is now a clean line icon, sharp at any GUI
+  scale. The wheel turns into place as it opens, its labels pop in one by one,
+  the selection sweeps round to a new category, rows slide in, and a highlight
+  glides to whatever you point at. Animation speed 0 still turns all of it off.
+- **Spotify.** A HUD card shows the song Spotify is playing, with its cover. No
+  sign-in needed. Play/pause, next and previous can be bound to keys.
+- **Smart Culling.** Entities and block entities that walls hide completely are
+  no longer drawn, which raises FPS in busy places. On by default, on every
+  version including 1.8.9. Boost can also uncap your frame rate.
+- **Emotes.** Press B for the emote wheel: sixteen emotes, eight a page, each
+  shown as a little you striking the pose, in your own skin. Other Snowball
+  players see your emotes.
+- **Cosmetics.** Eight capes to wear, which other Snowball players see.
+  Snowball+ players can paint their own cape pixel by pixel in the Cape Studio;
+  it shows once staff approve it.
+- **Crystal Glow.** End crystals in a colour of your choice, glowing in the
+  dark.
+- **New rank badges.** Tester, Bug Hunter and Partner wear the flying snowball
+  like Staff, in their own colour; Bug Hunter's old logo is gone.
+
+Emotes, capes, Crystal Glow and badges above other players need Minecraft
+1.21.11 or newer; the rest works on 1.8.9 too.
+
+### Fixed
+- **Other players' badges show up.** Badges arrive the moment a Snowball player
+  comes into view or joins, and a rank change shows straight away. If others
+  cannot see your badge, a notification says why.
+- **The admin panel tells the truth.** Every action shows the server's answer
+  where you clicked ("Alex is now Bug Hunter", or why not) instead of saying
+  done before the server had done it, while refusals turned up in chat. An
+  unknown rank no longer quietly removes someone's rank, muting works with any
+  Minecraft name, and the Ranks tab lists everyone holding a rank and explains
+  what each rank can do.
+
 ## 1.8.2
 
 ### Fixed

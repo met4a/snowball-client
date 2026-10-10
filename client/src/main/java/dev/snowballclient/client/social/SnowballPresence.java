@@ -58,9 +58,16 @@ public final class SnowballPresence {
 
 	private static ScheduledExecutorService timer;
 	private static HttpClient http;
+	private static Supplier<Account> accountSource;
+	private static BooleanSupplier enabledSource;
 	private static volatile String ticket;
 	private static volatile long quietUntil;
 	private static volatile boolean announced;
+	/** Whether other players can see your badge right now, as far as this game knows. */
+	private static volatile boolean visible;
+	private static volatile String lastProblem;
+	/** A line for the player about their badge, waiting for the game to show it; see {@link #takeNews}. */
+	private static volatile String news;
 
 	private SnowballPresence() {
 	}
@@ -71,6 +78,8 @@ public final class SnowballPresence {
 	 */
 	public static synchronized void start(Supplier<Account> account, BooleanSupplier enabled) {
 		if (timer != null || RankLookup.baseUrl().isEmpty()) return;
+		accountSource = account;
+		enabledSource = enabled;
 		http = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
 		timer = Executors.newSingleThreadScheduledExecutor(r -> {
 			Thread t = new Thread(r, "snowball-presence");
@@ -102,6 +111,40 @@ public final class SnowballPresence {
 		}
 	}
 
+	/** Says so now rather than at the next heartbeat: used when what you wear changes. */
+	public static synchronized void nudge() {
+		if (timer == null || accountSource == null) return;
+		timer.execute(() -> {
+			try {
+				beat(accountSource.get(), enabledSource.getAsBoolean());
+			} catch (Throwable e) {
+				LOGGER.debug("Presence update failed: {}", e.toString());
+			}
+		});
+	}
+
+	/**
+	 * What changed about your badge since last asked, for a notification: "Others can see your
+	 * badge", or why they cannot. Taken once; the game asks from its own thread, since this one
+	 * runs on the heartbeat's.
+	 */
+	public static String takeNews() {
+		String n = news;
+		news = null;
+		return n;
+	}
+
+	/** The ticket this game holds, for the live channel; null until the account is proved. */
+	public static String currentTicket() {
+		return ticket;
+	}
+
+	/** {"looks":{...}} for the bodies sent, or empty when nothing is worn. */
+	private static String looksJson() {
+		String cape = Looks.selfCape();
+		return cape.isEmpty() ? "" : ",\"looks\":{\"cape\":\"" + cape + "\"}";
+	}
+
 	static void beat(Account account, boolean enabled) throws Exception {
 		if (http == null) http = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
 		if (!enabled) {
@@ -114,7 +157,7 @@ public final class SnowballPresence {
 		if (System.currentTimeMillis() < quietUntil) return;
 		String held = ticket;
 		if (held != null) {
-			HttpResponse<String> answer = send("POST", "/presence", "{\"ticket\":\"" + held + "\"}");
+			HttpResponse<String> answer = send("POST", "/presence", "{\"ticket\":\"" + held + "\"" + looksJson() + "}");
 			if (answer.statusCode() == 200) return;
 			// The backend restarted or the ticket ran out: prove the account again below.
 			ticket = null;
@@ -133,7 +176,7 @@ public final class SnowballPresence {
 		HttpResponse<String> nonceAnswer = send("GET", "/nonce", null);
 		String nonce = group(NONCE, nonceAnswer.body());
 		if (nonceAnswer.statusCode() != 200 || nonce == null) {
-			backOff("the Snowball server did not answer");
+			backOff("the Snowball server did not answer", "the server did not answer");
 			return;
 		}
 
@@ -149,7 +192,7 @@ public final class SnowballPresence {
 		String keySignature = group(KEY_SIGNATURE, keys.body());
 		String expiresAt = group(EXPIRES, keys.body());
 		if (keys.statusCode() != 200 || privateKey == null || publicKey == null || keySignature == null || expiresAt == null) {
-			backOff("Minecraft did not issue a key for this account (" + keys.statusCode() + ")");
+			backOff("Minecraft did not issue a key for this account (" + keys.statusCode() + ")", "Mojang gave no key (" + keys.statusCode() + ")");
 			return;
 		}
 
@@ -161,14 +204,19 @@ public final class SnowballPresence {
 		// The public key goes back exactly as Mojang wrote it, still escaped for JSON.
 		String body = "{\"name\":\"" + account.name() + "\",\"uuid\":\"" + account.id().toString().replace("-", "")
 				+ "\",\"nonce\":\"" + nonce + "\",\"publicKey\":\"" + publicKey + "\",\"keySignature\":\"" + keySignature
-				+ "\",\"expiresAt\":" + Instant.parse(unescape(expiresAt)).toEpochMilli() + ",\"signature\":\"" + signature + "\"}";
+				+ "\",\"expiresAt\":" + Instant.parse(unescape(expiresAt)).toEpochMilli() + ",\"signature\":\"" + signature + "\"" + looksJson() + "}";
 		HttpResponse<String> proved = send("POST", "/presence", body);
 		String issued = group(TICKET, proved.body());
 		if (proved.statusCode() != 200 || issued == null) {
-			backOff("the Snowball server did not accept the account (" + proved.statusCode() + ")");
+			backOff("the Snowball server did not accept the account (" + proved.statusCode() + ")", "server refused it (" + proved.statusCode() + ")");
 			return;
 		}
 		ticket = issued;
+		if (!visible) {
+			visible = true;
+			lastProblem = null;
+			news = "Others can see your badge";
+		}
 		if (!announced) {
 			announced = true;
 			LOGGER.info("Snowball players can see your badge while you play with Snowball Client");
@@ -185,9 +233,16 @@ public final class SnowballPresence {
 		quietUntil = 0;
 	}
 
-	private static void backOff(String why) {
+	/** @param brief the reason in a few words, for the notification */
+	private static void backOff(String why, String brief) {
 		quietUntil = System.currentTimeMillis() + BACK_OFF_MS;
+		visible = false;
 		LOGGER.info("Not showing your Snowball badge to others for now: {}", why);
+		// Said once per reason, so a server that is down does not nag every few minutes.
+		if (!brief.equals(lastProblem)) {
+			lastProblem = brief;
+			news = "Hidden: " + brief;
+		}
 	}
 
 	private static HttpResponse<String> send(String method, String path, String json) throws Exception {

@@ -8,11 +8,14 @@ import dev.snowballclient.client.module.client.ClientHudModules;
 import dev.snowballclient.client.module.client.HudLayout;
 import dev.snowballclient.client.module.client.Presets;
 import dev.snowballclient.client.module.client.InterfaceSettings;
+import dev.snowballclient.client.module.client.Menu3D;
 import dev.snowballclient.client.module.client.PvpHudModules;
 import dev.snowballclient.client.module.fps.FpsBoost;
+import dev.snowballclient.client.module.fps.SmartCulling;
 import dev.snowballclient.client.module.misc.Notifications;
 import dev.snowballclient.client.module.misc.ServerInfo;
 import dev.snowballclient.client.module.misc.SessionTimer;
+import dev.snowballclient.client.module.misc.SpotifyHud;
 import dev.snowballclient.client.module.qol.CpsCounter;
 import dev.snowballclient.client.module.qol.Keystrokes;
 import dev.snowballclient.client.module.qol.NetherTravelModule;
@@ -46,7 +49,9 @@ public final class ModuleRegistry {
 
 	public static ClientHud CLIENT_HUD;
 	public static InterfaceSettings INTERFACE;
+	public static Menu3D MENU_3D;
 	public static FpsBoost FPS_BOOST;
+	public static SmartCulling CULLING;
 	public static Notifications NOTIFICATIONS;
 	public static Waypoints WAYPOINTS;
 	public static Zoom ZOOM;
@@ -69,9 +74,13 @@ public final class ModuleRegistry {
 		m.register(new HudLayout());
 		m.register(new Presets());
 		INTERFACE = m.register(new InterfaceSettings(theme, clientSettings));
+		// Minecraft 1.8.9 has no blur to put behind a menu.
+		INTERFACE.blurBehind.hide();
+		MENU_3D = m.register(new Menu3D());
 
 		// FPS BOOST
 		FPS_BOOST = m.register(new FpsBoost());
+		CULLING = m.register(new SmartCulling());
 
 		// RENDER
 		FULLBRIGHT = m.register(new Fullbright());
@@ -85,6 +94,7 @@ public final class ModuleRegistry {
 		m.register(new ServerInfo());
 		NOTIFICATIONS = m.register(new Notifications());
 		m.register(new SessionTimer());
+		m.register(new SpotifyHud());
 
 		// QOL
 		m.register(new Keystrokes());
@@ -101,9 +111,9 @@ public final class ModuleRegistry {
 		m.register(new StorageScreens.ModProfiles());
 
 		m.order(ModuleCategory.CLIENT, "client_hud", "hud_layout", "fps_counter", "ping_display", "coordinates", "direction_hud",
-				"speed_display", "combo_counter", "reach_display", "memory_usage", "armor_hud", "interface");
+				"speed_display", "combo_counter", "reach_display", "memory_usage", "armor_hud", "interface", "menu_3d");
 		m.order(ModuleCategory.RENDER, "fps_boost", "fullbright", "zoom", "potion_hud", "low_fire", "fov_settings", "render_distance");
-		m.order(ModuleCategory.MISC, "notifications", "clock", "server_info", "session_timer");
+		m.order(ModuleCategory.MISC, "spotify", "notifications", "clock", "server_info", "session_timer");
 		m.order(ModuleCategory.QOL, "keystrokes", "toggle_sprint", "zoom", "snaplook", "waypoints", "nether_travel", "cps_counter", "coordinates");
 	}
 }

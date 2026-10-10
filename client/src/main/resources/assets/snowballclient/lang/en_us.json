@@ -1,6 +1,10 @@
 {
 	"key.category.snowballclient.main": "Snowball Client",
 	"key.snowballclient.open_menu": "Open Snowball Menu",
+	"key.snowballclient.emote_wheel": "Emote Wheel",
+	"key.snowballclient.spotify_play_pause": "Spotify: Play / Pause",
+	"key.snowballclient.spotify_next": "Spotify: Next Song",
+	"key.snowballclient.spotify_previous": "Spotify: Previous Song",
 
 	"snowballclient.menu.hint": "Press %s to open the Snowball Client menu",
 

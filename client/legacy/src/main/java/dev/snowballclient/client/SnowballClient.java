@@ -30,6 +30,7 @@ import net.legacyfabric.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.legacyfabric.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
+import dev.snowballclient.client.spotify.NowPlaying;
 import net.minecraft.client.util.ScreenshotUtils;
 import net.minecraft.client.util.Window;
 import net.minecraft.text.LiteralText;
@@ -58,6 +59,9 @@ public final class SnowballClient implements ClientModInitializer {
 	private ModRequests modRequests;
 	private KeybindTracker keybinds;
 	private KeyBinding openMenuKey;
+	private KeyBinding spotifyPlayPause;
+	private KeyBinding spotifyNext;
+	private KeyBinding spotifyPrevious;
 	private HudRenderer hud;
 	private int autosaveCountdown = AUTOSAVE_TICKS;
 	private int warmupCountdown = 1;
@@ -133,6 +137,12 @@ public final class SnowballClient implements ClientModInitializer {
 		hud = new HudRenderer(modules, theme);
 
 		openMenuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.snowballclient.open_menu", Keyboard.KEY_RSHIFT, "key.category.snowballclient.main"));
+		// Unbound until the player picks keys under Controls.
+		spotifyPlayPause = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.snowballclient.spotify_play_pause", Keyboard.KEY_NONE, "key.category.snowballclient.main"));
+		spotifyNext = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.snowballclient.spotify_next", Keyboard.KEY_NONE, "key.category.snowballclient.main"));
+		spotifyPrevious = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.snowballclient.spotify_previous", Keyboard.KEY_NONE, "key.category.snowballclient.main"));
+		NowPlaying.start();
+		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> NowPlaying.get().stop());
 		modules.onKeybindChanged(m -> config.saveKeybinds(modules));
 		modules.onStateChanged(m -> {
 			// Only keybind toggles (no screen open) produce notifications; menu clicks are already visible.
@@ -167,6 +177,9 @@ public final class SnowballClient implements ClientModInitializer {
 		while (openMenuKey.wasPressed()) {
 			if (client.currentScreen == null && client.player != null) LegacyScreen.show(new RadialMenuView(this));
 		}
+		while (spotifyPlayPause.wasPressed()) NowPlaying.get().control(NowPlaying.Action.PLAY_PAUSE);
+		while (spotifyNext.wasPressed()) NowPlaying.get().control(NowPlaying.Action.NEXT);
+		while (spotifyPrevious.wasPressed()) NowPlaying.get().control(NowPlaying.Action.PREVIOUS);
 		if (client.currentScreen == null && client.player != null && client.focused) {
 			keybinds.tick(key -> Keyboard.isKeyDown(LegacyKeys.toLwjgl(key)), true);
 		} else {

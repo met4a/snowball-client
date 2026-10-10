@@ -1402,13 +1402,14 @@ textarea.input {
   image-rendering: pixelated;
   flex: none;
 }
-/* Staff wear the 11x7 flying snowball on its own, at exactly twice its pixel size. */
+/* Staff wear the 11x7 flying snowball on its own. */
 .rank-chip.icon-only {
   padding: 0;
   border: 0;
   background: none;
 }
-.rank-mark.staff-mark {
+/* Every flying snowball is drawn at exactly twice its pixel size. */
+.rank-mark.flying {
   width: 22px;
   height: 14px;
 }
@@ -1888,6 +1889,29 @@ body.compact .log-view {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
+}
+/* A cape design waiting for staff: the picture at six times its size, kept pixel-sharp. */
+.admin-cape {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(16, 21, 28, 0.7);
+}
+.cape-preview {
+  width: 60px;
+  height: 96px;
+  flex: none;
+  image-rendering: pixelated;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px var(--border);
+}
+.admin-cape-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 /* A visible focus ring everywhere, so the launcher can be driven by keyboard. */
@@ -2388,3 +2412,16 @@ body.reduce-motion *::after {
 /* The Java path box shrinks, and its buttons drop below it, rather than pushing out of a narrow card. */
 .java-check { flex-wrap: wrap; }
 .java-check .input { flex: 1 1 200px; min-width: 0; }
+
+/* ---------- admin: who holds a rank, and what each can do ---------- */
+.admin-ranked,
+.admin-rank-guide {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.admin-rank-guide .rank-chip {
+  min-width: 112px;
+}

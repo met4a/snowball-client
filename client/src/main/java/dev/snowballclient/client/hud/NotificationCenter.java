@@ -1,5 +1,6 @@
 package dev.snowballclient.client.hud;
 
+import dev.snowballclient.client.gui.Glass;
 import dev.snowballclient.client.gui.ToggleWidget;
 import dev.snowballclient.client.gui.UiText;
 import dev.snowballclient.client.gui.theme.Theme;
@@ -47,9 +48,13 @@ public final class NotificationCenter {
 			float eased = 1f - (1f - in) * (1f - in) * (1f - in);
 			float alpha = Math.min(eased, Math.min(1f, (LIFETIME_MS - age) / (float) FADE_MS));
 			int x = g.guiWidth() - 6 - WIDTH + Math.round((1f - eased) * 24f);
-			GuiDraw.roundedRect(g, x + 1, y + 2, WIDTH, HEIGHT, 5, ToggleWidget.scaleAlpha(0x60000000, alpha));
-			GuiDraw.roundedRect(g, x, y, WIDTH, HEIGHT, 5, ToggleWidget.scaleAlpha(theme.surface(theme.panelOpacity), alpha));
-			GuiDraw.roundedOutline(g, x, y, WIDTH, HEIGHT, 5, ToggleWidget.scaleAlpha(theme.border(), alpha));
+			if (theme.glass()) {
+				Glass.panel(g, theme, x, y, WIDTH, HEIGHT, 5, alpha);
+			} else {
+				GuiDraw.roundedRect(g, x + 1, y + 2, WIDTH, HEIGHT, 5, ToggleWidget.scaleAlpha(0x60000000, alpha));
+				GuiDraw.roundedRect(g, x, y, WIDTH, HEIGHT, 5, ToggleWidget.scaleAlpha(theme.surface(theme.panelOpacity), alpha));
+				GuiDraw.roundedOutline(g, x, y, WIDTH, HEIGHT, 5, ToggleWidget.scaleAlpha(theme.border(), alpha));
+			}
 			g.fill(x + 1, y + 6, x + 3, y + HEIGHT - 6, ToggleWidget.scaleAlpha(theme.accent(), alpha));
 			UiText.draw(g, e.title, UiText.UI, x + 9, y + 5, ToggleWidget.scaleAlpha(theme.text(), alpha));
 			UiText.draw(g, e.body, UiText.UI_SMALL, x + 9, y + 17, ToggleWidget.scaleAlpha(theme.mutedText(), alpha));

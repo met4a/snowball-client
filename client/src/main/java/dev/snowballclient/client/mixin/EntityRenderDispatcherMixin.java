@@ -1,6 +1,7 @@
 package dev.snowballclient.client.mixin;
 
 import dev.snowballclient.client.module.ModuleRegistry;
+import dev.snowballclient.client.platform.WorldCulling;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
@@ -18,6 +19,9 @@ public abstract class EntityRenderDispatcherMixin {
 		if (ModuleRegistry.ENTITY_DISTANCE == null || entity == Minecraft.getInstance().getCameraEntity()) return;
 		if (ModuleRegistry.ENTITY_DISTANCE.shouldCull(entity.distanceToSqr(camX, camY, camZ), entity instanceof Player)) {
 			cir.setReturnValue(false);
+			return;
 		}
+		// Smart Culling: walls hide all of it, so drawing it would only cost frames.
+		if (WorldCulling.hideEntity(entity, camX, camY, camZ)) cir.setReturnValue(false);
 	}
 }
