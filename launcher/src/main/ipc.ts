@@ -72,6 +72,7 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
   chat?.on('history', (messages) => toRenderer('chat-history', messages));
   chat?.on('people', (people) => toRenderer('chat-people', people));
   chat?.on('bugs', (bugs) => toRenderer('chat-bugs', bugs));
+  chat?.on('capes', (capes) => toRenderer('chat-capes', capes));
   chat?.on('bug-filed', (id) => toRenderer('chat-bug-filed', id));
   ipcMain.handle('chat:state', () => chat?.current() ?? { configured: false, status: 'offline', online: 0, announcement: null, admin: false });
   ipcMain.handle('chat:connect', async () => {

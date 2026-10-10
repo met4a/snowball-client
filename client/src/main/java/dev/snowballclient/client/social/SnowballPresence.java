@@ -58,6 +58,8 @@ public final class SnowballPresence {
 
 	private static ScheduledExecutorService timer;
 	private static HttpClient http;
+	private static Supplier<Account> accountSource;
+	private static BooleanSupplier enabledSource;
 	private static volatile String ticket;
 	private static volatile long quietUntil;
 	private static volatile boolean announced;
@@ -71,6 +73,8 @@ public final class SnowballPresence {
 	 */
 	public static synchronized void start(Supplier<Account> account, BooleanSupplier enabled) {
 		if (timer != null || RankLookup.baseUrl().isEmpty()) return;
+		accountSource = account;
+		enabledSource = enabled;
 		http = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
 		timer = Executors.newSingleThreadScheduledExecutor(r -> {
 			Thread t = new Thread(r, "snowball-presence");
@@ -102,6 +106,29 @@ public final class SnowballPresence {
 		}
 	}
 
+	/** Says so now rather than at the next heartbeat: used when what you wear changes. */
+	public static synchronized void nudge() {
+		if (timer == null || accountSource == null) return;
+		timer.execute(() -> {
+			try {
+				beat(accountSource.get(), enabledSource.getAsBoolean());
+			} catch (Throwable e) {
+				LOGGER.debug("Presence update failed: {}", e.toString());
+			}
+		});
+	}
+
+	/** The ticket this game holds, for the live channel; null until the account is proved. */
+	public static String currentTicket() {
+		return ticket;
+	}
+
+	/** {"looks":{...}} for the bodies sent, or empty when nothing is worn. */
+	private static String looksJson() {
+		String cape = Looks.selfCape();
+		return cape.isEmpty() ? "" : ",\"looks\":{\"cape\":\"" + cape + "\"}";
+	}
+
 	static void beat(Account account, boolean enabled) throws Exception {
 		if (http == null) http = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
 		if (!enabled) {
@@ -114,7 +141,7 @@ public final class SnowballPresence {
 		if (System.currentTimeMillis() < quietUntil) return;
 		String held = ticket;
 		if (held != null) {
-			HttpResponse<String> answer = send("POST", "/presence", "{\"ticket\":\"" + held + "\"}");
+			HttpResponse<String> answer = send("POST", "/presence", "{\"ticket\":\"" + held + "\"" + looksJson() + "}");
 			if (answer.statusCode() == 200) return;
 			// The backend restarted or the ticket ran out: prove the account again below.
 			ticket = null;
@@ -161,7 +188,7 @@ public final class SnowballPresence {
 		// The public key goes back exactly as Mojang wrote it, still escaped for JSON.
 		String body = "{\"name\":\"" + account.name() + "\",\"uuid\":\"" + account.id().toString().replace("-", "")
 				+ "\",\"nonce\":\"" + nonce + "\",\"publicKey\":\"" + publicKey + "\",\"keySignature\":\"" + keySignature
-				+ "\",\"expiresAt\":" + Instant.parse(unescape(expiresAt)).toEpochMilli() + ",\"signature\":\"" + signature + "\"}";
+				+ "\",\"expiresAt\":" + Instant.parse(unescape(expiresAt)).toEpochMilli() + ",\"signature\":\"" + signature + "\"" + looksJson() + "}";
 		HttpResponse<String> proved = send("POST", "/presence", body);
 		String issued = group(TICKET, proved.body());
 		if (proved.statusCode() != 200 || issued == null) {

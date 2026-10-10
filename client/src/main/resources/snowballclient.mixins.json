@@ -4,6 +4,8 @@
   "compatibilityLevel": "JAVA_${java}",
   "client": [
     "AbstractContainerScreenAccessor",
+    "AvatarEmoteMixin",
+    "AvatarRenderStateMixin",
     "BlockEntityCullingMixin",
     "CameraMixin",
     "ChatComponentMixin",
@@ -19,6 +21,8 @@
     "MouseHandlerMixin",
     "OverlayTextureMixin",
     "ParticleEngineMixin",
+    "PlayerInfoCapeMixin",
+    "PlayerModelEmoteMixin",
     "NameTagMixin",
     "OwnNameTagMixin",
     "PlayerTabOverlayMixin",

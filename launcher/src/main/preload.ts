@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 // The renderer runs sandboxed with no Node access; it can only call these whitelisted channels.
 const invoke = (channel: string) => (...args: unknown[]) => ipcRenderer.invoke(channel, ...args);
-const EVENTS = new Set(['progress', 'game-log', 'game-exit', 'launch-error', 'launcher-log', 'state', 'activity', 'update', 'chat-state', 'chat-message', 'chat-history', 'chat-people', 'chat-bugs', 'chat-bug-filed', 'chat-lookup', 'chat-rank-set', 'chat-history-ranks']);
+const EVENTS = new Set(['progress', 'game-log', 'game-exit', 'launch-error', 'launcher-log', 'state', 'activity', 'update', 'chat-state', 'chat-message', 'chat-history', 'chat-people', 'chat-bugs', 'chat-bug-filed', 'chat-lookup', 'chat-rank-set', 'chat-history-ranks', 'chat-capes']);
 
 const api = {
   getState: invoke('state:get'),

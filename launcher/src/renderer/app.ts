@@ -42,7 +42,8 @@
     stats: null as Snowball.SnowballStats | null,
     people: [] as Snowball.SnowballPerson[],
     bugs: [] as Snowball.BugReport[],
-    adminTab: 'chat' as 'chat' | 'ranks' | 'people' | 'bugs' | 'flags',
+    adminTab: 'chat' as 'chat' | 'ranks' | 'people' | 'bugs' | 'capes' | 'flags',
+    capes: [] as Snowball.CapeRequest[],
     lookup: null as Snowball.RankLookup | null,
     /** The chosen background picture as a data URL, read once at start-up. */
     background: null as string | null,
@@ -327,6 +328,7 @@
     ['ranks', 'Ranks', 'users.view'],
     ['people', 'People', 'users.view'],
     ['bugs', 'Bugs', 'bugs.triage'],
+    ['capes', 'Capes', 'capes.review'],
     ['flags', 'Features', 'flags.manage'],
   ];
 
@@ -1561,6 +1563,7 @@
       ui.adminTab = id;
       if (id === 'people') void api.chatAdmin('people');
       if (id === 'bugs') void api.chatAdmin('bugs');
+      if (id === 'capes') void api.chatAdmin('capes');
       render();
       // Focus follows the tab, so the keyboard does not jump back to the top of the page.
       setTimeout(() => document.querySelector<HTMLElement>(`#admin-tab-${id}`)?.focus(), 0);
@@ -1603,6 +1606,7 @@
       ui.adminTab === 'ranks' ? rankManager()
       : ui.adminTab === 'people' ? peopleList()
       : ui.adminTab === 'bugs' ? bugList()
+      : ui.adminTab === 'capes' ? capeList()
       : ui.adminTab === 'flags' ? flagList()
       : chatTools();
 
@@ -1890,6 +1894,57 @@
 
     return h('div', { class: 'admin-body admin-wide' }, summary, line, h('div', { class: 'admin-cards admin-cards-wide' }, ...rows));
   }
+  /**
+   * Snowball+ cape designs waiting for a decision. Each shows as the player will wear it, larger
+   * and pixel-sharp, so it can be judged properly; nothing is worn by anyone until it is approved.
+   */
+  function capeList(): HTMLElement {
+    const line = statusLine();
+    if (!ui.capes.length) {
+      return h('div', { class: 'admin-body' },
+        h('p', { class: 'muted' }, 'No capes waiting. Snowball+ players send designs from the cape studio in the game.'));
+    }
+    const summary = h('div', { class: 'muted', style: 'font-size:12px' },
+      `${ui.capes.length} design${ui.capes.length === 1 ? '' : 's'} waiting for a decision`);
+
+    const rows = ui.capes.map((cape) => {
+      const picture = h('canvas', { class: 'cape-preview', width: '10', height: '16', role: 'img', 'aria-label': `Cape design by ${cape.name || cape.uuid}` }) as HTMLCanvasElement;
+      paintCape(picture, cape.pixels);
+      const reason = h('input', {
+        class: 'input',
+        maxlength: '140',
+        placeholder: 'Reason, if you say no',
+        'aria-label': `Why the cape by ${cape.name || cape.uuid} is not approved`,
+      }) as HTMLInputElement;
+      const decide = async (approve: boolean) => {
+        const r = await guard(() => api.chatAdmin('cape-review', { uuid: cape.uuid, approve, reason: reason.value.trim() }));
+        if (r?.ok) say(line, approve ? `Approved the cape by ${cape.name || 'that player'}.` : `Sent the cape by ${cape.name || 'that player'} back.`);
+        else if (r) say(line, r.reason ?? 'That did not work.', 'bad');
+      };
+      return h('div', { class: 'admin-cape' },
+        picture,
+        h('div', { class: 'grow' },
+          h('div', {}, cape.name || cape.uuid),
+          h('div', { class: 'muted', style: 'font-size:11px' },
+            `${fmtWhen(cape.at)}${cape.replaces ? ' \u00b7 replaces their approved cape' : ''}`),
+          field('Reason', reason, 'Only needed when you say no. The player sees it in the game.')),
+        h('div', { class: 'admin-cape-actions' },
+          h('button', { class: 'btn small', onClick: () => void decide(true) }, 'Approve'),
+          h('button', { class: 'btn small ghost', onClick: () => void decide(false) }, 'Deny')));
+    });
+    return h('div', { class: 'admin-body admin-wide' }, summary, line, h('div', { class: 'admin-cards admin-cards-wide' }, ...rows));
+  }
+
+  /** Draws a cape design (10x16 colours as hex) into a 10x16 canvas, which CSS scales up sharply. */
+  function paintCape(canvas: HTMLCanvasElement, pixels: string): void {
+    const ctx = canvas.getContext('2d');
+    if (!ctx || !/^[0-9a-f]{960}$/.test(pixels)) return;
+    for (let i = 0; i < 160; i++) {
+      ctx.fillStyle = `#${pixels.slice(i * 6, i * 6 + 6)}`;
+      ctx.fillRect(i % 10, Math.floor(i / 10), 1, 1);
+    }
+  }
+
   /**
    * Feature switches. Each one uses the same toggle as the rest of the launcher, so its state
    * is visible at a glance rather than having to be read off a button label.
@@ -2716,6 +2771,10 @@
   api.on('chat-bugs', (bugs: Snowball.BugReport[]) => {
     ui.bugs = bugs;
     if (ui.view === 'admin' && ui.adminTab === 'bugs') render();
+  });
+  api.on('chat-capes', (capes: Snowball.CapeRequest[]) => {
+    ui.capes = capes;
+    if (ui.view === 'admin' && ui.adminTab === 'capes') render();
   });
   api.on('chat-history', (messages: Snowball.ChatMessage[]) => {
     ui.chatMessages = messages.slice(-200);

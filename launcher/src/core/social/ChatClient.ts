@@ -249,6 +249,8 @@ export class ChatClient extends EventEmitter {
     'rank-clear': 'ranks.manage',
     grant: 'ranks.manage',
     ungrant: 'ranks.manage',
+    capes: 'capes.review',
+    'cape-review': 'capes.review',
   };
 
   /** Asks for the people list, the bug list, or changes a bug's state or a feature flag. */
@@ -436,6 +438,9 @@ export class ChatClient extends EventEmitter {
         break;
       case 'bugs':
         this.emit('bugs', payload.bugs ?? []);
+        break;
+      case 'capes':
+        this.emit('capes', Array.isArray(payload.capes) ? payload.capes : []);
         break;
       case 'bug-filed':
         this.emit('bug-filed', String(payload.id ?? ''));

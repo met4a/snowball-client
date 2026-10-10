@@ -1889,6 +1889,29 @@ body.compact .log-view {
   padding-top: 10px;
   border-top: 1px solid var(--border);
 }
+/* A cape design waiting for staff: the picture at six times its size, kept pixel-sharp. */
+.admin-cape {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(16, 21, 28, 0.7);
+}
+.cape-preview {
+  width: 60px;
+  height: 96px;
+  flex: none;
+  image-rendering: pixelated;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px var(--border);
+}
+.admin-cape-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
 /* A visible focus ring everywhere, so the launcher can be driven by keyboard. */
 :focus-visible {

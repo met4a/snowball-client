@@ -39,6 +39,7 @@ public final class RankLookup {
 	/** How long an answer stands before the player is asked about again. */
 	private static final long REASK_MS = 120_000;
 	private static final Pattern ENTRY = Pattern.compile("\"([0-9a-f]{32})\"\\s*:\\s*\"([a-z_]+)\"");
+	private static final Pattern CAPE = Pattern.compile("\"([0-9a-f]{32})\"\\s*:\\s*\\{\\s*\"cape\"\\s*:\\s*\"([a-z_]+)\"(?:\\s*,\\s*\"v\"\\s*:\\s*(\\d{1,9}))?");
 
 	private static ScheduledExecutorService timer;
 	private static HttpClient http;
@@ -118,8 +119,21 @@ public final class RankLookup {
 			// A tiny reader rather than a JSON library: the shape is one flat object of id to rank,
 			// and the client has no JSON dependency to spend on it.
 			Map<UUID, Rank> playing = new HashMap<>();
-			Matcher m = ENTRY.matcher(response.body());
+			String answer = response.body();
+			// Looks come after the ranks, in their own object; read the ranks from before it.
+			int looksAt = answer.indexOf("\"looks\"");
+			Matcher m = ENTRY.matcher(looksAt >= 0 ? answer.substring(0, looksAt) : answer);
 			while (m.find()) playing.put(uuidOf(m.group(1)), Rank.byId(m.group(2)));
+			Map<UUID, String> capes = new HashMap<>();
+			Map<UUID, Integer> versions = new HashMap<>();
+			if (looksAt >= 0) {
+				Matcher c = CAPE.matcher(answer.substring(looksAt));
+				while (c.find()) {
+					capes.put(uuidOf(c.group(1)), c.group(2));
+					if (c.group(3) != null) versions.put(uuidOf(c.group(1)), Integer.parseInt(c.group(3)));
+				}
+			}
+			for (UUID id : wanted) Looks.setCape(id, capes.get(id), versions.getOrDefault(id, 0));
 			// Everyone asked about and not in the answer is not playing with Snowball Client now.
 			for (UUID id : wanted) {
 				Rank rank = playing.get(id);

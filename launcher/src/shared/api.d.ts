@@ -329,6 +329,16 @@ declare namespace Snowball {
     status: 'open' | 'investigating' | 'fixed' | 'duplicate' | 'invalid';
   }
 
+  /** A Snowball+ player's cape design waiting for staff: 10x16 colours as 960 hex digits. */
+  interface CapeRequest {
+    uuid: string;
+    name: string;
+    pixels: string;
+    at: number;
+    /** They already wear an approved design; this one would replace it. */
+    replaces: boolean;
+  }
+
   interface SnowballPerson {
     uuid: string;
     name: string;
@@ -379,7 +389,7 @@ declare namespace Snowball {
     canRetry?: boolean;
   }
 
-  type EventName = 'progress' | 'game-log' | 'game-exit' | 'launch-error' | 'launcher-log' | 'state' | 'activity' | 'update' | 'chat-state' | 'chat-message' | 'chat-history' | 'chat-people' | 'chat-bugs' | 'chat-bug-filed' | 'chat-lookup' | 'chat-rank-set' | 'chat-history-ranks';
+  type EventName = 'progress' | 'game-log' | 'game-exit' | 'launch-error' | 'launcher-log' | 'state' | 'activity' | 'update' | 'chat-state' | 'chat-message' | 'chat-history' | 'chat-people' | 'chat-bugs' | 'chat-bug-filed' | 'chat-lookup' | 'chat-rank-set' | 'chat-history-ranks' | 'chat-capes';
 
   interface Api {
     getState(): Promise<AppState>;
