@@ -1,0 +1,111 @@
+name: Aurora probe (temporary)
+
+# Temporary, for the branch that brings the Aurora-style features in: compiles and tests every
+# Minecraft version, prints the Minecraft signatures the new mixins are written against, and starts
+# the game under a virtual display to take the menu screenshots. Removed before the branch is merged.
+on:
+  push:
+    branches: ['claude/aurora-client-parity-jaf4s0']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            25
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Build and test the modern versions
+        working-directory: client
+        run: ./gradlew build buildAndCollect --continue --stacktrace
+
+      - name: Build the 1.8.9 version
+        if: always()
+        working-directory: client
+        run: ./gradlew -p legacy build buildAndCollect --continue
+
+      - name: Check generated sources
+        if: always()
+        run: node client/tools/check-generated.mjs
+
+      - name: Minecraft signatures
+        if: always()
+        run: |
+          set +e
+          echo "== Minecraft jars =="
+          find ~/.gradle client -name '*.jar' 2>/dev/null | grep -iE 'minecraft' | grep -viE 'sources|fabric-api|fabric-loader|lwjgl' | xargs -r ls -la
+          classes="
+            net.minecraft.client.player.AbstractClientPlayer
+            net.minecraft.world.entity.player.PlayerSkin
+            net.minecraft.client.resources.PlayerSkin
+            net.minecraft.core.ClientAsset
+            net.minecraft.core.ClientAsset\$Texture
+            net.minecraft.core.ClientAsset\$ResourceTexture
+            net.minecraft.core.ClientAsset\$DownloadedTexture
+            net.minecraft.client.multiplayer.PlayerInfo
+            net.minecraft.client.renderer.entity.player.AvatarRenderer
+            net.minecraft.client.renderer.entity.player.PlayerRenderer
+            net.minecraft.client.renderer.entity.state.AvatarRenderState
+            net.minecraft.client.renderer.entity.state.PlayerRenderState
+            net.minecraft.client.renderer.entity.state.HumanoidRenderState
+            net.minecraft.client.renderer.entity.state.LivingEntityRenderState
+            net.minecraft.client.renderer.entity.state.EntityRenderState
+            net.minecraft.client.renderer.entity.LivingEntityRenderer
+            net.minecraft.client.renderer.entity.layers.CapeLayer
+            net.minecraft.client.model.player.PlayerModel
+            net.minecraft.client.model.PlayerModel
+            net.minecraft.client.model.HumanoidModel
+            net.minecraft.client.model.Model
+            net.minecraft.client.model.EntityModel
+            net.minecraft.client.model.geom.ModelPart
+            net.minecraft.client.gui.screens.Screen
+            net.minecraft.util.Util
+            net.minecraft.util.Util\$OS
+            net.minecraft.client.KeyMapping
+            net.minecraft.world.entity.Avatar
+            net.minecraft.world.entity.player.PlayerModelPart
+          "
+          for jar in $(find ~/.gradle client -name '*.jar' 2>/dev/null | grep -iE 'minecraft-(merged|client|common)|minecraft/.*client' | grep -viE 'sources|lwjgl' | sort -u); do
+            echo
+            echo "################ $jar"
+            unzip -l "$jar" | grep -iE 'Avatar|PlayerSkin|ClientAsset|CapeLayer|player/PlayerModel|PlayerRenderState|AvatarRenderState' | awk '{print $4}' | head -60
+            for c in $classes; do
+              out=$(javap -p -cp "$jar" "$c" 2>/dev/null)
+              if [ -n "$out" ]; then echo "---- $c"; echo "$out"; fi
+            done
+          done
+          exit 0
+
+      - name: Start the game under a virtual display
+        if: always()
+        working-directory: client
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb mesa-utils libgl1-mesa-dri > /dev/null
+          xvfb-run -a -s "-screen 0 1920x1080x24" ./gradlew :26.2:runClientGameTest --stacktrace
+
+      - name: Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: |
+            client/run/**/screenshots/**
+            client/build/run/**/screenshots/**
+          if-no-files-found: warn
