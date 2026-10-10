@@ -9,7 +9,7 @@ installer once.
 
 ---
 
-## Unreleased
+## 1.9.0
 
 ### What's new
 - **Liquid glass.** Menus, panels and the HUD can be liquid glass (light runs
