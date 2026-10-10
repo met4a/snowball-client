@@ -62,7 +62,7 @@ jobs:
           echo "==== 1.8.9 build ===="
           grep -nE "error:|e: |What went wrong|> Could not|FAILED|BUILD (SUCCESSFUL|FAILED)" -A4 legacy-build.log | head -120 || true
           echo "==== game test ===="
-          grep -nE "Flash:|Mixin apply|InvalidInjection|InjectionError|Caused by|Exception in|has crashed|No frame flashed|tests? (passed|failed)|BUILD (SUCCESSFUL|FAILED)" gametest.log | grep -v "OpenAL\|flite\|SignedJWT\|profile key pair\|certificates" | head -80 || true
+          grep -nE "FrameWatch|Flash:|Mixin apply|InvalidInjection|InjectionError|Caused by|Exception in|has crashed|No frame flashed|tests? (passed|failed)|BUILD (SUCCESSFUL|FAILED)" gametest.log | grep -v "OpenAL\|flite\|SignedJWT\|profile key pair\|certificates" | head -80 || true
 
       - name: Screenshots
         if: always()
@@ -70,6 +70,5 @@ jobs:
         with:
           name: screenshots
           path: |
-            client/run/**/screenshots/**
-            client/build/run/**/screenshots/**
+            client/versions/*/build/run/**/screenshots/**
           if-no-files-found: warn

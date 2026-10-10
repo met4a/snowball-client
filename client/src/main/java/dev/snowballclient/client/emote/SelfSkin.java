@@ -81,13 +81,13 @@ public final class SelfSkin {
 	/** Reads the skin's address out of a session server profile; null when it has none. */
 	public static Source parseProfile(String json) {
 		try {
-			JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+			JsonObject root = new JsonParser().parse(json).getAsJsonObject();
 			if (!root.has("properties")) return null;
 			for (JsonElement property : root.getAsJsonArray("properties")) {
 				JsonObject p = property.getAsJsonObject();
 				if (!"textures".equals(p.get("name").getAsString())) continue;
 				String decoded = new String(Base64.getDecoder().decode(p.get("value").getAsString()), StandardCharsets.UTF_8);
-				JsonObject textures = JsonParser.parseString(decoded).getAsJsonObject().getAsJsonObject("textures");
+				JsonObject textures = new JsonParser().parse(decoded).getAsJsonObject().getAsJsonObject("textures");
 				if (textures == null || !textures.has("SKIN")) return null;
 				JsonObject skin = textures.getAsJsonObject("SKIN");
 				URI uri = URI.create(skin.get("url").getAsString());

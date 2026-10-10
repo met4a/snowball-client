@@ -154,7 +154,7 @@ public final class CustomCapes {
 			try {
 				HttpResponse<String> answer = send(HttpRequest.newBuilder(URI.create(baseUrl() + "/capes/status?ticket=" + ticket)).GET());
 				if (answer.statusCode() != 200) return;
-				JsonObject o = JsonParser.parseString(answer.body()).getAsJsonObject();
+				JsonObject o = new JsonParser().parse(answer.body()).getAsJsonObject();
 				JsonElement approved = o.get("approved");
 				approvedVersion = approved != null && approved.isJsonPrimitive() ? approved.getAsInt() : 0;
 				JsonElement request = o.get("request");
@@ -187,7 +187,7 @@ public final class CustomCapes {
 			try {
 				HttpResponse<String> answer = send(HttpRequest.newBuilder(URI.create(baseUrl() + "/capes/" + id)).GET());
 				if (answer.statusCode() != 200) return;
-				JsonObject o = JsonParser.parseString(answer.body()).getAsJsonObject();
+				JsonObject o = new JsonParser().parse(answer.body()).getAsJsonObject();
 				int[] face = CapeLayout.decode(o.has("pixels") ? o.get("pixels").getAsString() : null);
 				int v = o.has("version") ? o.get("version").getAsInt() : 0;
 				if (face != null && v == version) FACES.put(player, new Fetched(v, face));
@@ -209,7 +209,7 @@ public final class CustomCapes {
 
 	private static String error(String body, String fallback) {
 		try {
-			JsonElement e = JsonParser.parseString(body).getAsJsonObject().get("error");
+			JsonElement e = new JsonParser().parse(body).getAsJsonObject().get("error");
 			return e != null && e.isJsonPrimitive() ? e.getAsString() : fallback;
 		} catch (RuntimeException ex) {
 			return fallback;

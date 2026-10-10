@@ -39,13 +39,29 @@ final class FrameWatch {
 	static List<String> watch(ClientGameTestContext context, String name, int before, int after, Consumer<ClientGameTestContext> change) {
 		watched++;
 		List<Path> shots = new ArrayList<>();
-		for (int i = 0; i < before; i++) shots.add(context.takeScreenshot("flicker_" + name + "_" + i));
+		// When each frame was taken, so a report can tell a real cut from a fade that a slow machine
+		// rendered too few frames of.
+		List<Long> at = new ArrayList<>();
+		long start = System.nanoTime();
+		for (int i = 0; i < before; i++) {
+			shots.add(context.takeScreenshot("flicker_" + name + "_" + i));
+			at.add((System.nanoTime() - start) / 1_000_000);
+		}
 		change.accept(context);
-		for (int i = 0; i < after; i++) shots.add(context.takeScreenshot("flicker_" + name + "_" + (before + i)));
+		for (int i = 0; i < after; i++) {
+			shots.add(context.takeScreenshot("flicker_" + name + "_" + (before + i)));
+			at.add((System.nanoTime() - start) / 1_000_000);
+		}
 
 		List<Frame> frames = new ArrayList<>();
 		for (int i = 0; i < shots.size(); i++) frames.add(measure(i, shots.get(i)));
-		return flashes(name, frames);
+		List<String> found = flashes(name, frames);
+		if (!found.isEmpty()) {
+			StringBuilder timeline = new StringBuilder(name).append(" frames (brightness @ ms):");
+			for (int i = 0; i < frames.size(); i++) timeline.append(String.format(" %d:%.0f@%d", i, frames.get(i).luma(), at.get(i)));
+			System.out.println("[FrameWatch] " + timeline);
+		}
+		return found;
 	}
 
 	/** How many changes have been watched in this run. */
