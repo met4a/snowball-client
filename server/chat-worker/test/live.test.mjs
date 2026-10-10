@@ -90,3 +90,24 @@ test('the live channel needs a ticket from a game that proved its account', asyn
   const refused = await r.fetch(new Request('https://chat.test/live?ticket=' + 'f'.repeat(32), { headers: { Upgrade: 'websocket' } }));
   assert.equal(refused.status, 403);
 });
+
+test('badges arrive as soon as a player is seen, joins, or leaves', async () => {
+  const r = await room();
+  const bob = listen(r, B);
+  // Alice is already playing when Bob first sees her.
+  const { ticket } = await (await call(r, '/presence', await proof(r, A, 'Alice'))).json();
+  r.ranks.set(A, { rank: 'bug_hunter' });
+  r.onLive(bob, JSON.stringify({ type: 'watch', uuids: [A, C] }));
+  assert.deepEqual(bob.got, [{ type: 'rank', uuid: A, rank: 'bug_hunter' }], 'Carol is not playing, so nothing about her');
+  // Watching her again says nothing new.
+  r.onLive(bob, JSON.stringify({ type: 'watch', uuids: [A, C] }));
+  assert.equal(bob.got.length, 1);
+
+  // Carol starts playing while Bob can see her.
+  await call(r, '/presence', await proof(r, C, 'Carol'));
+  assert.deepEqual(bob.got.at(-1), { type: 'rank', uuid: C, rank: 'snowball' });
+
+  // Alice closes her game.
+  await call(r, '/presence', { ticket }, 'DELETE');
+  assert.deepEqual(bob.got.at(-1), { type: 'gone', uuid: A });
+});

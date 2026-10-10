@@ -33,6 +33,7 @@ public final class SnowballLive {
 	private static final Pattern ID = Pattern.compile("\"id\"\\s*:\\s*\"([a-z_]+)\"");
 	private static final Pattern CAPE = Pattern.compile("\"cape\"\\s*:\\s*\"([a-z_]+)\"");
 	private static final Pattern VERSION = Pattern.compile("\"v\"\\s*:\\s*(\\d{1,9})");
+	private static final Pattern RANK = Pattern.compile("\"rank\"\\s*:\\s*\"([a-z_]+)\"");
 
 	private static ScheduledExecutorService timer;
 	private static HttpClient http;
@@ -137,6 +138,13 @@ public final class SnowballLive {
 		switch (type) {
 			case "emote" -> Emotes.started(player, group(ID, text), now);
 			case "stop" -> Emotes.stopped(player);
+			// Badges as soon as the backend knows: a player you can see who plays Snowball, or one
+			// whose rank just changed, and one who stopped.
+			case "rank" -> SnowballPlayers.add(player, Rank.byId(group(RANK, text)));
+			case "gone" -> {
+				SnowballPlayers.remove(player);
+				Emotes.stopped(player);
+			}
 			case "looks" -> {
 				String v = group(VERSION, text);
 				Looks.setCape(player, group(CAPE, text), v == null ? 0 : Integer.parseInt(v));

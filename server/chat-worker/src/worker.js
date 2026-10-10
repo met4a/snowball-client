@@ -184,6 +184,7 @@ export class ChatRoom {
           this.inClient.delete(held.uuid);
           this.looks.delete(held.uuid);
           this.presenceTickets.delete(String(body.ticket));
+          this.liveSend(held.uuid, { type: 'gone', uuid: held.uuid });
         }
         return Response.json({ ok: true });
       }
@@ -191,7 +192,9 @@ export class ChatRoom {
       if (body.ticket) {
         const held = this.presenceTickets.get(String(body.ticket));
         if (!held) return Response.json({ error: 'that ticket is not valid any more' }, { status: 403 });
+        const was = this.playingNow(held.uuid);
         this.inClient.set(held.uuid, now);
+        if (!was) this.liveSend(held.uuid, { type: 'rank', uuid: held.uuid, rank: this.rankOf(held.uuid) });
         this.setLooks(held.uuid, body.looks);
         return Response.json({ ok: true, ticket: String(body.ticket), every: PRESENCE_EVERY_S });
       }
@@ -201,7 +204,10 @@ export class ChatRoom {
       if (typeof failure === 'string') return Response.json({ error: failure }, { status: 403 });
       const ticket = crypto.randomUUID().replace(/-/g, '');
       this.presenceTickets.set(ticket, { uuid, name, until: now + PRESENCE_TICKET_MS });
+      const was = this.playingNow(uuid);
       this.inClient.set(uuid, now);
+      // Games that can see this player hear at once that they play Snowball.
+      if (!was) this.liveSend(uuid, { type: 'rank', uuid, rank: this.rankOf(uuid) });
       this.setLooks(uuid, body.looks);
       return Response.json({ ok: true, ticket, every: PRESENCE_EVERY_S });
     }
@@ -403,7 +409,14 @@ export class ChatRoom {
     }
     if (payload.type === 'watch') {
       const ids = Array.isArray(payload.uuids) ? payload.uuids : [];
+      const before = member.watching ?? new Set();
       member.watching = new Set(ids.slice(0, WATCH_MAX).map((raw) => String(raw ?? '').replace(/-/g, '').toLowerCase()).filter((id) => /^[a-f0-9]{32}$/.test(id)));
+      // Badges for players just come into view, straight away rather than at the game's next
+      // /ranks round.
+      for (const id of member.watching) {
+        if (before.has(id) || id === member.uuid || !this.playingNow(id)) continue;
+        socket.send(JSON.stringify({ type: 'rank', uuid: id, rank: this.rankOf(id) }));
+      }
       return;
     }
     if (payload.type === 'emote') {
@@ -687,6 +700,8 @@ export class ChatRoom {
         other.send(JSON.stringify({ type: 'you', rank, permissions: permissionsOf(rank), owner: person.owner, flags: this.flags }));
       }
       socket.send(JSON.stringify({ type: 'rank-set', uuid, rank, history: this.rankLog.get(uuid) ?? [] }));
+      // Players who can see them in game get the new badge now.
+      if (this.playingNow(uuid)) this.liveSend(uuid, { type: 'rank', uuid, rank });
       reply(true, rank === 'snowball' ? `${nameOf(uuid)} is back to plain Snowball.` : `${nameOf(uuid)} is now ${RANK_NAMES[rank] ?? rank}. They see it straight away.`);
       return;
     }

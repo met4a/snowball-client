@@ -63,6 +63,11 @@ public final class SnowballPresence {
 	private static volatile String ticket;
 	private static volatile long quietUntil;
 	private static volatile boolean announced;
+	/** Whether other players can see your badge right now, as far as this game knows. */
+	private static volatile boolean visible;
+	private static volatile String lastProblem;
+	/** A line for the player about their badge, waiting for the game to show it; see {@link #takeNews}. */
+	private static volatile String news;
 
 	private SnowballPresence() {
 	}
@@ -118,6 +123,17 @@ public final class SnowballPresence {
 		});
 	}
 
+	/**
+	 * What changed about your badge since last asked, for a notification: "Others can see your
+	 * badge", or why they cannot. Taken once; the game asks from its own thread, since this one
+	 * runs on the heartbeat's.
+	 */
+	public static String takeNews() {
+		String n = news;
+		news = null;
+		return n;
+	}
+
 	/** The ticket this game holds, for the live channel; null until the account is proved. */
 	public static String currentTicket() {
 		return ticket;
@@ -160,7 +176,7 @@ public final class SnowballPresence {
 		HttpResponse<String> nonceAnswer = send("GET", "/nonce", null);
 		String nonce = group(NONCE, nonceAnswer.body());
 		if (nonceAnswer.statusCode() != 200 || nonce == null) {
-			backOff("the Snowball server did not answer");
+			backOff("the Snowball server did not answer", "the server did not answer");
 			return;
 		}
 
@@ -176,7 +192,7 @@ public final class SnowballPresence {
 		String keySignature = group(KEY_SIGNATURE, keys.body());
 		String expiresAt = group(EXPIRES, keys.body());
 		if (keys.statusCode() != 200 || privateKey == null || publicKey == null || keySignature == null || expiresAt == null) {
-			backOff("Minecraft did not issue a key for this account (" + keys.statusCode() + ")");
+			backOff("Minecraft did not issue a key for this account (" + keys.statusCode() + ")", "Mojang gave no key (" + keys.statusCode() + ")");
 			return;
 		}
 
@@ -192,10 +208,15 @@ public final class SnowballPresence {
 		HttpResponse<String> proved = send("POST", "/presence", body);
 		String issued = group(TICKET, proved.body());
 		if (proved.statusCode() != 200 || issued == null) {
-			backOff("the Snowball server did not accept the account (" + proved.statusCode() + ")");
+			backOff("the Snowball server did not accept the account (" + proved.statusCode() + ")", "server refused it (" + proved.statusCode() + ")");
 			return;
 		}
 		ticket = issued;
+		if (!visible) {
+			visible = true;
+			lastProblem = null;
+			news = "Others can see your badge";
+		}
 		if (!announced) {
 			announced = true;
 			LOGGER.info("Snowball players can see your badge while you play with Snowball Client");
@@ -212,9 +233,16 @@ public final class SnowballPresence {
 		quietUntil = 0;
 	}
 
-	private static void backOff(String why) {
+	/** @param brief the reason in a few words, for the notification */
+	private static void backOff(String why, String brief) {
 		quietUntil = System.currentTimeMillis() + BACK_OFF_MS;
+		visible = false;
 		LOGGER.info("Not showing your Snowball badge to others for now: {}", why);
+		// Said once per reason, so a server that is down does not nag every few minutes.
+		if (!brief.equals(lastProblem)) {
+			lastProblem = brief;
+			news = "Hidden: " + brief;
+		}
 	}
 
 	private static HttpResponse<String> send(String method, String path, String json) throws Exception {

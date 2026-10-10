@@ -29,4 +29,13 @@ class SnowballLiveTest {
 		SnowballLive.receive("not json", now);
 		SnowballLive.receive("{\"type\":\"emote\",\"uuid\":\"short\",\"id\":\"wave\"}", now);
 	}
+
+	@Test
+	void badgesComeAndGoOverTheLiveChannel() {
+		long now = System.currentTimeMillis();
+		SnowballLive.receive("{\"type\":\"rank\",\"uuid\":\"" + ID + "\",\"rank\":\"bug_hunter\"}", now);
+		assertEquals(Rank.BUG_HUNTER, SnowballPlayers.rank(PLAYER));
+		SnowballLive.receive("{\"type\":\"gone\",\"uuid\":\"" + ID + "\"}", now);
+		assertFalse(SnowballPlayers.isSnowball(PLAYER));
+	}
 }

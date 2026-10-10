@@ -21,6 +21,7 @@ import dev.snowballclient.client.perf.ModScanner;
 import dev.snowballclient.client.platform.MinecraftTextures;
 import dev.snowballclient.client.platform.ViewScreen;
 import dev.snowballclient.client.social.Rank;
+import dev.snowballclient.client.hud.NotificationCenter;
 import dev.snowballclient.client.social.SnowballPlayers;
 import dev.snowballclient.client.social.SnowballPresence;
 import dev.snowballclient.client.spotify.NowPlaying;
@@ -306,6 +307,9 @@ public final class SnowballClient implements ClientModInitializer {
 		}
 		wasInWorld = inWorld;
 		if (inWorld) tickEmote(mc);
+		// Whether other players can see your badge, said once when it changes.
+		String badgeNews = SnowballPresence.takeNews();
+		if (badgeNews != null) NotificationCenter.post("Snowball badge", badgeNews);
 
 		if (--autosaveCountdown <= 0) {
 			autosaveCountdown = AUTOSAVE_TICKS;
