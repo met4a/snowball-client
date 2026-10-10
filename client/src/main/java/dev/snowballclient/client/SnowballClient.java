@@ -264,6 +264,7 @@ public final class SnowballClient implements ClientModInitializer {
 		}
 		if (!inWorld && wasInWorld) {
 			ModuleRegistry.COMBAT.reset();
+			dev.snowballclient.client.platform.WorldCulling.forget();
 			SnowballPlayers.forgetOthers();
 			dev.snowballclient.client.social.RankLookup.stop();
 			saveIfDirty();

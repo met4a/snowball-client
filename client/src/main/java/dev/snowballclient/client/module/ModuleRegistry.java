@@ -19,6 +19,7 @@ import dev.snowballclient.client.module.fps.FpsBoost;
 import dev.snowballclient.client.module.fps.InactiveFpsLimiter;
 import dev.snowballclient.client.module.fps.ParticleLimiter;
 import dev.snowballclient.client.module.fps.PerformanceAdvisor;
+import dev.snowballclient.client.module.fps.SmartCulling;
 import dev.snowballclient.client.module.misc.ChatSettings;
 import dev.snowballclient.client.module.misc.NickHider;
 import dev.snowballclient.client.module.misc.Notifications;
@@ -82,6 +83,7 @@ public final class ModuleRegistry {
 	public static ParticleLimiter PARTICLES;
 	public static AnimationOptimization ANIMATIONS;
 	public static EntityRenderDistance ENTITY_DISTANCE;
+	public static SmartCulling CULLING;
 	public static WeatherEffects WEATHER;
 	public static ChatSettings CHAT;
 	public static ScreenshotUtility SCREENSHOTS;
@@ -132,6 +134,7 @@ public final class ModuleRegistry {
 
 		// FPS BOOST: one Boost switch with preset cards; the fine-tuning modules sit under Advanced.
 		FPS_BOOST = m.register(new FpsBoost(requests));
+		CULLING = m.register(new SmartCulling());
 		m.register(new AdvancedOptions(ModuleCategory.FPS_BOOST));
 		EXTERNAL_MODS.clear();
 		String[][] external = {
