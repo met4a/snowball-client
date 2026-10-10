@@ -86,7 +86,7 @@ public final class WheelTextures {
 			base.circle(OUTER_RINGS[i] * k, Math.max(1f, 0.5f * k), Theme.withAlpha(hi, 0.12f - i * 0.035f));
 		}
 		base.dots(OUTER_RINGS[1] * k, 72, Math.max(0.55f, 0.4f * k), 2.5f, Theme.withAlpha(hi, 0.09f));
-		base.ring(RIM_INNER * k, RIM_OUTER * k, t.surface(Math.min(1f, t.panelOpacity + 0.1f)));
+		base.ring(RIM_INNER * k, RIM_OUTER * k, t.surface(solid(t, Math.min(1f, t.panelOpacity + 0.1f))));
 		base.circle(RIM_OUTER * k, Math.max(1f, 0.6f * k), Theme.withAlpha(hi, t.borderOpacity + 0.08f));
 		base.circle(RIM_INNER * k, Math.max(1f, 0.5f * k), Theme.withAlpha(hi, t.borderOpacity * 0.6f));
 		float rimMid = (RIM_INNER + RIM_OUTER) / 2f * k;
@@ -94,11 +94,13 @@ public final class WheelTextures {
 		base.dots(rimMid, layout.segments(), Math.max(0.9f, 0.9f * k), layout.centerAngle(0) - span / 2f, Theme.withAlpha(hi, 0.55f));
 		for (int i = 0; i < layout.segments(); i++) {
 			base.sectorGradient(SEG_INNER * k, SEG_OUTER * k, layout.centerAngle(i), span, SEG_GAP * k,
-					t.surface(Math.min(1f, t.panelOpacity + 0.06f)), t.surface(Math.min(1f, t.panelOpacity + 0.12f)), 1f);
+					t.surface(solid(t, Math.min(1f, t.panelOpacity + 0.06f))), t.surface(solid(t, Math.min(1f, t.panelOpacity + 0.12f))), 1f);
 		}
-		base.ring(0f, HUB_R * k, t.surface(Math.min(1f, t.panelOpacity + 0.14f)));
+		base.ring(0f, HUB_R * k, t.surface(solid(t, Math.min(1f, t.panelOpacity + 0.14f))));
 		base.circle(HUB_R * k, Math.max(1f, 0.6f * k), Theme.withAlpha(hi, t.borderOpacity + 0.06f));
 		base.circle((HUB_R + 3.5f) * k, Math.max(1f, 0.5f * k), Theme.withAlpha(hi, 0.08f));
+
+		if (t.glass()) glassLight(base, k, t, layout);
 
 		RingRasterizer highlight = new RingRasterizer(size);
 		highlight.sectorGradient((SEG_INNER - 2f) * k, (RIM_OUTER + 4f) * k, 0f, span, -2f * k, Theme.withAlpha(ac, 0.16f), Theme.withAlpha(ac, 0.30f), 9f * k);
@@ -110,6 +112,37 @@ public final class WheelTextures {
 		glow.softRing(0f, (HUB_R - 4f) * k, Theme.withAlpha(ac, 0.30f), 14f * k);
 
 		return new Result(size, revision, base.pixels(), highlight.pixels(), glow.pixels());
+	}
+
+	/**
+	 * The glass looks: light caught along the top-left of the rim and the hub, a faint reflection
+	 * at the bottom right, and each segment a little lighter towards its outer edge.
+	 */
+	/** How solid the wheel's surfaces are: glass lets more of the world through. */
+	private static float solid(Theme t, float opacity) {
+		return t.liquid() ? opacity * 0.74f : t.glass() ? opacity * 0.86f : opacity;
+	}
+
+	private static void glassLight(RingRasterizer base, float k, Theme t, RadialLayout layout) {
+		float strength = t.liquid() ? 1f : 0.55f;
+		for (int i = 0; i < layout.segments(); i++) {
+			base.sectorGradient(SEG_INNER * k, SEG_OUTER * k, layout.centerAngle(i), layout.span(), SEG_GAP * k,
+					Theme.withAlpha(0xFFFFFFFF, 0f), Theme.withAlpha(0xFFFFFFFF, 0.07f * strength), 1f);
+		}
+		// Overlapping arcs of falling width: brightest at their middle, fading towards the ends.
+		float[] spans = {150f, 100f, 55f};
+		for (float span : spans) {
+			base.sectorGradient((RIM_OUTER - 2.2f) * k, (RIM_OUTER + 0.4f) * k, -38f, span, 0f,
+					Theme.withAlpha(0xFFFFFFFF, 0f), Theme.withAlpha(0xFFFFFFFF, 0.22f * strength), Math.max(1f, 1.2f * k));
+			base.sectorGradient((HUB_R - 1.6f) * k, (HUB_R + 0.3f) * k, -30f, span * 0.8f, 0f,
+					Theme.withAlpha(0xFFFFFFFF, 0f), Theme.withAlpha(0xFFFFFFFF, 0.2f * strength), Math.max(1f, k));
+		}
+		base.sectorGradient((RIM_OUTER - 1.6f) * k, (RIM_OUTER + 0.3f) * k, 142f, 70f, 0f,
+				Theme.withAlpha(0xFFFFFFFF, 0f), Theme.withAlpha(0xFFFFFFFF, 0.12f * strength), Math.max(1f, k));
+		if (t.liquid()) {
+			// A thread of the menu colour inside the rim, the way coloured light gathers in glass.
+			base.circle((RIM_INNER + 1.2f) * k, Math.max(1f, 0.5f * k), Theme.withAlpha(t.accent(), 0.22f));
+		}
 	}
 
 	private void upload(Textures textures, Result r) {

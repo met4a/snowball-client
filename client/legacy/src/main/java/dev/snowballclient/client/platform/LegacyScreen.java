@@ -66,22 +66,22 @@ public final class LegacyScreen extends Screen implements Host {
 	public void render(int mouseX, int mouseY, float delta) {
 		LegacyCanvas c = canvas.frame();
 		view.renderBackground(c, mouseX, mouseY, delta);
-		view.render(c, mouseX, mouseY, delta);
+		view.renderFrame(c, mouseX, mouseY, delta);
 	}
 
 	@Override
 	protected void mouseClicked(int mouseX, int mouseY, int button) {
-		view.mouseClicked(mouseX, mouseY, button);
+		view.clickFrame(mouseX, mouseY, button);
 	}
 
 	@Override
 	protected void mouseReleased(int mouseX, int mouseY, int button) {
-		view.mouseReleased(mouseX, mouseY, button);
+		view.releaseFrame(mouseX, mouseY, button);
 	}
 
 	@Override
 	protected void mouseDragged(int mouseX, int mouseY, int button, long timeSinceClick) {
-		view.mouseDragged(mouseX, mouseY, button);
+		view.dragFrame(mouseX, mouseY, button);
 	}
 
 	@Override
@@ -92,7 +92,7 @@ public final class LegacyScreen extends Screen implements Host {
 		// Same conversion the game uses for click positions: window pixels to GUI units.
 		int mouseX = Mouse.getEventX() * width / client.width;
 		int mouseY = height - Mouse.getEventY() * height / client.height - 1;
-		view.mouseScrolled(mouseX, mouseY, Math.signum(wheel));
+		view.scrollFrame(mouseX, mouseY, Math.signum(wheel));
 	}
 
 	@Override

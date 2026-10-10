@@ -49,7 +49,7 @@ public final class ConfigProfilesView extends PanelView {
 			String name = profiles.get(i);
 			int y = listTop() + (i - scroll) * ROW_H;
 			boolean hover = inside(panelX + 8, y, panelW - 16, ROW_H - 3, mouseX, mouseY);
-			GuiDraw.roundedRect(c, panelX + 8, y, panelW - 16, ROW_H - 3, 4, Theme.lerpColor(theme.surface(1f), theme.highlight(), hover ? 0.08f : 0.035f));
+			Glass.chip(c, theme, panelX + 8, y, panelW - 16, ROW_H - 3, 4, hover ? 1f : 0f, 1f);
 			UiText.draw(c, name, UiText.UI, panelX + 16, y + 5, theme.text());
 			button(c, panelX + panelW - 118, y + 2, 50, ROW_H - 7, "LOAD", false, mouseX, mouseY);
 			button(c, panelX + panelW - 64, y + 2, 52, ROW_H - 7, name.equals(pendingDelete) ? "SURE?" : "DELETE", false, mouseX, mouseY);

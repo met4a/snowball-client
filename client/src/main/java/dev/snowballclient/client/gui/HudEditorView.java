@@ -80,6 +80,17 @@ public final class HudEditorView extends View {
 		if (selected != null && !elements.contains(selected)) selected = null;
 	}
 
+	/** Elements are placed exactly where they will be drawn: no lean and no blur here. */
+	@Override
+	protected boolean allowsDepth() {
+		return false;
+	}
+
+	@Override
+	public boolean blursBackground() {
+		return false;
+	}
+
 	@Override
 	public void renderBackground(Canvas c, int mouseX, int mouseY, float partialTick) {
 		c.fill(0, 0, width, height, Theme.withAlpha(0xFF04060B, 0.45f));

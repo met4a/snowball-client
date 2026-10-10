@@ -17,6 +17,7 @@ import dev.snowballclient.client.module.fps.AdvancedOptions;
 import dev.snowballclient.client.module.fps.ExternalModModule;
 import dev.snowballclient.client.module.fps.FpsBoost;
 import dev.snowballclient.client.ui.Canvas;
+import dev.snowballclient.client.ui.Depth;
 import dev.snowballclient.client.ui.Keys;
 import dev.snowballclient.client.ui.UiTexture;
 import dev.snowballclient.client.ui.View;
@@ -53,6 +54,10 @@ public final class RadialMenuView extends View {
 	private static final String[] CARDS = {"max_fps", "balanced", "quality", "off"};
 	private static final float ANIM_SPEED = 14f; // about 95% settled after roughly 210 ms
 	private static final int LABEL_IDLE = 0xFFAEB8C4;
+	// How far each layer floats above the wheel with 3D Menus on, in GUI units.
+	private static final float LABEL_Z = 8f;
+	private static final float LOGO_Z = 18f;
+	private static final float PANEL_Z = 32f;
 
 	/** Row text trimmed to the available space; rebuilt only when the space or text changes. */
 	private record FittedRow(String status, int nameWidth, int descWidth, int probe, boolean search, String name, String description) {
@@ -217,7 +222,7 @@ public final class RadialMenuView extends View {
 
 	@Override
 	public void renderBackground(Canvas c, int mouseX, int mouseY, float partialTick) {
-		c.fill(0, 0, width, height, Theme.withAlpha(0xFF020306, Math.min(0.9f, theme.backgroundOpacity * 1.2f) * open.get()));
+		c.fill(0, 0, width, height, Theme.withAlpha(0xFF020306, backdropDim(Math.min(0.9f, theme.backgroundOpacity * 1.2f)) * open.get()));
 	}
 
 	@Override
@@ -248,18 +253,47 @@ public final class RadialMenuView extends View {
 			textProbe = probe;
 			fitted.clear();
 		}
+		// The wheel lies on the page; with 3D Menus its labels, the logo and the panel float above it.
 		c.push();
 		c.translate(metrics.centerX(), metrics.centerY());
 		c.scale(scale, scale);
-		drawWheel(c, o);
+		drawWheel(c, o, scale);
+		c.pop();
+		Depth.pushLayer(c, LABEL_Z);
+		c.translate(metrics.centerX(), metrics.centerY());
+		c.scale(scale, scale);
+		drawLabels(c, o);
+		c.pop();
+		Depth.pushLayer(c, LOGO_Z);
+		c.translate(metrics.centerX(), metrics.centerY());
+		c.scale(scale, scale);
+		drawLogo(c, o);
+		c.pop();
+		Depth.pushLayer(c, PANEL_Z);
+		c.translate(metrics.centerX(), metrics.centerY());
+		c.scale(scale, scale);
 		drawPanel(c, o * p, p);
 		c.pop();
 	}
 
-	private void drawWheel(Canvas c, float o) {
+	private void drawWheel(Canvas c, float o, float scale) {
 		int r = (int) WheelGeometry.TOTAL_R;
 		int d = r * 2;
 		WheelTextures wheel = client.wheelTextures();
+		int thickness = Depth.thickness();
+		if (wheel.ready() && thickness > 0) {
+			// The wheel's edge: darker copies stacked behind it, towards the side turned away.
+			float[] edge = Depth.edgeDirection();
+			int steps = thickness + 2;
+			for (int k = steps; k >= 1; k--) {
+				float off = k / scale;
+				int shade = Theme.lerpColor(0xFF1A1E26, Theme.lerpColor(0xFF39414E, theme.accent(), 0.35f), 1f - (k - 1f) / steps);
+				c.push();
+				c.translate(edge[0] * off, edge[1] * off);
+				c.drawTexture(wheel.base(), -r, -r, d, d, Theme.withAlpha(shade, o));
+				c.pop();
+			}
+		}
 		if (wheel.ready()) {
 			c.drawTexture(wheel.base(), -r, -r, d, d, Theme.withAlpha(0xFFFFFFFF, o));
 			float pulse = 0.5f + 0.5f * (float) Math.sin(time * 2.4f);
@@ -277,7 +311,9 @@ public final class RadialMenuView extends View {
 				c.pop();
 			}
 		}
+	}
 
+	private void drawLabels(Canvas c, float o) {
 		if (o > 0.04f) {
 			for (int i = 0; i < segmentHover.length; i++) {
 				double[] dir = layout.direction(i);
@@ -290,7 +326,9 @@ public final class RadialMenuView extends View {
 				else CategoryIcons.draw(c, categories[i], lx - CategoryIcons.SIZE / 2, ly - CategoryIcons.SIZE / 2, color);
 			}
 		}
+	}
 
+	private void drawLogo(Canvas c, float o) {
 		float logoPulse = 1f + 0.03f * (float) Math.sin(time * 2.4f);
 		c.push();
 		c.translate(0f, -6f);
@@ -338,9 +376,7 @@ public final class RadialMenuView extends View {
 		int top = panelTop(rows.size());
 		int h = panelHeight(rows.size());
 
-		GuiDraw.roundedRect(c, x + 2, top + 4, PANEL_W, h, 7, scaleAlpha(0x70000000, alpha));
-		GuiDraw.roundedRect(c, x, top, PANEL_W, h, 6, scaleAlpha(theme.surface(theme.panelOpacity), alpha));
-		GuiDraw.roundedOutline(c, x, top, PANEL_W, h, 6, scaleAlpha(theme.border(), alpha));
+		Glass.panel(c, theme, x, top, PANEL_W, h, 6, alpha);
 		drawHeader(c, x, top, rows, alpha);
 		drawSearch(c, x, top + HEADER_H, alpha);
 		if (showCards()) drawCards(c, x, top + HEADER_H + SEARCH_H, alpha);
@@ -394,8 +430,7 @@ public final class RadialMenuView extends View {
 		int by = y + 2;
 		int bh = 15;
 		boolean active = searching();
-		int fill = Theme.lerpColor(theme.surface(1f), theme.highlight(), active ? 0.07f : 0.035f);
-		GuiDraw.roundedRect(c, bx, by, bw, bh, 4, scaleAlpha(Theme.withAlpha(fill, Math.min(1f, theme.panelOpacity + 0.05f)), alpha));
+		Glass.chip(c, theme, bx, by, bw, bh, 4, active ? 0.45f : 0f, alpha);
 		GuiDraw.roundedOutline(c, bx, by, bw, bh, 4, scaleAlpha(active ? theme.accent() : theme.border(), alpha));
 		magnifier(c, bx + 8, by + 7, scaleAlpha(active ? theme.accent() : theme.mutedText(), alpha));
 		int tx = bx + 16;
@@ -426,11 +461,9 @@ public final class RadialMenuView extends View {
 			int cy = y + 2 + (i / 2) * (CARD_H + CARD_GAP);
 			boolean sel = CARDS[i].equals(chosen);
 			boolean hover = i == hoveredCard;
-			int fill = sel
-					? Theme.withAlpha(theme.accent(), hover ? 0.28f : 0.2f)
-					: Theme.withAlpha(Theme.lerpColor(theme.surface(1f), theme.highlight(), hover ? 0.09f : 0.04f), Math.min(1f, theme.panelOpacity + 0.05f));
 			int outline = sel ? theme.accent() : hover ? Theme.withAlpha(theme.highlight(), 0.35f) : theme.border();
-			GuiDraw.roundedRect(c, cx, cy, cw, CARD_H, 4, scaleAlpha(fill, alpha));
+			if (sel) GuiDraw.roundedRect(c, cx, cy, cw, CARD_H, 4, scaleAlpha(Theme.withAlpha(theme.accent(), hover ? 0.28f : 0.2f), alpha));
+			else Glass.chip(c, theme, cx, cy, cw, CARD_H, 4, hover ? 1f : 0f, alpha);
 			GuiDraw.roundedOutline(c, cx, cy, cw, CARD_H, 4, scaleAlpha(outline, alpha));
 			int titleColor = sel ? theme.text() : Theme.lerpColor(theme.mutedText(), theme.text(), 0.65f);
 			UiText.draw(c, FpsBoost.label(CARDS[i]), UiText.UI, cx + 7, cy + 4, scaleAlpha(titleColor, alpha));
@@ -443,10 +476,9 @@ public final class RadialMenuView extends View {
 		int rowH = ROW_H - 3;
 		boolean hover = index == hoveredRow;
 		boolean focus = index == focusedRow;
-		int card = Theme.lerpColor(theme.surface(1f), theme.highlight(), hover ? 0.08f : 0.035f);
-		GuiDraw.roundedRect(c, rx, y, rw, rowH, 4, scaleAlpha(Theme.withAlpha(card, Math.min(1f, theme.panelOpacity + 0.05f)), alpha));
+		Glass.chip(c, theme, rx, y, rw, rowH, 4, hover ? 1f : 0f, alpha);
 		if (focus) GuiDraw.roundedOutline(c, rx, y, rw, rowH, 4, scaleAlpha(theme.accent(), alpha));
-		else if (hover) GuiDraw.roundedOutline(c, rx, y, rw, rowH, 4, scaleAlpha(theme.border(), alpha));
+		else if (hover && !theme.glass()) GuiDraw.roundedOutline(c, rx, y, rw, rowH, 4, scaleAlpha(theme.border(), alpha));
 
 		AdvancedOptions advanced = m instanceof AdvancedOptions a ? a : null;
 		boolean active = m.isToggleable() && m.isEnabled();
@@ -541,13 +573,18 @@ public final class RadialMenuView extends View {
 	// ---- input ----
 
 	private void updateHover(double mouseX, double mouseY) {
-		float lx = (float) ((mouseX - metrics.centerX()) / metrics.scale());
-		float ly = (float) ((mouseY - metrics.centerY()) / metrics.scale());
-		int seg = layout.hitTest(lx, ly, WheelGeometry.SEG_INNER, WheelGeometry.RIM_OUTER);
+		float wx = (float) ((mouseX - metrics.centerX()) / metrics.scale());
+		float wy = (float) ((mouseY - metrics.centerY()) / metrics.scale());
+		int seg = layout.hitTest(wx, wy, WheelGeometry.SEG_INNER, WheelGeometry.RIM_OUTER);
 		hoveredSegment = seg >= 0 ? seg : RadialLayout.NONE;
 		hoveredRow = -1;
 		hoveredSettings = false;
 		hoveredCard = -1;
+
+		// The panel floats above the wheel in 3D Menus: find the mouse on the panel's own layer.
+		double[] onPanel = Depth.toLayer(mouseX, mouseY, PANEL_Z);
+		float lx = (float) ((onPanel[0] - metrics.centerX()) / metrics.scale());
+		float ly = (float) ((onPanel[1] - metrics.centerY()) / metrics.scale());
 
 		if (lx < PANEL_X + ROW_INSET || lx >= PANEL_X + PANEL_W - ROW_INSET) return;
 		List<Module> rows = rows();

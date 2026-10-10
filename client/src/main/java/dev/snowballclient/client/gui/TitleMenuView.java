@@ -278,6 +278,12 @@ public final class TitleMenuView extends View {
 
 	/** The frosted card the menu sits on: a soft shadow, a translucent fill and a hairline edge. */
 	private void drawPanel(Canvas c, int x, int y, int w, int h, int radius, float alpha, boolean accentEdge) {
+		if (theme.glass()) {
+			// Glass over the panorama: mostly clear, so the world shows through it.
+			Glass.panel(c, theme, x, y, w, h, radius, alpha, theme.panelOpacity * 0.5f);
+			if (accentEdge) c.fill(x + w / 2 - 18, y, x + w / 2 + 18, y + 1, scaleAlpha(theme.accent(), alpha * 0.6f));
+			return;
+		}
 		for (int i = SHADOW_STEPS; i > 0; i--) {
 			GuiDraw.roundedRect(c, x - i, y - i, w + i * 2, h + i * 2, radius + i, Theme.withAlpha(0xFF000000, 0.07f * alpha));
 		}
@@ -286,6 +292,16 @@ public final class TitleMenuView extends View {
 		// A hint of light along the top edge, so the panel reads as lit from above.
 		c.fill(x + radius, y, x + w - radius, y + 1, Theme.withAlpha(0xFFFFFFFF, 0.05f * alpha));
 		if (accentEdge) c.fill(x + w / 2 - 18, y, x + w / 2 + 18, y + 1, scaleAlpha(theme.accent(), alpha * 0.45f));
+	}
+
+	/** A button's face: frosted glass in the glass looks, the flat fill otherwise. */
+	private void button(Canvas c, int x, int y, int w, int h, int flatFill, float hover, float alpha) {
+		if (!theme.glass()) {
+			GuiDraw.roundedRect(c, x, y, w, h, 5, scaleAlpha(flatFill, alpha));
+			return;
+		}
+		GuiDraw.roundedRect(c, x, y, w, h, 5, scaleAlpha(theme.surface(theme.panelOpacity * 0.55f), alpha));
+		Glass.chip(c, theme, x, y, w, h, 5, hover, alpha);
 	}
 
 	/** Whether the version line and the disclaimer both fit on the footer row without touching. */
@@ -297,7 +313,7 @@ public final class TitleMenuView extends View {
 		float hover = item.hover.get();
 		boolean blocked = item.blocked != null;
 		int fill = Theme.lerpColor(theme.surface(Math.min(1f, theme.panelOpacity + 0.05f)), theme.highlight(), hover * 0.12f);
-		GuiDraw.roundedRect(c, item.x, item.y, item.w, item.h, 5, scaleAlpha(fill, alpha * (blocked ? 0.7f : 1f)));
+		button(c, item.x, item.y, item.w, item.h, fill, hover, alpha * (blocked ? 0.7f : 1f));
 		GuiDraw.roundedOutline(c, item.x, item.y, item.w, item.h, 5, scaleAlpha(Theme.lerpColor(theme.border(), theme.accent(), hover), alpha));
 		c.fill(item.x + 5, item.y + 1, item.x + item.w - 5, item.y + 2, Theme.withAlpha(0xFFFFFFFF, (0.05f + 0.10f * hover) * alpha));
 		if (hover > 0.01f) c.fill(item.x + 1, item.y + 6, item.x + 3, item.y + item.h - 6, scaleAlpha(theme.accent(), alpha * hover));
@@ -313,7 +329,7 @@ public final class TitleMenuView extends View {
 	private void drawIconButton(Canvas c, Item item, float alpha) {
 		float hover = item.hover.get();
 		int fill = Theme.lerpColor(theme.surface(Math.min(1f, theme.panelOpacity + 0.05f)), theme.highlight(), hover * 0.14f);
-		GuiDraw.roundedRect(c, item.x, item.y, item.w, item.h, 5, scaleAlpha(fill, alpha));
+		button(c, item.x, item.y, item.w, item.h, fill, hover, alpha);
 		GuiDraw.roundedOutline(c, item.x, item.y, item.w, item.h, 5, scaleAlpha(Theme.lerpColor(theme.border(), theme.accent(), hover), alpha));
 		int color = scaleAlpha(Theme.lerpColor(theme.mutedText(), theme.text(), hover), alpha);
 		if (item.icon == null) {
@@ -327,7 +343,7 @@ public final class TitleMenuView extends View {
 	private void drawChip(Canvas c, Item item, float alpha) {
 		float hover = item.hover.get();
 		int fill = Theme.lerpColor(theme.surface(Math.min(1f, theme.panelOpacity + 0.05f)), theme.highlight(), hover * 0.1f);
-		GuiDraw.roundedRect(c, item.x, item.y, item.w, item.h, 5, scaleAlpha(fill, alpha));
+		button(c, item.x, item.y, item.w, item.h, fill, hover, alpha);
 		GuiDraw.roundedOutline(c, item.x, item.y, item.w, item.h, 5, scaleAlpha(theme.border(), alpha));
 		int face = item.h - 8;
 		actions.drawPlayerFace(c, item.x + 5, item.y + 4, face);

@@ -156,6 +156,8 @@ public final class SnowballClient implements ClientModInitializer {
 				loader::isModLoaded, ModScanner.disabledMods(loader.getGameDir().resolve("mods")));
 		config.loadAll(modules, theme, waypoints);
 		ModuleRegistry.INTERFACE.pullFromTheme(config.clientSettings());
+		// Snowball's screens blur the world behind them when the look and the setting ask for it.
+		dev.snowballclient.client.ui.View.setBackgroundBlur(() -> theme.glass() && theme.blurBehind);
 		for (ExternalModModule external : ModuleRegistry.EXTERNAL_MODS) external.syncFromRequests();
 		ModuleRegistry.FPS_BOOST.arm();
 		modules.clearDirty();

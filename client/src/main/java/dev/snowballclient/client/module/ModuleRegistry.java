@@ -9,6 +9,7 @@ import dev.snowballclient.client.module.client.ClientHudExtras;
 import dev.snowballclient.client.module.client.HudLayout;
 import dev.snowballclient.client.module.client.Presets;
 import dev.snowballclient.client.module.client.InterfaceSettings;
+import dev.snowballclient.client.module.client.Menu3D;
 import dev.snowballclient.client.module.client.PvpHudModules;
 import dev.snowballclient.client.module.fps.AdvancedOptions;
 import dev.snowballclient.client.module.fps.AnimationOptimization;
@@ -89,6 +90,7 @@ public final class ModuleRegistry {
 	public static Crosshair CROSSHAIR;
 	public static Waypoints WAYPOINTS;
 	public static InterfaceSettings INTERFACE;
+	public static Menu3D MENU_3D;
 	public static FpsBoost FPS_BOOST;
 	public static HitColor HIT_COLOR;
 	public static VisualModules.NoHurtShake NO_HURT_SHAKE;
@@ -125,6 +127,7 @@ public final class ModuleRegistry {
 		m.register(new HudLayout());
 		m.register(new Presets());
 		INTERFACE = m.register(new InterfaceSettings(theme, clientSettings));
+		MENU_3D = m.register(new Menu3D());
 
 		// FPS BOOST: one Boost switch with preset cards; the fine-tuning modules sit under Advanced.
 		FPS_BOOST = m.register(new FpsBoost(requests));
@@ -190,13 +193,13 @@ public final class ModuleRegistry {
 		CONTAINER_SEARCH = m.register(new ContainerSearch());
 		m.register(new ItemCounter());
 
-		m.order(ModuleCategory.CLIENT, "client_hud", "presets", "hud_layout", "interface", "watermark", "fps_counter", "ping_display", "coordinates",
+		m.order(ModuleCategory.CLIENT, "client_hud", "presets", "hud_layout", "interface", "menu_3d", "watermark", "fps_counter", "ping_display", "coordinates",
 				"direction_hud", "custom_text", "memory_usage", "pack_display");
 		m.order(ModuleCategory.RENDER, "fps_boost", "fov_settings", "potion_hud", "block_outline", "no_hurt_shake", "low_fire", "third_person",
 				"time_changer", "weather_effects");
 		m.order(ModuleCategory.PVP, "crosshair", "armor_hud", "cps_counter", "combo_counter", "reach_display", "target_info");
 		m.order(ModuleCategory.MOVEMENT, "toggle_sprint", "speed_display");
-		m.order(ModuleCategory.VISUALS, "glass_gui", "fullbright", "zoom", "freelook", "snaplook", "hit_color");
+		m.order(ModuleCategory.VISUALS, "glass_gui", "menu_3d", "fullbright", "zoom", "freelook", "snaplook", "hit_color");
 		m.order(ModuleCategory.WORLD, "waypoints", "render_distance", "entity_distance");
 		m.order(ModuleCategory.MISC, "chat_settings", "nick_hider", "discord_presence", "screenshot_utility", "notifications", "clock", "server_info", "session_timer");
 		m.order(ModuleCategory.QOL, "keystrokes", "ez_pots", "item_counter");

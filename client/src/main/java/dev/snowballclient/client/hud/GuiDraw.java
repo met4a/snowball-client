@@ -61,6 +61,25 @@ public final class GuiDraw {
 		}
 	}
 
+	/** A horizontal gradient drawn as vertical bands; {@code bands} trades smoothness for fills. */
+	public static void horizontalGradient(Fill g, int x, int y, int w, int h, int leftArgb, int rightArgb, int bands) {
+		if (w <= 0 || h <= 0) return;
+		int count = Math.max(1, Math.min(bands, w));
+		for (int i = 0; i < count; i++) {
+			int x0 = x + (int) ((long) w * i / count);
+			int x1 = i == count - 1 ? x + w : x + (int) ((long) w * (i + 1) / count);
+			if (x1 <= x0) continue;
+			g.fill(x0, y, x1, y + h, lerp(leftArgb, rightArgb, (i + 0.5f) / count));
+		}
+	}
+
+	/** How far row {@code i} of a rounded corner of radius {@code r} is indented (row 0 is the outermost). */
+	public static int cornerInset(int r, int i) {
+		if (i < 0 || i >= r) return 0;
+		double dy = r - i - 0.5;
+		return (int) Math.round(r - Math.sqrt(Math.max(0, r * r - dy * dy)));
+	}
+
 	/** Same colour mixing as the theme uses, kept here so drawing helpers do not depend on it. */
 	private static int lerp(int from, int to, float t) {
 		float k = Math.max(0f, Math.min(1f, t));

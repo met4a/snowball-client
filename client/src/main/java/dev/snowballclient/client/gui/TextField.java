@@ -97,8 +97,12 @@ public final class TextField {
 	}
 
 	public void render(Canvas c, Theme theme, float alpha) {
-		int fill = Theme.lerpColor(theme.surface(1f), theme.highlight(), focused ? 0.07f : 0.035f);
-		GuiDraw.roundedRect(c, x, y, width, height, 4, scaleAlpha(Theme.withAlpha(fill, Math.min(1f, theme.panelOpacity + 0.05f)), alpha));
+		if (theme.glass()) {
+			Glass.chip(c, theme, x, y, width, height, 4, focused ? 0.6f : 0f, alpha);
+		} else {
+			int fill = Theme.lerpColor(theme.surface(1f), theme.highlight(), focused ? 0.07f : 0.035f);
+			GuiDraw.roundedRect(c, x, y, width, height, 4, scaleAlpha(Theme.withAlpha(fill, Math.min(1f, theme.panelOpacity + 0.05f)), alpha));
+		}
 		GuiDraw.roundedOutline(c, x, y, width, height, 4, scaleAlpha(focused ? theme.accent() : theme.border(), alpha));
 		int tx = x + 5;
 		int ty = y + (height - 8) / 2;

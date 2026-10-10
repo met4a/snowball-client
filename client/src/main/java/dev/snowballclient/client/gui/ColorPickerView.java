@@ -112,7 +112,7 @@ public final class ColorPickerView extends View {
 
 	@Override
 	public void renderBackground(Canvas c, int mouseX, int mouseY, float partialTick) {
-		c.fill(0, 0, width, height, Theme.withAlpha(0xFF000000, theme.backgroundOpacity * 0.75f));
+		c.fill(0, 0, width, height, Theme.withAlpha(0xFF000000, backdropDim(theme.backgroundOpacity * 0.75f)));
 	}
 
 	@Override
@@ -126,9 +126,7 @@ public final class ColorPickerView extends View {
 		c.translate(panelX, panelY);
 		c.scale(fit, fit);
 
-		GuiDraw.roundedRect(c, 2, 4, PANEL_W, panelH, 7, scaleAlpha(0x70000000, a));
-		GuiDraw.roundedRect(c, 0, 0, PANEL_W, panelH, 6, scaleAlpha(theme.surface(theme.panelOpacity), a));
-		GuiDraw.roundedOutline(c, 0, 0, PANEL_W, panelH, 6, scaleAlpha(theme.border(), a));
+		Glass.panel(c, theme, 0, 0, PANEL_W, panelH, 6, a);
 		UiText.draw(c, setting.name().toUpperCase(Locale.ROOT), UiText.titleFor(c, 16), PAD, 9, scaleAlpha(theme.text(), a));
 		String about = setting.description().isEmpty() ? "Changes apply straight away" : setting.description();
 		UiText.draw(c, UiText.fit(c, about, UiText.DETAIL, PANEL_W - 2 * PAD), UiText.DETAIL, PAD, 25, scaleAlpha(theme.mutedText(), a));

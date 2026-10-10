@@ -84,7 +84,7 @@ public final class ModuleSettingsView extends View {
 
 	@Override
 	public void renderBackground(Canvas c, int mouseX, int mouseY, float partialTick) {
-		c.fill(0, 0, width, height, Theme.withAlpha(0xFF000000, theme.backgroundOpacity * 0.75f));
+		c.fill(0, 0, width, height, Theme.withAlpha(0xFF000000, backdropDim(theme.backgroundOpacity * 0.75f)));
 	}
 
 	@Override
@@ -94,9 +94,7 @@ public final class ModuleSettingsView extends View {
 		hovered = rowAt(mouseX, mouseY);
 
 		int panelH = panelH();
-		GuiDraw.roundedRect(c, panelX + 2, panelY + 4, panelW, panelH, 7, scaleAlpha(0x70000000, a));
-		GuiDraw.roundedRect(c, panelX, panelY, panelW, panelH, 6, scaleAlpha(theme.surface(theme.panelOpacity), a));
-		GuiDraw.roundedOutline(c, panelX, panelY, panelW, panelH, 6, scaleAlpha(theme.border(), a));
+		Glass.panel(c, theme, panelX, panelY, panelW, panelH, 6, a);
 		UiText.draw(c, module.name().toUpperCase(Locale.ROOT), UiText.titleFor(c, 16), panelX + 12, panelY + 9, scaleAlpha(theme.text(), a));
 		UiText.draw(c, UiText.fit(c, module.description(), UiText.DETAIL, panelW - 24), UiText.DETAIL, panelX + 12, panelY + 25, scaleAlpha(theme.mutedText(), a));
 		c.fill(panelX + 10, panelY + HEADER_H - 3, panelX + panelW - 10, panelY + HEADER_H - 2, scaleAlpha(Theme.withAlpha(theme.highlight(), 0.08f), a));
@@ -127,8 +125,7 @@ public final class ModuleSettingsView extends View {
 			return;
 		}
 
-		int card = Theme.lerpColor(theme.surface(1f), theme.highlight(), hover ? 0.08f : 0.035f);
-		GuiDraw.roundedRect(c, x, y, w, h, 4, scaleAlpha(Theme.withAlpha(card, Math.min(1f, theme.panelOpacity + 0.05f)), a));
+		Glass.chip(c, theme, x, y, w, h, 4, hover ? 1f : 0f, a);
 
 		if (row == 0) {
 			label(c, "Keybind", capturingKey ? "Press a key. Backspace clears it" : "Key that switches or holds this module", x, y, h, controlX, a);

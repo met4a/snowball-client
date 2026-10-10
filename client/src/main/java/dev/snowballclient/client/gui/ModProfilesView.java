@@ -73,7 +73,7 @@ public final class ModProfilesView extends PanelView {
 			Entry e = mods.get(i);
 			int y = listTop() + (i - scroll) * ROW_H;
 			boolean hover = inside(panelX + 8, y, panelW - 16, ROW_H - 3, mouseX, mouseY);
-			GuiDraw.roundedRect(c, panelX + 8, y, panelW - 16, ROW_H - 3, 4, Theme.lerpColor(theme.surface(1f), theme.highlight(), hover ? 0.08f : 0.035f));
+			Glass.chip(c, theme, panelX + 8, y, panelW - 16, ROW_H - 3, 4, hover ? 1f : 0f, 1f);
 			boolean wanted = !requests.isDisabled(e.id());
 			UiText.draw(c, UiText.fit(c, e.name(), UiText.UI, panelW - 130), UiText.UI, panelX + 16, y + 4, wanted ? theme.text() : theme.mutedText());
 			if (wanted != e.loaded()) UiText.drawRight(c, "RESTART", UiText.UI_SMALL, panelX + panelW - 46, y + 5, theme.accent());

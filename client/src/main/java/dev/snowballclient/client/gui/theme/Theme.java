@@ -4,12 +4,18 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.snowballclient.client.module.setting.ColorSetting;
 
+import java.util.List;
+
 /**
  * Central look-and-feel values shared by the radial menu, module panel and HUD. Every field is
  * clamped on load so a hand-edited gui.json cannot produce invisible or broken UI.
  */
 public final class Theme {
 	public static final int SCHEMA_VERSION = 1;
+	public static final String LIQUID = "liquid";
+	public static final String FROSTED = "frosted";
+	public static final String CLASSIC = "classic";
+	public static final List<String> STYLES = List.of(LIQUID, FROSTED, CLASSIC);
 
 	public float backgroundOpacity = 0.55f;
 	public float panelOpacity = 0.82f;
@@ -25,6 +31,10 @@ public final class Theme {
 	/** Extra UI scale applied on top of Minecraft's GUI scale. */
 	public float scale = 1.0f;
 	public boolean highContrast = false;
+	/** How surfaces are drawn: {@link #LIQUID} glass with light on its edges, {@link #FROSTED} glass, or {@link #CLASSIC} flat panels. */
+	public String style = LIQUID;
+	/** Blur the world behind Snowball's menus, on versions that can. */
+	public boolean blurBehind = true;
 
 	private int revision;
 
@@ -35,6 +45,16 @@ public final class Theme {
 
 	public void changed() {
 		revision++;
+	}
+
+	/** Glass surfaces (liquid or frosted) rather than flat panels; high contrast always draws flat. */
+	public boolean glass() {
+		return !highContrast && !CLASSIC.equals(style);
+	}
+
+	/** Liquid glass: light runs along the edges and a sheen moves across the surface. */
+	public boolean liquid() {
+		return !highContrast && LIQUID.equals(style);
 	}
 
 	public int accent() {
@@ -108,6 +128,8 @@ public final class Theme {
 		animationSpeed = other.animationSpeed;
 		scale = other.scale;
 		highContrast = other.highContrast;
+		style = other.style;
+		blurBehind = other.blurBehind;
 		changed();
 	}
 
@@ -125,6 +147,8 @@ public final class Theme {
 		o.addProperty("animationSpeed", animationSpeed);
 		o.addProperty("scale", scale);
 		o.addProperty("highContrast", highContrast);
+		o.addProperty("style", style);
+		o.addProperty("blurBehind", blurBehind);
 		return o;
 	}
 
@@ -142,6 +166,10 @@ public final class Theme {
 		scale = number(o.get("scale"), scale, 0.5f, 2f);
 		JsonElement hc = o.get("highContrast");
 		if (hc != null && hc.isJsonPrimitive() && hc.getAsJsonPrimitive().isBoolean()) highContrast = hc.getAsBoolean();
+		JsonElement st = o.get("style");
+		if (st != null && st.isJsonPrimitive() && st.getAsJsonPrimitive().isString() && STYLES.contains(st.getAsString())) style = st.getAsString();
+		JsonElement blur = o.get("blurBehind");
+		if (blur != null && blur.isJsonPrimitive() && blur.getAsJsonPrimitive().isBoolean()) blurBehind = blur.getAsBoolean();
 		changed();
 	}
 

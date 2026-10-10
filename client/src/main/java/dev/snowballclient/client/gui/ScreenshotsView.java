@@ -105,7 +105,7 @@ public final class ScreenshotsView extends PanelView {
 			int x = panelX + 10 + col * (cellW + GAP);
 			int y = gridTop() + (i / columns - scrollRow) * (cellH + GAP);
 			boolean hover = inside(x, y, cellW, cellH, mouseX, mouseY);
-			GuiDraw.roundedRect(c, x, y, cellW, cellH, 4, Theme.lerpColor(theme.surface(1f), theme.highlight(), hover ? 0.1f : 0.04f));
+			Glass.chip(c, theme, x, y, cellW, cellH, 4, hover ? 1f : 0f, 1f);
 			int imgH = cellH - 12;
 			Thumb thumb = thumbs.get(file);
 			if (thumb == null) {
