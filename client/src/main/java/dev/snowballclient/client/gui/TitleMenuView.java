@@ -98,6 +98,8 @@ public final class TitleMenuView extends View {
 	private int dockW;
 	private int dockH;
 	private float time;
+	/** Seconds since the menu appeared, at the menu's animation speed: the buttons rise in one after another. */
+	private float age;
 
 	public TitleMenuView(SnowballClient client, TitleActions actions) {
 		super("Snowball Client");
@@ -226,6 +228,7 @@ public final class TitleMenuView extends View {
 		}
 		float dt = clock.tick();
 		time += dt;
+		age = theme.animationSpeed <= 0f ? 10f : age + dt * theme.animationSpeed;
 		float alpha = fade.update(dt, theme.animationSpeed * 10f);
 		UiText.setDensity(c.guiScale());
 
@@ -255,12 +258,19 @@ public final class TitleMenuView extends View {
 			Item item = items.get(i);
 			item.hover.setTarget(i == hovered || i == focused ? 1f : 0f);
 			item.hover.update(dt, theme.animationSpeed * 16f);
+			float t = Math.max(0f, Math.min(1f, (age - 0.1f - i * 0.04f) / 0.3f));
+			if (t <= 0f) continue;
+			float k = 1f - t;
+			c.push();
+			c.translate(0f, k * k * k * 8f);
+			float shown = alpha * t;
 			switch (item.kind) {
-				case CHIP -> drawChip(c, item, alpha);
-				case CARD -> drawCard(c, item, alpha);
-				case BUTTON -> drawWideButton(c, item, alpha);
-				case ICON -> drawIconButton(c, item, alpha);
+				case CHIP -> drawChip(c, item, shown);
+				case CARD -> drawCard(c, item, shown);
+				case BUTTON -> drawWideButton(c, item, shown);
+				case ICON -> drawIconButton(c, item, shown);
 			}
+			c.pop();
 		}
 
 		// Both footer lines share one row, so on a narrow window the version line gives way first.
@@ -322,7 +332,7 @@ public final class TitleMenuView extends View {
 		int groupW = MenuIcons.SIZE + 8 + textW;
 		int iconX = item.x + (item.w - groupW) / 2;
 		int color = scaleAlpha(blocked ? theme.mutedText() : theme.text(), alpha);
-		PixelIcons.draw(c, item.icon, iconX, item.y + (item.h - MenuIcons.SIZE) / 2, color);
+		MenuIcons.draw(c, item.icon, iconX, item.y + (item.h - MenuIcons.SIZE) / 2, color);
 		UiText.draw(c, item.label, UiText.UI, iconX + MenuIcons.SIZE + 8, item.y + (item.h - 8) / 2, color);
 	}
 
@@ -337,7 +347,7 @@ public final class TitleMenuView extends View {
 			c.drawTexture(logo, item.x + (item.w - size) / 2, item.y + (item.h - size) / 2, size, size, Theme.withAlpha(0xFFFFFFFF, alpha));
 			return;
 		}
-		PixelIcons.draw(c, item.icon, item.x + (item.w - MenuIcons.SIZE) / 2, item.y + (item.h - MenuIcons.SIZE) / 2, color);
+		MenuIcons.draw(c, item.icon, item.x + (item.w - MenuIcons.SIZE) / 2, item.y + (item.h - MenuIcons.SIZE) / 2, color);
 	}
 
 	private void drawChip(Canvas c, Item item, float alpha) {

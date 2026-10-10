@@ -20,6 +20,7 @@ public abstract class View {
 
 	/** Called when the view is shown and again whenever the window size changes. */
 	public final void attach(Host host, int width, int height) {
+		if (host != null) dev.snowballclient.client.gui.icons.Icons.use(host.textures());
 		this.host = host;
 		this.width = width;
 		this.height = height;

@@ -58,11 +58,15 @@ public abstract class PanelView extends View {
 	public void render(Canvas c, int mouseX, int mouseY, float partialTick) {
 		float a = open.update(clock.tick(), theme.animationSpeed * 14f);
 		UiText.setDensity(c.guiScale());
+		// The panel rises a little and settles as it opens.
+		c.push();
+		c.translate(0f, (1f - a) * 10f);
 		Glass.panel(c, theme, panelX, panelY, panelW, panelH, 6, a);
 		UiText.draw(c, title(), UiText.titleFor(c, 17), panelX + 12, panelY + 10, scaleAlpha(theme.text(), a));
 		c.fill(panelX + 10, panelY + HEADER_H - 3, panelX + panelW - 10, panelY + HEADER_H - 2, scaleAlpha(Theme.withAlpha(theme.highlight(), 0.08f), a));
 		c.fill(panelX + 10, panelY + HEADER_H - 3, panelX + 42, panelY + HEADER_H - 2, scaleAlpha(theme.accent(), a));
 		renderContent(c, mouseX, mouseY);
+		c.pop();
 	}
 
 	protected void button(Canvas c, int x, int y, int w, int h, String label, boolean primary, int mouseX, int mouseY) {

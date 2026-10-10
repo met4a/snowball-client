@@ -40,6 +40,11 @@ public final class UiText {
 		density = Math.max(0.25, pixelsPerUnit);
 	}
 
+	/** The density last set: screen pixels per GUI unit where the menu is drawing. */
+	public static double density() {
+		return density;
+	}
+
 	/** Extra scale, relative to the current pose, that snaps font pixels to whole screen pixels. */
 	private static float scaleFor(Kind kind) {
 		return (float) (pixelsFor(kind) / density);

@@ -3,6 +3,8 @@ package dev.snowballclient.client.gui;
 import dev.snowballclient.client.SnowballClient;
 import dev.snowballclient.client.gui.anim.FrameClock;
 import dev.snowballclient.client.gui.anim.Smoothed;
+import dev.snowballclient.client.gui.icons.Icons;
+import dev.snowballclient.client.gui.icons.LineIcon;
 import dev.snowballclient.client.gui.radial.RadialLayout;
 import dev.snowballclient.client.gui.radial.RadialMetrics;
 import dev.snowballclient.client.gui.radial.WheelGeometry;
@@ -76,6 +78,11 @@ public final class RadialMenuView extends View {
 	private final Map<Module, FittedRow> fitted = new IdentityHashMap<>();
 	private final String[] cardBlurbs = new String[CARDS.length];
 	private final Map<Long, Float> labelRooms = new HashMap<>();
+	/** Where the selection highlight points, in degrees: it sweeps round to a new category rather than jumping. */
+	private final Smoothed selectAngle = new Smoothed(0f);
+	/** The highlight that glides to the row under the mouse. */
+	private final Smoothed glideY = new Smoothed(0f);
+	private final Smoothed glideAlpha = new Smoothed(0f);
 
 	private RadialMetrics metrics = new RadialMetrics(1f, 0f, 0f, 256);
 	private UiTexture logo;
@@ -89,6 +96,11 @@ public final class RadialMenuView extends View {
 	private boolean closing;
 	private float time;
 	private float lastDt;
+	/** Seconds since the menu opened, and since the panel last changed, at the menu's animation speed. */
+	private float age;
+	private float panelAge;
+	/** How far the wheel is still turned as it opens, in radians. */
+	private float spin;
 	private int textProbe = -1;
 	private int cardProbe = -1;
 	private String query = "";
@@ -110,6 +122,7 @@ public final class RadialMenuView extends View {
 		ModuleCategory last = ModuleCategory.byId(client.config().clientSettings().lastCategory);
 		selected = last == null ? 0 : last.ordinal();
 		segmentSelect[selected].snap(1f);
+		selectAngle.snap(layout.centerAngle(selected));
 		open.setTarget(1f);
 		panel.setTarget(1f);
 	}
@@ -231,7 +244,15 @@ public final class RadialMenuView extends View {
 		lastDt = dt;
 		time += dt;
 		float speed = theme.animationSpeed * ANIM_SPEED;
+		// Reduced motion: everything is where it ends up at once.
+		boolean still = theme.animationSpeed <= 0f;
+		age = still ? 10f : age + dt * theme.animationSpeed;
+		panelAge = still ? 10f : panelAge + dt * theme.animationSpeed;
 		float o = open.update(dt, speed);
+		// The wheel turns into place as it opens, and back out as it closes.
+		float settle = 1f - o;
+		spin = -0.55f * settle * settle;
+		selectAngle.update(dt, speed * 0.9f);
 		if (closing && (o <= 0.02f || speed <= 0f)) {
 			host.back();
 			return;
@@ -280,6 +301,7 @@ public final class RadialMenuView extends View {
 		int r = (int) WheelGeometry.TOTAL_R;
 		int d = r * 2;
 		WheelTextures wheel = client.wheelTextures();
+		if (spin != 0f) c.rotate(spin);
 		int thickness = Depth.thickness();
 		if (wheel.ready() && thickness > 0) {
 			// The wheel's edge: darker copies stacked behind it, towards the side turned away.
@@ -298,38 +320,55 @@ public final class RadialMenuView extends View {
 			c.drawTexture(wheel.base(), -r, -r, d, d, Theme.withAlpha(0xFFFFFFFF, o));
 			float pulse = 0.5f + 0.5f * (float) Math.sin(time * 2.4f);
 			c.drawTexture(wheel.centerGlow(), -r, -r, d, d, Theme.withAlpha(0xFFFFFFFF, o * (0.55f + 0.45f * pulse)));
+			// Segments under the mouse light up faintly; the chosen one is a single highlight that sweeps between them.
 			for (int i = 0; i < segmentHover.length; i++) {
-				float sel = segmentSelect[i].get();
-				float hov = segmentHover[i].get();
-				float intensity = Math.max(sel, hov * 0.3f);
-				if (intensity <= 0.01f) continue;
+				float hov = segmentHover[i].get() * (1f - segmentSelect[i].get());
+				if (hov <= 0.01f) continue;
 				c.push();
 				c.rotate((float) Math.toRadians(layout.centerAngle(i)));
-				float grow = 1f + 0.035f * sel + 0.015f * hov;
+				float grow = 1f + 0.015f * hov;
 				c.scale(grow, grow);
-				c.drawTexture(wheel.highlight(), -r, -r, d, d, Theme.withAlpha(0xFFFFFFFF, intensity * o));
+				c.drawTexture(wheel.highlight(), -r, -r, d, d, Theme.withAlpha(0xFFFFFFFF, hov * 0.3f * o));
 				c.pop();
 			}
+			c.push();
+			c.rotate((float) Math.toRadians(selectAngle.get()));
+			c.scale(1.035f, 1.035f);
+			c.drawTexture(wheel.highlight(), -r, -r, d, d, Theme.withAlpha(0xFFFFFFFF, o));
+			c.pop();
 		}
 	}
 
 	private void drawLabels(Canvas c, float o) {
 		if (o > 0.04f) {
+			float cos = (float) Math.cos(spin);
+			float sin = (float) Math.sin(spin);
 			for (int i = 0; i < segmentHover.length; i++) {
+				// Each label pops in a moment after the one before, going round the wheel.
+				float t = clamp01((age - 0.06f - i * 0.03f) / 0.24f);
+				if (t <= 0f) continue;
 				double[] dir = layout.direction(i);
-				int lx = (int) Math.round(dir[0] * WheelGeometry.LABEL_R);
-				int ly = (int) Math.round(dir[1] * WheelGeometry.LABEL_R);
+				float dx = (float) dir[0] * cos - (float) dir[1] * sin;
+				float dy = (float) dir[0] * sin + (float) dir[1] * cos;
+				int lx = Math.round(dx * WheelGeometry.LABEL_R);
+				int ly = Math.round(dy * WheelGeometry.LABEL_R);
 				float emphasis = Math.max(segmentSelect[i].get(), segmentHover[i].get() * 0.7f);
-				int color = scaleAlpha(Theme.lerpColor(LABEL_IDLE, 0xFFFFFFFF, emphasis), o);
+				int color = scaleAlpha(Theme.lerpColor(LABEL_IDLE, 0xFFFFFFFF, emphasis), o * t);
+				float pop = 0.55f + 0.45f * backOut(t) + 0.08f * segmentHover[i].get();
+				c.push();
+				c.translate(lx, ly);
+				c.scale(pop, pop);
+				c.translate(-lx, -ly);
 				// Only the segment being pointed at is named, so narrow wedges never write over each other.
 				if (emphasis > 0.35f) drawSegmentLabel(c, i, lx, ly, color);
 				else CategoryIcons.draw(c, categories[i], lx - CategoryIcons.SIZE / 2, ly - CategoryIcons.SIZE / 2, color);
+				c.pop();
 			}
 		}
 	}
 
 	private void drawLogo(Canvas c, float o) {
-		float logoPulse = 1f + 0.03f * (float) Math.sin(time * 2.4f);
+		float logoPulse = (0.7f + 0.3f * backOut(clamp01(age / 0.4f))) * (1f + 0.03f * (float) Math.sin(time * 2.4f));
 		c.push();
 		c.translate(0f, -6f);
 		c.scale(logoPulse, logoPulse);
@@ -388,8 +427,34 @@ public final class RadialMenuView extends View {
 			return;
 		}
 		int end = Math.min(rows.size(), scroll + visible);
+		// The highlight glides to the row under the mouse; from nowhere it appears in place.
+		boolean onRow = hoveredRow >= scroll && hoveredRow < end;
+		if (onRow) {
+			float target = y0 + (hoveredRow - scroll) * ROW_H;
+			if (glideAlpha.get() < 0.05f) glideY.snap(target);
+			glideY.setTarget(target);
+		}
+		glideAlpha.setTarget(onRow ? 1f : 0f);
+		float glide = glideAlpha.update(lastDt, theme.animationSpeed * 20f);
+		float gy = glideY.update(lastDt, theme.animationSpeed * 24f);
 		for (int i = scroll; i < end; i++) {
-			drawRow(c, rows.get(i), i, x + ROW_INSET, y0 + (i - scroll) * ROW_H, PANEL_W - ROW_INSET * 2, alpha);
+			// Rows slide in one after another when the panel changes.
+			float t = clamp01((panelAge - 0.03f - (i - scroll) * 0.035f) / 0.2f);
+			if (t <= 0f) continue;
+			int shift = Math.round((1f - easeOut(t)) * 12f);
+			drawRowBackground(c, i, x + ROW_INSET + shift, y0 + (i - scroll) * ROW_H, PANEL_W - ROW_INSET * 2, alpha * t);
+		}
+		if (glide > 0.01f) {
+			int gx = x + ROW_INSET;
+			int gw = PANEL_W - ROW_INSET * 2;
+			Glass.chip(c, theme, gx, Math.round(gy), gw, ROW_H - 3, 4, 1f, alpha * glide);
+			if (!theme.glass()) GuiDraw.roundedOutline(c, gx, Math.round(gy), gw, ROW_H - 3, 4, scaleAlpha(theme.border(), alpha * glide));
+		}
+		for (int i = scroll; i < end; i++) {
+			float t = clamp01((panelAge - 0.03f - (i - scroll) * 0.035f) / 0.2f);
+			if (t <= 0f) continue;
+			int shift = Math.round((1f - easeOut(t)) * 12f);
+			drawRow(c, rows.get(i), i, x + ROW_INSET + shift, y0 + (i - scroll) * ROW_H, PANEL_W - ROW_INSET * 2, alpha * t);
 		}
 		int arrow = scaleAlpha(theme.mutedText(), alpha);
 		if (scroll > 0) triangle(c, x + PANEL_W / 2, y0 - 3, true, arrow);
@@ -472,13 +537,15 @@ public final class RadialMenuView extends View {
 		}
 	}
 
+	private void drawRowBackground(Canvas c, int index, int rx, int y, int rw, float alpha) {
+		Glass.chip(c, theme, rx, y, rw, ROW_H - 3, 4, 0f, alpha);
+	}
+
 	private void drawRow(Canvas c, Module m, int index, int rx, int y, int rw, float alpha) {
 		int rowH = ROW_H - 3;
 		boolean hover = index == hoveredRow;
 		boolean focus = index == focusedRow;
-		Glass.chip(c, theme, rx, y, rw, rowH, 4, hover ? 1f : 0f, alpha);
 		if (focus) GuiDraw.roundedOutline(c, rx, y, rw, rowH, 4, scaleAlpha(theme.accent(), alpha));
-		else if (hover && !theme.glass()) GuiDraw.roundedOutline(c, rx, y, rw, rowH, 4, scaleAlpha(theme.border(), alpha));
 
 		AdvancedOptions advanced = m instanceof AdvancedOptions a ? a : null;
 		boolean active = m.isToggleable() && m.isEnabled();
@@ -503,7 +570,9 @@ public final class RadialMenuView extends View {
 		}
 		if (m.isToggleable() && m.hasSettings()) {
 			int dots = scaleAlpha(hover && hoveredSettings ? theme.accent() : theme.mutedText(), alpha);
-			for (int dot = -1; dot <= 1; dot++) c.fill(cursor - 2, cy + dot * 3 - 1, cursor, cy + dot * 3 + 1, dots);
+			if (!Icons.draw(c, LineIcon.MORE, cursor - 6, cy - 5, 10, dots)) {
+				for (int dot = -1; dot <= 1; dot++) c.fill(cursor - 2, cy + dot * 3 - 1, cursor, cy + dot * 3 + 1, dots);
+			}
 			cursor -= 8;
 		}
 
@@ -547,6 +616,7 @@ public final class RadialMenuView extends View {
 	}
 
 	private static void chevron(Canvas g, int x, int cy, int argb) {
+		if (Icons.draw(g, LineIcon.CHEVRON_RIGHT, x - 4, cy - 5, 10, argb)) return;
 		for (int i = -3; i <= 3; i++) {
 			int dx = 3 - Math.abs(i);
 			g.fill(x + dx - 1, cy + i, x + dx + 1, cy + i + 1, argb);
@@ -554,6 +624,7 @@ public final class RadialMenuView extends View {
 	}
 
 	private static void triangle(Canvas g, int cx, int y, boolean up, int argb) {
+		if (Icons.draw(g, up ? LineIcon.CHEVRON_UP : LineIcon.CHEVRON_DOWN, cx - 4.5f, y - 3f, 9, argb)) return;
 		for (int i = 0; i < 3; i++) {
 			int row = up ? y + i : y + 2 - i;
 			g.fill(cx - i, row, cx + i + 1, row + 1, argb);
@@ -561,6 +632,7 @@ public final class RadialMenuView extends View {
 	}
 
 	private static void magnifier(Canvas g, int cx, int cy, int argb) {
+		if (Icons.draw(g, LineIcon.SEARCH, cx - 5, cy - 5, 10, argb)) return;
 		g.fill(cx - 3, cy - 4, cx + 1, cy - 3, argb);
 		g.fill(cx - 3, cy + 1, cx + 1, cy + 2, argb);
 		g.fill(cx - 4, cy - 3, cx - 3, cy + 1, argb);
@@ -620,12 +692,16 @@ public final class RadialMenuView extends View {
 		rowCacheValid = false;
 		panel.snap(0f);
 		panel.setTarget(1f);
+		panelAge = 0f;
+		float from = selectAngle.target();
+		selectAngle.setTarget(from + (float) Math.IEEEremainder(layout.centerAngle(index) - from, 360.0));
 		scroll = 0;
 		focusedRow = -1;
 		client.config().clientSettings().lastCategory = categories[index].id();
 	}
 
 	private void setQuery(String value) {
+		if (query.isBlank() != value.isBlank()) panelAge = 0f;
 		query = value;
 		rowCacheValid = false;
 		scroll = 0;
@@ -757,5 +833,20 @@ public final class RadialMenuView extends View {
 	@Override
 	public void removed() {
 		client.saveIfDirty();
+	}
+
+	private static float clamp01(float v) {
+		return Math.max(0f, Math.min(1f, v));
+	}
+
+	private static float easeOut(float t) {
+		float k = 1f - t;
+		return 1f - k * k * k;
+	}
+
+	/** Eases out past the end and settles back, for a small pop. */
+	private static float backOut(float t) {
+		float k = t - 1f;
+		return 1f + k * k * (2.4f * k + 1.4f);
 	}
 }
