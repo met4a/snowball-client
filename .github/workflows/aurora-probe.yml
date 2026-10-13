@@ -44,6 +44,45 @@ jobs:
         if: always()
         run: node client/tools/check-generated.mjs
 
+      - name: Minecraft signatures
+        if: always()
+        run: |
+          set +e
+          classes="
+            net.minecraft.client.renderer.LevelRenderer
+            net.minecraft.client.renderer.GameRenderer
+            net.minecraft.client.Camera
+            net.minecraft.client.MouseHandler
+            net.minecraft.client.renderer.SubmitNodeCollector
+            net.minecraft.client.renderer.SubmitNodeStorage
+            net.minecraft.client.renderer.MultiBufferSource
+            net.minecraft.client.renderer.MultiBufferSource\$BufferSource
+            net.minecraft.client.renderer.RenderType
+            net.minecraft.client.renderer.rendertype.RenderType
+            net.minecraft.client.renderer.rendertype.RenderTypes
+            net.minecraft.client.renderer.state.CameraRenderState
+            net.minecraft.client.renderer.state.LevelRenderState
+            net.minecraft.client.gui.Font
+            net.minecraft.client.gui.Font\$DisplayMode
+            com.mojang.blaze3d.vertex.PoseStack
+            com.mojang.blaze3d.vertex.VertexConsumer
+            net.minecraft.world.entity.player.PlayerModelType
+          "
+          for jar in $(find ~/.gradle client -name '*.jar' 2>/dev/null | grep -iE 'minecraft-(merged|client|common)|minecraft/.*client' | grep -viE 'sources|lwjgl' | sort -u); do
+            echo "################ $jar"
+            for c in $classes; do
+              out=$(javap -p -cp "$jar" "$c" 2>/dev/null)
+              if [ -n "$out" ]; then echo "---- $c"; echo "$out"; fi
+            done
+          done
+          for jar in $(find ~/.gradle -name 'fabric-rendering-v1-*.jar' 2>/dev/null | grep -v sources | sort -u); do
+            echo "################ $jar"
+            for c in $(unzip -Z1 "$jar" | grep -E 'api/client/rendering/v1/.*(World|Level|world/|level/).*\.class$' | grep -v '\$Lambda' | sed 's/\.class$//; s|/|.|g'); do
+              echo "---- $c"; javap -p -cp "$jar" "$c" 2>/dev/null
+            done
+          done
+          exit 0
+
       - name: Start the game under a virtual display
         if: always()
         working-directory: client
