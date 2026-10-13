@@ -36,4 +36,16 @@ public interface Canvas extends GuiDraw.Fill {
 
 	/** Draws a whole texture stretched over the rectangle, tinted by argb (white with alpha fades it). */
 	void drawTexture(UiTexture texture, int x, int y, int width, int height, int argb);
+
+	/** Whether {@link #drawTextureRegion} draws; smooth text and shapes are only used where it does. */
+	default boolean drawsRegions() {
+		return false;
+	}
+
+	/**
+	 * Draws the width by height texels of a texture starting at texel (u, v), one texel per unit,
+	 * at x, y, tinted by argb. Used to draw glyphs and corners out of one shared texture.
+	 */
+	default void drawTextureRegion(UiTexture texture, int x, int y, int u, int v, int width, int height, int argb) {
+	}
 }

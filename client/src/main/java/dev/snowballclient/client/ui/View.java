@@ -20,7 +20,10 @@ public abstract class View {
 
 	/** Called when the view is shown and again whenever the window size changes. */
 	public final void attach(Host host, int width, int height) {
-		if (host != null) dev.snowballclient.client.gui.icons.Icons.use(host.textures());
+		if (host != null) {
+			dev.snowballclient.client.gui.icons.Icons.use(host.textures());
+			dev.snowballclient.client.gui.smooth.SmoothText.use(host.textures());
+		}
 		this.host = host;
 		this.width = width;
 		this.height = height;
@@ -64,6 +67,7 @@ public abstract class View {
 
 	/** Draws one frame, leaning in 3D when that is on; the mouse is mapped onto the leaning page. */
 	public final void renderFrame(Canvas c, int mouseX, int mouseY, float partialTick) {
+		dev.snowballclient.client.gui.smooth.SmoothText.frameStarted();
 		if (!Depth.begin(this, c, width, height, mouseX, mouseY, allowsDepth(), showsPanorama())) {
 			render(c, mouseX, mouseY, partialTick);
 			return;

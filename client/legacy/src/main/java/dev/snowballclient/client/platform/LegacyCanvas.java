@@ -92,6 +92,22 @@ public final class LegacyCanvas implements Canvas {
 
 	@Override
 	public void drawTexture(UiTexture texture, int x, int y, int width, int height, int argb) {
+		quad(texture, x, y, width, height, 0, 0, 1, 1, argb);
+	}
+
+	@Override
+	public boolean drawsRegions() {
+		return true;
+	}
+
+	@Override
+	public void drawTextureRegion(UiTexture texture, int x, int y, int u, int v, int width, int height, int argb) {
+		float tw = texture.width();
+		float th = texture.height();
+		quad(texture, x, y, width, height, u / tw, v / th, (u + width) / tw, (v + height) / th, argb);
+	}
+
+	private void quad(UiTexture texture, int x, int y, int width, int height, double u0, double v0, double u1, double v1, int argb) {
 		if ((argb >>> 24) == 0) return;
 		GlStateManager.enableBlend();
 		GlStateManager.enableTexture();
@@ -101,10 +117,10 @@ public final class LegacyCanvas implements Canvas {
 		Tessellator tessellator = Tessellator.getInstance();
 		BufferBuilder buffer = tessellator.getBuffer();
 		buffer.begin(GL_QUADS, VertexFormats.POSITION_TEXTURE);
-		buffer.vertex(x, y + height, 0).texture(0, 1).next();
-		buffer.vertex(x + width, y + height, 0).texture(1, 1).next();
-		buffer.vertex(x + width, y, 0).texture(1, 0).next();
-		buffer.vertex(x, y, 0).texture(0, 0).next();
+		buffer.vertex(x, y + height, 0).texture(u0, v1).next();
+		buffer.vertex(x + width, y + height, 0).texture(u1, v1).next();
+		buffer.vertex(x + width, y, 0).texture(u1, v0).next();
+		buffer.vertex(x, y, 0).texture(u0, v0).next();
 		tessellator.draw();
 		GlStateManager.color(1f, 1f, 1f, 1f);
 	}
