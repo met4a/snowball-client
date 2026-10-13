@@ -9,6 +9,27 @@ installer once.
 
 ---
 
+## Unreleased
+
+### What's new
+- **Skin changer.** A new Skins page in the launcher and a Skins panel in game
+  (in the Snowball menu, or click your face on the main menu). Add skins by
+  player name, link or file, star your favourites, pick Classic or Slim arms,
+  and equip one with a click: it changes your real Minecraft skin, so everyone
+  sees it. Other players see it after you rejoin a server; you see it on
+  yourself at once. Both share one list, so a skin added in one is in the other.
+
+### Fixed
+- **Your Snowball cape always shows.** It used to hide whenever you also had a
+  Minecraft cape (Minecon, Migrator...) or one from another mod such as an
+  OptiFine cape. Now the Snowball cape is worn over them, on your back and your
+  elytra. Other Snowball players see it; players without Snowball cannot see
+  Snowball capes. Turn off "See others' cosmetics" to see everyone's own capes
+  instead.
+- **Custom capes show straight after a restart**, not only once you have opened
+  the cosmetics screen.
+- A player who stops using Snowball gets their own cape back at once.
+
 ## 1.9.0
 
 ### What's new

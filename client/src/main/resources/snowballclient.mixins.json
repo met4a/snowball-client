@@ -5,6 +5,7 @@
   "client": [
     "AbstractContainerScreenAccessor",
     "AvatarEmoteMixin",
+    "AvatarSkinMixin",
     "AvatarRenderStateMixin",
     "BlockEntityCullingMixin",
     "CameraMixin",

@@ -18,6 +18,7 @@ import dev.snowballclient.client.module.storage.ClientContainerPreviewTooltip;
 import dev.snowballclient.client.module.storage.ContainerPreview;
 import dev.snowballclient.client.perf.ModRequests;
 import dev.snowballclient.client.perf.ModScanner;
+import dev.snowballclient.client.platform.MinecraftSkinPlatform;
 import dev.snowballclient.client.platform.MinecraftTextures;
 import dev.snowballclient.client.platform.ViewScreen;
 import dev.snowballclient.client.social.Rank;
@@ -31,6 +32,7 @@ import dev.snowballclient.client.emote.SelfSkin;
 import dev.snowballclient.client.gui.EmoteWheelView;
 import dev.snowballclient.client.social.Looks;
 import dev.snowballclient.client.social.SnowballLive;
+import dev.snowballclient.client.skins.SkinHooks;
 import net.minecraft.client.CameraType;
 import dev.snowballclient.client.util.OptionsSaver;
 import dev.snowballclient.client.waypoint.WaypointStore;
@@ -85,6 +87,8 @@ public final class SnowballClient implements ClientModInitializer {
 	private int autosaveCountdown = AUTOSAVE_TICKS;
 	private int warmupCountdown = 1;
 	private boolean wasInWorld;
+	/** The custom cape version staff last approved for you, to tell others as soon as it changes. */
+	private int knownCapeVersion;
 	private int lastHurtTime;
 	private String savedClientSettings = "";
 
@@ -227,6 +231,8 @@ public final class SnowballClient implements ClientModInitializer {
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> saveAll());
 		// Other Snowball players see this player's badge only while this game runs Snowball Client.
 		SnowballPresence.start(PRESENCE_ACCOUNT, () -> ModuleRegistry.INTERFACE == null || ModuleRegistry.INTERFACE.showMe.isOn());
+		SkinHooks.account = PRESENCE_ACCOUNT;
+		SkinHooks.platform = new MinecraftSkinPlatform();
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> SnowballPresence.stop());
 		// The launcher passes the rank the backend granted this account; the client only reads it.
 		SnowballPlayers.setSelfRank(Rank.byId(System.getProperty("snowball.rank", "snowball")));
@@ -306,7 +312,10 @@ public final class SnowballClient implements ClientModInitializer {
 			saveIfDirty();
 		}
 		wasInWorld = inWorld;
-		if (inWorld) tickEmote(mc);
+		if (inWorld) {
+			tickEmote(mc);
+			tickCustomCape();
+		}
 		// Whether other players can see your badge, said once when it changes.
 		String badgeNews = SnowballPresence.takeNews();
 		if (badgeNews != null) NotificationCenter.post("Snowball badge", badgeNews);
@@ -321,6 +330,20 @@ public final class SnowballClient implements ClientModInitializer {
 	 * Your own emote: it ends when you walk off or attack (if Emotes says so), and the camera steps
 	 * back into third person for it so you can see it, then returns.
 	 */
+	/**
+	 * Keeps your approved custom cape known while you play, not only while its screens are open:
+	 * otherwise, after a restart, nobody (you included) sees it until you open them. Others hear of
+	 * a change straight away rather than at the next heartbeat.
+	 */
+	private void tickCustomCape() {
+		CustomCapes.refreshStatus();
+		int approved = CustomCapes.approvedVersion();
+		if (approved != knownCapeVersion) {
+			knownCapeVersion = approved;
+			SnowballPresence.nudge();
+		}
+	}
+
 	private void tickEmote(Minecraft mc) {
 		var emotes = ModuleRegistry.EMOTES;
 		boolean emoting = Emotes.playingSelf();
