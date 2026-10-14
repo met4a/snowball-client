@@ -59,7 +59,7 @@ public final class MinecraftTitleActions implements TitleActions {
 	@Override
 	public void drawPlayerFace(Canvas c, int x, int y, int size) {
 		if (!(c instanceof GuiCanvas canvas)) return;
-		PlayerSkin resolved = skin.getNow(Optional.empty()).orElseGet(() -> DefaultPlayerSkin.get(profile));
+		PlayerSkin resolved = SkinOverrides.apply(profile.id(), skin.getNow(Optional.empty()).orElseGet(() -> DefaultPlayerSkin.get(profile)));
 		PlayerFaceExtractor.extractRenderState(canvas.graphics(), resolved, x, y, size);
 	}
 

@@ -144,6 +144,8 @@ public final class SnowballLive {
 			case "gone" -> {
 				SnowballPlayers.remove(player);
 				Emotes.stopped(player);
+				// A Snowball cape covers the player's own; with them gone from Snowball, theirs is back.
+				Looks.setCape(player, null, 0);
 			}
 			case "looks" -> {
 				String v = group(VERSION, text);
