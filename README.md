@@ -83,7 +83,7 @@ mouse is re-captured on close and that `modules.json` persisted the change.
 
 | Category | Modules |
 | --- | --- |
-| CLIENT | Client HUD, Custom Crosshair, FPS Counter, Ping Counter, Coordinates, Direction HUD, Speed, Combo Counter, Reach Display, Memory Usage, Pack Display, Armor HUD, Menu & Accessibility (look: liquid glass, frosted or classic), 3D Menus, Cosmetics (capes; Snowball+ Cape Studio) |
+| CLIENT | Client HUD, Custom Crosshair, FPS Counter, Ping Counter, Coordinates, Direction HUD, Speed, Combo Counter, Reach Display, Memory Usage, Pack Display, Armor HUD, Menu & Accessibility (look: liquid glass, frosted or classic), 3D Menus (windows standing in the world, or leaning screens), Skins (skin changer), Cosmetics (capes; Snowball+ Cape Studio) |
 | FPS BOOST | Boost (preset cards: Max FPS, Balanced, Quality, Off), Smart Culling (skips entities and block entities walls hide). Under Advanced: Faster Rendering (Sodium), Faster Game Logic (Lithium), Lower Memory Use (FerriteCore), Skip Hidden Mobs (Entity Culling), Faster HUD (ImmediatelyFast), Animation Optimization, Background FPS Limit, Particle Limiter, Performance Advisor |
 | RENDER | Boost, Fullbright, Zoom, Freelook, Third-Person Camera, Time Changer, Hit Colour, Crystal Glow, Block Outline, No Hurt Shake, Low Fire, FOV Settings, Render Distance, Entity Distance, Weather Effects, Potion HUD |
 | MISC | Chat Upgrades (stack repeats, mention highlight, right-click copy, timestamps), Emotes (wheel on B), Spotify (now playing, no sign-in), Nick Hider, Screenshot Utility, Notifications, Time Display, Server Information, Session Timer |

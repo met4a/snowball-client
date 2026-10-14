@@ -18,6 +18,19 @@ installer once.
   and equip one with a click: it changes your real Minecraft skin, so everyone
   sees it. Other players see it after you rejoin a server; you see it on
   yourself at once. Both share one list, so a skin added in one is in the other.
+- **3D Menus as windows.** Turn on 3D Menus and, in a world, Snowball's menus
+  open as glass windows standing in front of you instead of covering the game.
+  They stay where you put them while you look and walk around. Point with the
+  crosshair and click, drag or scroll as usual; grab the bar under a window to
+  carry it somewhere else (scroll while holding it to push it away or pull it
+  closer), and click the red dot beside the bar to close it. A menu opened from
+  a window opens beside it, so you can have several up at once. Click a text box
+  to type into it; Esc or Enter when you are done. Prefer the old look? Set the
+  style to Lean in 3D Menus.
+- **A smoother, rounder main menu.** New layout with your account and quick
+  buttons in the top corner, a clean column of big rounded buttons, and smooth
+  text instead of pixel text throughout Snowball's menus. If you prefer the
+  pixel font, turn off Smooth text under Menu & Accessibility.
 
 ### Fixed
 - **Your Snowball cape always shows.** It used to hide whenever you also had a
