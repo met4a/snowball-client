@@ -65,7 +65,7 @@ public final class InterfaceSettings extends Module {
 		palette = setting(new ChoiceSetting("palette", "Colours", "A matching menu and panel colour; Aurora is violet", "snowball", paletteNames));
 		look = setting(new ChoiceSetting("look", "Look", "Liquid glass catches the light on its edges; frosted is calmer; classic is flat", Theme.LIQUID, Theme.STYLES));
 		blurBehind = setting(new BooleanSetting("blur_behind", "Blur behind menus", "Blur the world behind Snowball's menus", true));
-		smoothText = setting(new BooleanSetting("smooth_font", "Smooth text", "Menus in a smooth, rounded font instead of Minecraft's own", false));
+		smoothText = setting(new BooleanSetting("smooth_font", "Smooth text", "Snowball's menus in a smooth, rounded font instead of Minecraft's own (the main menu always has it)", false));
 		menuColor = setting(new ColorSetting("menu_color", "Menu colour", "Highlights, sliders and switches in every Snowball menu", factory.accentColor));
 		panelColor = setting(new ColorSetting("panel_color", "Panel colour", "The tint behind Snowball's menus", factory.surfaceColor).presets(PANEL_PRESETS));
 		scale = setting(new NumberSetting("scale", "Menu scale", "", theme.scale, 0.5, 2.0, 0.05));

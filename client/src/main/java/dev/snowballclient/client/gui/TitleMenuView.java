@@ -215,6 +215,16 @@ public final class TitleMenuView extends View {
 
 	@Override
 	public void render(Canvas c, int mouseX, int mouseY, float partialTick) {
+		// The main menu is always in the smooth font; Snowball's other menus follow Smooth text.
+		UiText.setAlwaysSmooth(true);
+		try {
+			renderMenu(c, mouseX, mouseY, partialTick);
+		} finally {
+			UiText.setAlwaysSmooth(false);
+		}
+	}
+
+	private void renderMenu(Canvas c, int mouseX, int mouseY, float partialTick) {
 		if (ModuleRegistry.INTERFACE != null && !ModuleRegistry.INTERFACE.customMainMenu.isOn()) {
 			actions.showVanillaTitle();
 			return;

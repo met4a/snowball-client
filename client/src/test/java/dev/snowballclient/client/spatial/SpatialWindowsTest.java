@@ -371,7 +371,7 @@ class SpatialWindowsTest {
 			}
 
 			@Override
-			public void text(String text, float[] matrix, int argb, boolean shadow) {
+			public void line(String text, float[] matrix, int argb, boolean shadow) {
 				assertEquals(0, open[0], "text comes between runs, never inside one");
 				zs.add(matrix[14]);
 			}
@@ -397,7 +397,7 @@ class SpatialWindowsTest {
 			@Override public void endRun() { }
 
 			@Override
-			public void text(String text, float[] matrix, int argb, boolean shadow) {
+			public void line(String text, float[] matrix, int argb, boolean shadow) {
 				assertEquals("Hello", text);
 				assertTrue(shadow);
 				lines.add(matrix);
@@ -414,6 +414,43 @@ class SpatialWindowsTest {
 		assertEquals(w.right().x() * 0.01, m[0], 1e-6);
 		assertEquals(-0.01, m[5], 1e-6);
 		assertEquals("Hello".length() * 6, windows.canvas(w).textWidth("Hello"), "widths come from the game's font");
+	}
+
+	@Test
+	void layersOverOtherLayersStandInFrontOfThemAndSideBySideStayFlat() {
+		WorldCanvas c = new WorldCanvas(new FakeTextures(), text -> text.length() * 6);
+		c.begin(100, 60, 2.0);
+		c.fill(0, 0, 100, 60, 0x80000000);
+		c.fill(10, 10, 40, 20, 0xFFFFFFFF);
+		c.fill(60, 10, 90, 20, 0xFFFFFFFF);
+		c.fill(12, 12, 20, 18, 0xFF00FF00);
+		c.drawText("Hi", 62, 11, 0xFFFFFFFF, false);
+		// A shadow under everything; two pieces of glass side by side on it; a mark and a line over those.
+		assertArrayEquals(new int[]{1, 2, 2, 3, 3}, windows.levels(c, 100, 60));
+	}
+
+	@Test
+	void aLayerOverAnotherComesOutNearerTheEye() {
+		View flat = new Panel() {
+			@Override
+			public void render(Canvas c, int mouseX, int mouseY, float partialTick) {
+				c.fill(100, 70, 300, 170, 0x80000000);
+				c.fill(110, 80, 290, 160, 0xFFFFFFFF);
+			}
+		};
+		windows.open(flat, EYE, SOUTH, PLACE);
+		settle();
+		windows.draw(0f);
+		List<Float> zs = new ArrayList<>();
+		windows.emit(EYE, new SpatialWindows.QuadSink() {
+			@Override public void beginRun(UiTexture texture) { }
+			@Override public void quad(float[] corners, float u0, float v0, float u1, float v1, int argb) { zs.add(corners[2]); }
+			@Override public void endRun() { }
+			@Override public void line(String text, float[] matrix, int argb, boolean shadow) { }
+		});
+		// The window faces north at the player; nearer the eye is smaller z.
+		assertTrue(zs.get(1) < zs.get(0), "the body stands in front of the shadow under it: " + zs);
+		assertTrue(zs.get(0) - zs.get(1) < 1e-3, "by a hair, not visibly: " + zs);
 	}
 
 	@Test
@@ -438,9 +475,9 @@ class SpatialWindowsTest {
 		c.drawText("Hi", 1, 1, 0xFFFFFFFF, false);
 		c.pop();
 		assertEquals(3, c.size(), "the line of text is one entry");
-		assertEquals("Hi", c.text(2));
+		assertEquals("Hi", c.line(2));
 		assertNull(c.texture(2));
-		assertNull(c.text(0), "fills are quads");
+		assertNull(c.line(0), "fills are quads");
 		float[] t = c.textTransform(2);
 		assertEquals(2, t[0], 1e-6, "scaled with the canvas");
 		assertEquals(2, t[3], 1e-6);

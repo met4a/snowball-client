@@ -83,7 +83,7 @@ public final class WorldCanvas implements Canvas {
 	}
 
 	/** The line of text that entry {@code i} is, in Minecraft's font, or null when it is a quad. */
-	public String text(int i) {
+	public String line(int i) {
 		return textOf[i];
 	}
 

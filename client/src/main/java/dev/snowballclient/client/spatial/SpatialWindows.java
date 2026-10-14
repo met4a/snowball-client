@@ -29,8 +29,8 @@ public final class SpatialWindows {
 	public static final int MAX_WINDOWS = 5;
 	/** Room between windows side by side, in GUI units. */
 	private static final double SIDE_GAP = 14;
-	/** How much nearer each layer of a page is put than the one under it, in blocks, so layers never fight. */
-	private static final double LAYER_STEP = 3e-5;
+	/** Grid cell, in GUI units, used to work out which layers of a page lie over which. */
+	private static final int CELL = 6;
 	/** Where nothing points: far off every page. */
 	private static final double NOWHERE = -10000;
 
@@ -73,7 +73,7 @@ public final class SpatialWindows {
 		 * column by column) takes a point of the line, in font units from its top left, to blocks from
 		 * the camera.
 		 */
-		void text(String text, float[] matrix, int argb, boolean shadow);
+		void line(String text, float[] matrix, int argb, boolean shadow);
 	}
 
 	private static final class Entry {
@@ -103,6 +103,7 @@ public final class SpatialWindows {
 	private int pressedButton = -1;
 	private SpatialWindow.Part pressedPart = SpatialWindow.Part.NONE;
 	private final float[] corners = new float[12];
+	private int[] cells = new int[0];
 
 	public SpatialWindows(Platform platform) {
 		this.platform = platform;
@@ -383,19 +384,23 @@ public final class SpatialWindows {
 		Vec normal = w.normal();
 		double halfW = w.width() / 2.0;
 		double halfH = w.height() / 2.0;
+		// Each layer stands a step in front of what it covers, so the graphics card never has to pick
+		// between two at the same depth (it picks badly: the shadow under the glass shows through in
+		// jagged streaks). A step is a little more than the depth buffer can tell apart that far away.
+		int[] levels = levels(c, w.width(), (int) Math.ceil(w.chromeBottom()));
+		double distance = base.length();
+		double step = Math.max(2e-5, 8e-6 * distance * distance);
 		UiTexture current = null;
-		int layer = 0;
 		for (int i = 0; i < c.size(); i++) {
-			String text = c.text(i);
+			Vec lift = normal.times(levels[i] * step);
+			String text = c.line(i);
 			if (text != null) {
-				// A line of text goes over everything before it: it closes the run and is a layer of its own.
+				// A line of text goes over everything before it: it closes the run.
 				if (current != null) {
 					sink.endRun();
-					layer++;
 					current = null;
 				}
 				float[] t = c.textTransform(i);
-				Vec lift = normal.times(layer * LAYER_STEP);
 				// Font units to page units (the canvas's transform), grown about the panel, then to blocks.
 				Vec du = right.times(scale * t[0]).plus(down.times(scale * t[1]));
 				Vec dv = right.times(scale * t[2]).plus(down.times(scale * t[3]));
@@ -408,20 +413,15 @@ public final class SpatialWindows {
 						(float) at.x(), (float) at.y(), (float) at.z(), 1f};
 				int argb = c.color(i);
 				int a = Math.round((argb >>> 24) * alpha);
-				sink.text(text, m, (a << 24) | (argb & 0xFFFFFF), c.shadow(i));
-				layer++;
+				sink.line(text, m, (a << 24) | (argb & 0xFFFFFF), c.shadow(i));
 				continue;
 			}
 			UiTexture texture = c.texture(i);
 			if (texture != current) {
-				if (current != null) {
-					sink.endRun();
-					layer++;
-				}
+				if (current != null) sink.endRun();
 				current = texture;
 				sink.beginRun(texture);
 			}
-			Vec lift = normal.times(layer * LAYER_STEP);
 			for (int corner = 0; corner < 4; corner++) {
 				double px = fx + (c.cornerX(i, corner) - fx) * scale - halfW;
 				double py = fy + (c.cornerY(i, corner) - fy) * scale - halfH;
@@ -435,6 +435,65 @@ public final class SpatialWindows {
 			sink.quad(corners, c.u0(i), c.v0(i), c.u1(i), c.v1(i), (a << 24) | (argb & 0xFFFFFF));
 		}
 		if (current != null) sink.endRun();
+	}
+
+	/**
+	 * How many layers lie under each entry of a page: one more than the highest layer already drawn
+	 * where it goes, worked out on a coarse grid. Things side by side share a layer and stay flat;
+	 * something drawn over something else is always a layer above it.
+	 */
+	int[] levels(WorldCanvas c, int width, int height) {
+		// A cell of margin all round: shadows and the bar reach a little past the page.
+		int cols = (width + CELL - 1) / CELL + 2;
+		int rows = (height + CELL - 1) / CELL + 2;
+		if (cells.length < cols * rows) cells = new int[cols * rows];
+		java.util.Arrays.fill(cells, 0, cols * rows, 0);
+		int[] out = new int[c.size()];
+		for (int i = 0; i < c.size(); i++) {
+			float minX = Float.POSITIVE_INFINITY;
+			float minY = Float.POSITIVE_INFINITY;
+			float maxX = Float.NEGATIVE_INFINITY;
+			float maxY = Float.NEGATIVE_INFINITY;
+			String text = c.line(i);
+			if (text != null) {
+				float[] t = c.textTransform(i);
+				float tw = c.textWidth(text);
+				float th = c.lineHeight();
+				for (float[] p : new float[][]{{0, 0}, {tw, 0}, {0, th}, {tw, th}}) {
+					float x = t[0] * p[0] + t[2] * p[1] + t[4];
+					float y = t[1] * p[0] + t[3] * p[1] + t[5];
+					minX = Math.min(minX, x);
+					maxX = Math.max(maxX, x);
+					minY = Math.min(minY, y);
+					maxY = Math.max(maxY, y);
+				}
+			} else {
+				for (int corner = 0; corner < 4; corner++) {
+					minX = Math.min(minX, c.cornerX(i, corner));
+					maxX = Math.max(maxX, c.cornerX(i, corner));
+					minY = Math.min(minY, c.cornerY(i, corner));
+					maxY = Math.max(maxY, c.cornerY(i, corner));
+				}
+			}
+			int x0 = cell(minX, cols);
+			int x1 = cell(maxX - 1e-3f, cols);
+			int y0 = cell(minY, rows);
+			int y1 = cell(maxY - 1e-3f, rows);
+			int below = 0;
+			for (int y = y0; y <= y1; y++) {
+				for (int x = x0; x <= x1; x++) below = Math.max(below, cells[y * cols + x]);
+			}
+			int level = below + 1;
+			for (int y = y0; y <= y1; y++) {
+				for (int x = x0; x <= x1; x++) cells[y * cols + x] = level;
+			}
+			out[i] = level;
+		}
+		return out;
+	}
+
+	private static int cell(float at, int count) {
+		return Math.max(0, Math.min(count - 1, (int) Math.floor(at / CELL) + 1));
 	}
 
 	// ---- The mouse: true when a window took it and the game should not ----

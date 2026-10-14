@@ -229,7 +229,7 @@ public final class SpatialGame implements SpatialWindows.Platform {
 		}
 
 		@Override
-		public void text(String text, float[] matrix, int argb, boolean shadow) {
+		public void line(String text, float[] matrix, int argb, boolean shadow) {
 			// The font draws all but fully see-through text opaque, which would flash as a window fades.
 			if ((argb >>> 24) < 8) return;
 			PoseStack pose = new PoseStack();

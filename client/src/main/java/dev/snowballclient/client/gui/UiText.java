@@ -143,7 +143,14 @@ public final class UiText {
 
 	/** Whether text on this canvas is smooth right now. */
 	public static boolean smooth(Canvas c) {
-		return (ModuleRegistry.INTERFACE == null || ModuleRegistry.INTERFACE.smoothText.isOn()) && SmoothText.usable(c);
+		return (alwaysSmooth || ModuleRegistry.INTERFACE == null || ModuleRegistry.INTERFACE.smoothText.isOn()) && SmoothText.usable(c);
+	}
+
+	private static boolean alwaysSmooth;
+
+	/** Smooth text whatever Smooth text says, until set back: the main menu always has it. Render thread only. */
+	public static void setAlwaysSmooth(boolean on) {
+		alwaysSmooth = on;
 	}
 
 	/** The weight of the smooth font used for this kind of text. */
