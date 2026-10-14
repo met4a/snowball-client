@@ -16,11 +16,13 @@ import net.minecraft.client.renderer.OrderedSubmitNodeCollector;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3fc;
 
 import java.util.Arrays;
+import java.util.function.Function;
 
 /**
  * Snowball's menus as windows in the world on this version: opens them in front of the camera,
@@ -37,6 +39,11 @@ public final class SpatialGame implements SpatialWindows.Platform {
 	private static final double NEAREST = 0.8;
 	private static final int GLFW_PRESS = 1;
 	private static final int GLFW_RELEASE = 0;
+	/**
+	 * Minecraft's text render type: textured, see-through where the texture is, lit full bright. A
+	 * method reference, as the build turns calls written ".text(" into ".drawString(" for 1.21.
+	 */
+	private static final Function<Identifier, RenderType> TEXT = RenderTypes::text;
 
 	private final SpatialWindows windows = new SpatialWindows(this);
 	private final Sink sink = new Sink();
@@ -231,7 +238,7 @@ public final class SpatialGame implements SpatialWindows.Platform {
 			// The game draws what it is given later in the frame: the run keeps its own copy.
 			float[] run = Arrays.copyOf(data, quads * STRIDE);
 			int count = quads;
-			RenderType type = RenderTypes.text(MinecraftTextures.id(texture));
+			RenderType type = TEXT.apply(MinecraftTextures.id(texture));
 			OrderedSubmitNodeCollector target = queue instanceof SubmitNodeCollector ordered ? ordered.order(order++) : queue;
 			target.submitCustomGeometry(new PoseStack(), type, (pose, consumer) -> {
 				for (int q = 0; q < count; q++) {
