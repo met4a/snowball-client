@@ -44,6 +44,9 @@ public final class SpatialWindows {
 
 		/** Gives the keyboard to {@code view} (a text box in it was clicked) until the player is done typing. */
 		void startTyping(View view);
+
+		/** How wide text is in Minecraft's font, in GUI units. */
+		int textWidth(String text);
 	}
 
 	/**
@@ -64,6 +67,13 @@ public final class SpatialWindows {
 		void quad(float[] corners, float u0, float v0, float u1, float v1, int argb);
 
 		void endRun();
+
+		/**
+		 * A line of text in Minecraft's font, over everything handed before it. {@code matrix} (4 by 4,
+		 * column by column) takes a point of the line, in font units from its top left, to blocks from
+		 * the camera.
+		 */
+		void text(String text, float[] matrix, int argb, boolean shadow);
 	}
 
 	private static final class Entry {
@@ -173,7 +183,7 @@ public final class SpatialWindows {
 		}
 		SpatialHost host = new SpatialHost(this, platform.game());
 		host.window = window;
-		Entry entry = new Entry(view, window, host, new WorldCanvas(platform.game().textures()));
+		Entry entry = new Entry(view, window, host, new WorldCanvas(platform.game().textures(), platform::textWidth));
 		entries.add(entry);
 		view.attach(host, window.width(), window.height());
 		takeFrame(entry);
@@ -376,6 +386,32 @@ public final class SpatialWindows {
 		UiTexture current = null;
 		int layer = 0;
 		for (int i = 0; i < c.size(); i++) {
+			String text = c.text(i);
+			if (text != null) {
+				// A line of text goes over everything before it: it closes the run and is a layer of its own.
+				if (current != null) {
+					sink.endRun();
+					layer++;
+					current = null;
+				}
+				float[] t = c.textTransform(i);
+				Vec lift = normal.times(layer * LAYER_STEP);
+				// Font units to page units (the canvas's transform), grown about the panel, then to blocks.
+				Vec du = right.times(scale * t[0]).plus(down.times(scale * t[1]));
+				Vec dv = right.times(scale * t[2]).plus(down.times(scale * t[3]));
+				Vec dz = normal.times(scale * k);
+				Vec at = base.plus(right.times(fx + scale * (t[4] - fx) - halfW)).plus(down.times(fy + scale * (t[5] - fy) - halfH)).plus(lift);
+				float[] m = {
+						(float) du.x(), (float) du.y(), (float) du.z(), 0f,
+						(float) dv.x(), (float) dv.y(), (float) dv.z(), 0f,
+						(float) dz.x(), (float) dz.y(), (float) dz.z(), 0f,
+						(float) at.x(), (float) at.y(), (float) at.z(), 1f};
+				int argb = c.color(i);
+				int a = Math.round((argb >>> 24) * alpha);
+				sink.text(text, m, (a << 24) | (argb & 0xFFFFFF), c.shadow(i));
+				layer++;
+				continue;
+			}
 			UiTexture texture = c.texture(i);
 			if (texture != current) {
 				if (current != null) {

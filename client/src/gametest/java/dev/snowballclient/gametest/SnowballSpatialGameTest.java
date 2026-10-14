@@ -70,7 +70,7 @@ public final class SnowballSpatialGameTest implements FabricClientGameTest {
 			check(windows.get(0).view() instanceof RadialMenuView, "the Snowball menu, got " + windows.get(0).view());
 			check(SpatialGame.windows().hover().part() == SpatialWindow.Part.PAGE,
 					"the crosshair is on the menu, got " + SpatialGame.windows().hover().part());
-			check(SpatialGame.windows().canvas(windows.get(0)).size() > 50, "the menu drew its page");
+			check(SpatialGame.windows().canvas(windows.get(0)).size() > 20, "the menu drew its page");
 			return null;
 		});
 		context.takeScreenshot("spatial_menu");

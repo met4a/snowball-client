@@ -1,6 +1,5 @@
 package dev.snowballclient.client.spatial;
 
-import dev.snowballclient.client.gui.smooth.SmoothText;
 import dev.snowballclient.client.ui.Canvas;
 import dev.snowballclient.client.ui.Textures;
 import dev.snowballclient.client.ui.UiTexture;
@@ -8,19 +7,23 @@ import dev.snowballclient.client.ui.UiTexture;
 import java.util.Arrays;
 
 /**
- * A {@link Canvas} that does not draw: it writes down every quad a view draws, in page units and
- * in order, so the page can be put up in the world as textured quads. Fills are quads of a small
- * white texture, and all text is smooth text (texture regions from the glyph pages), so everything
- * on the page is one kind of quad. Reused from frame to frame: {@link #begin} starts a new page.
+ * A {@link Canvas} that does not draw: it writes down everything a view draws, in page units and
+ * in order, so the page can be put up in the world. Fills, textures and smooth text are textured
+ * quads (fills of a small white texture); text in Minecraft's own font is kept as a line of text,
+ * where it stands and how it is turned, for the game to write in the world itself. Reused from
+ * frame to frame: {@link #begin} starts a new page.
  */
 public final class WorldCanvas implements Canvas {
-	/** Minecraft's font: a line is 9 units, and the baseline 7 units below the top. */
+	/** Minecraft's font: a line is 9 units. */
 	private static final int LINE = 9;
-	private static final int BASELINE = 7;
-	/** Smooth text size per unit of the font it stands in for, as menus use. */
-	private static final float TEXT_SIZE = 9.2f;
+
+	/** How wide text is in Minecraft's font, in GUI units. */
+	public interface TextWidth {
+		int width(String text);
+	}
 
 	private final Textures textures;
+	private final TextWidth fontWidth;
 	private double density;
 	private int width;
 	private int height;
@@ -38,10 +41,14 @@ public final class WorldCanvas implements Canvas {
 	private float[] uvs = new float[4 * 256];
 	private int[] colors = new int[256];
 	private UiTexture[] textureOf = new UiTexture[256];
+	// Lines of text in Minecraft's font: null for quads. A line's corners hold its transform instead.
+	private String[] textOf = new String[256];
+	private boolean[] shadowOf = new boolean[256];
 	private int count;
 
-	public WorldCanvas(Textures textures) {
+	public WorldCanvas(Textures textures, TextWidth fontWidth) {
 		this.textures = textures;
+		this.fontWidth = fontWidth;
 	}
 
 	/**
@@ -60,8 +67,9 @@ public final class WorldCanvas implements Canvas {
 		f = 0;
 		depth = 0;
 		count = 0;
-		// Nothing keeps the textures of the last frame alive past it.
+		// Nothing keeps the textures and text of the last frame alive past it.
 		Arrays.fill(textureOf, null);
+		Arrays.fill(textOf, null);
 	}
 
 	/** How many quads the page has. */
@@ -69,9 +77,27 @@ public final class WorldCanvas implements Canvas {
 		return count;
 	}
 
-	/** The texture of quad {@code i}. */
+	/** The texture of quad {@code i}; null for a line of text. */
 	public UiTexture texture(int i) {
 		return textureOf[i];
+	}
+
+	/** The line of text that entry {@code i} is, in Minecraft's font, or null when it is a quad. */
+	public String text(int i) {
+		return textOf[i];
+	}
+
+	public boolean shadow(int i) {
+		return shadowOf[i];
+	}
+
+	/**
+	 * Where a line of text stands: a point (u, v) of the line, in font units from its top left,
+	 * is at page point (a u + c v + e, b u + d v + f). Returns a, b, c, d, e, f.
+	 */
+	public float[] textTransform(int i) {
+		int o = i * 8;
+		return new float[]{corners[o], corners[o + 1], corners[o + 2], corners[o + 3], corners[o + 4], corners[o + 5]};
 	}
 
 	/** Corner {@code k} (0 top left, 1 bottom left, 2 bottom right, 3 top right) of quad {@code i}: x then y. */
@@ -137,23 +163,24 @@ public final class WorldCanvas implements Canvas {
 	@Override
 	public void drawText(String text, int x, int y, int argb, boolean shadow) {
 		if ((argb >>> 24) < 4 || text.isEmpty()) return;
-		String plain = plain(text);
-		float pixels = (float) (TEXT_SIZE * density);
-		float baseline = (float) ((y + BASELINE) * density);
-		push();
-		scale((float) (1.0 / density), (float) (1.0 / density));
-		if (shadow) {
-			int drop = (int) Math.max(1, Math.round(density * 0.5));
-			SmoothText.draw(this, plain, SmoothText.Weight.BOLD, Math.round(pixels), (float) (x * density), Math.round(baseline) + drop, (int) ((argb >>> 24) * 0.32f) << 24);
-		}
-		SmoothText.draw(this, plain, SmoothText.Weight.BOLD, Math.round(pixels), (float) (x * density), Math.round(baseline), argb);
-		pop();
+		if (count == colors.length) grow();
+		int o = count * 8;
+		corners[o] = (float) a;
+		corners[o + 1] = (float) b;
+		corners[o + 2] = (float) c;
+		corners[o + 3] = (float) d;
+		corners[o + 4] = (float) (a * x + c * y + e);
+		corners[o + 5] = (float) (b * x + d * y + f);
+		colors[count] = argb;
+		textureOf[count] = null;
+		textOf[count] = text;
+		shadowOf[count] = shadow;
+		count++;
 	}
 
 	@Override
 	public int textWidth(String text) {
-		if (text.isEmpty()) return 0;
-		return (int) Math.ceil(SmoothText.width(plain(text), SmoothText.Weight.BOLD, Math.round((float) (TEXT_SIZE * density))) / density);
+		return text.isEmpty() ? 0 : fontWidth.width(text);
 	}
 
 	@Override
@@ -247,6 +274,7 @@ public final class WorldCanvas implements Canvas {
 		uvs[t + 3] = v1;
 		colors[count] = argb;
 		textureOf[count] = texture;
+		textOf[count] = null;
 		count++;
 	}
 
@@ -261,17 +289,7 @@ public final class WorldCanvas implements Canvas {
 		uvs = Arrays.copyOf(uvs, n * 4);
 		colors = Arrays.copyOf(colors, n);
 		textureOf = Arrays.copyOf(textureOf, n);
-	}
-
-	/** Text without Minecraft's formatting codes, which the smooth font would print as they are. */
-	private static String plain(String text) {
-		if (text.indexOf('§') < 0) return text;
-		StringBuilder out = new StringBuilder(text.length());
-		for (int i = 0; i < text.length(); i++) {
-			char ch = text.charAt(i);
-			if (ch == '§' && i + 1 < text.length()) i++;
-			else out.append(ch);
-		}
-		return out.toString();
+		textOf = Arrays.copyOf(textOf, n);
+		shadowOf = Arrays.copyOf(shadowOf, n);
 	}
 }

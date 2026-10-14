@@ -11,14 +11,19 @@ import dev.snowballclient.client.ui.UiTexture;
 import dev.snowballclient.client.ui.View;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.OrderedSubmitNodeCollector;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.network.chat.Style;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.util.StringDecomposer;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4f;
 import org.joml.Vector3fc;
 
 import java.util.Arrays;
@@ -195,6 +200,11 @@ public final class SpatialGame implements SpatialWindows.Platform {
 		Minecraft.getInstance().gui.setScreen(new SpatialTypingScreen(view));
 	}
 
+	@Override
+	public int textWidth(String text) {
+		return Minecraft.getInstance().font.width(text);
+	}
+
 	/**
 	 * Hands each run of quads to the game as custom geometry in its own draw order, so runs are
 	 * drawn one over another in the order the page drew them, whatever their textures.
@@ -211,6 +221,22 @@ public final class SpatialGame implements SpatialWindows.Platform {
 		void start(OrderedSubmitNodeCollector queue) {
 			this.queue = queue;
 			order = FIRST_ORDER;
+		}
+
+		/** The next draw order: drawn over everything handed before it. */
+		private OrderedSubmitNodeCollector next() {
+			return queue instanceof SubmitNodeCollector ordered ? ordered.order(order++) : queue;
+		}
+
+		@Override
+		public void text(String text, float[] matrix, int argb, boolean shadow) {
+			// The font draws all but fully see-through text opaque, which would flash as a window fades.
+			if ((argb >>> 24) < 8) return;
+			PoseStack pose = new PoseStack();
+			pose.mulPose(new Matrix4f().set(matrix));
+			// Read as the game reads a string: formatting codes change the colour rather than print.
+			FormattedCharSequence line = sink -> StringDecomposer.iterateFormatted(text, Style.EMPTY, sink);
+			next().submitText(pose, 0f, 0f, line, shadow, Font.DisplayMode.NORMAL, FULL_BRIGHT, argb, 0, 0);
 		}
 
 		@Override
@@ -239,8 +265,7 @@ public final class SpatialGame implements SpatialWindows.Platform {
 			float[] run = Arrays.copyOf(data, quads * STRIDE);
 			int count = quads;
 			RenderType type = TEXT.apply(MinecraftTextures.id(texture));
-			OrderedSubmitNodeCollector target = queue instanceof SubmitNodeCollector ordered ? ordered.order(order++) : queue;
-			target.submitCustomGeometry(new PoseStack(), type, (pose, consumer) -> {
+			next().submitCustomGeometry(new PoseStack(), type, (pose, consumer) -> {
 				for (int q = 0; q < count; q++) {
 					int o = q * STRIDE;
 					float u0 = run[o + 12];

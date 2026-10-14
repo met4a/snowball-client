@@ -73,6 +73,7 @@ class SpatialWindowsTest {
 		@Override public Host game() { return game; }
 		@Override public void showOnScreen(View view) { onScreen.add(view); }
 		@Override public void startTyping(View view) { typing.add(view); }
+		@Override public int textWidth(String text) { return text.length() * 6; }
 	}
 
 	/** A panel 200 by 100 in the middle of its page that writes down what reaches it. */
@@ -368,6 +369,12 @@ class SpatialWindowsTest {
 			public void endRun() {
 				open[0]--;
 			}
+
+			@Override
+			public void text(String text, float[] matrix, int argb, boolean shadow) {
+				assertEquals(0, open[0], "text comes between runs, never inside one");
+				zs.add(matrix[14]);
+			}
 		});
 		assertEquals(0, open[0]);
 		assertTrue(runs.size() >= 2, "fills and text are separate runs");
@@ -378,9 +385,40 @@ class SpatialWindowsTest {
 	}
 
 	@Test
-	void theCanvasFollowsTransformsAndDrawsTextAsRegions() {
-		WorldCanvas c = new WorldCanvas(new FakeTextures());
-		dev.snowballclient.client.gui.smooth.SmoothText.use(new FakeTextures());
+	void textInMinecraftsFontStandsWhereThePageWroteIt() {
+		Panel panel = new Panel();
+		SpatialWindow w = windows.open(panel, EYE, SOUTH, PLACE);
+		settle();
+		windows.draw(0f);
+		List<float[]> lines = new ArrayList<>();
+		windows.emit(EYE, new SpatialWindows.QuadSink() {
+			@Override public void beginRun(UiTexture texture) { }
+			@Override public void quad(float[] corners, float u0, float v0, float u1, float v1, int argb) { }
+			@Override public void endRun() { }
+
+			@Override
+			public void text(String text, float[] matrix, int argb, boolean shadow) {
+				assertEquals("Hello", text);
+				assertTrue(shadow);
+				lines.add(matrix);
+			}
+		});
+		assertEquals(1, lines.size());
+		float[] m = lines.get(0);
+		// The panel wrote "Hello" at (110, 80): the line's top left is there, a hair in front of the page.
+		Vec at = w.at(110, 80).minus(EYE);
+		assertEquals(at.x(), m[12], 1e-3);
+		assertEquals(at.y(), m[13], 1e-3);
+		assertEquals(at.z(), m[14], 1e-2);
+		// One font unit along the line is one page unit to the window's right; one down is one page unit down.
+		assertEquals(w.right().x() * 0.01, m[0], 1e-6);
+		assertEquals(-0.01, m[5], 1e-6);
+		assertEquals("Hello".length() * 6, windows.canvas(w).textWidth("Hello"), "widths come from the game's font");
+	}
+
+	@Test
+	void theCanvasFollowsTransformsAndKeepsTextAsText() {
+		WorldCanvas c = new WorldCanvas(new FakeTextures(), text -> text.length() * 6);
 		c.begin(100, 50, 2.0);
 		c.push();
 		c.translate(10, 20);
@@ -394,10 +432,21 @@ class SpatialWindowsTest {
 		assertEquals(20, c.cornerX(0, 2), 1e-6, "scaled by two");
 		assertEquals(30, c.cornerY(0, 2), 1e-6);
 		assertEquals(1, c.cornerX(1, 0), 1e-6, "pop restored the transform");
-		c.drawText("Hi", 0, 0, 0xFFFFFFFF, false);
-		assertEquals(4, c.size(), "two glyphs");
-		assertNotEquals(c.texture(0), c.texture(2), "glyphs come from a glyph page, fills from white");
-		assertTrue(c.textWidth("Hello") > 10);
+		c.push();
+		c.translate(5, 6);
+		c.scale(2, 2);
+		c.drawText("Hi", 1, 1, 0xFFFFFFFF, false);
+		c.pop();
+		assertEquals(3, c.size(), "the line of text is one entry");
+		assertEquals("Hi", c.text(2));
+		assertNull(c.texture(2));
+		assertNull(c.text(0), "fills are quads");
+		float[] t = c.textTransform(2);
+		assertEquals(2, t[0], 1e-6, "scaled with the canvas");
+		assertEquals(2, t[3], 1e-6);
+		assertEquals(7, t[4], 1e-6, "at the canvas's (1, 1)");
+		assertEquals(8, t[5], 1e-6);
+		assertEquals(30, c.textWidth("Hello"));
 		c.begin(100, 50, 2.0);
 		assertEquals(0, c.size());
 	}

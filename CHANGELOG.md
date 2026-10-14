@@ -28,9 +28,9 @@ installer once.
   to type into it; Esc or Enter when you are done. Prefer the old look? Set the
   style to Lean in 3D Menus.
 - **A smoother, rounder main menu.** New layout with your account and quick
-  buttons in the top corner, a clean column of big rounded buttons, and smooth
-  text instead of pixel text throughout Snowball's menus. If you prefer the
-  pixel font, turn off Smooth text under Menu & Accessibility.
+  buttons in the top corner, and a clean column of big rounded buttons with
+  smooth, anti-aliased edges. Menus keep Minecraft's own font; for a smooth,
+  rounded font instead, turn on Smooth text under Menu & Accessibility.
 
 ### Fixed
 - **Your Snowball cape always shows.** It used to hide whenever you also had a
