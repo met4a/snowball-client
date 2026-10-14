@@ -180,6 +180,13 @@ public final class Depth {
 	 * Starts a frame: works out the lean from the mouse and turns the canvas about the middle of the
 	 * screen. Returns false, and changes nothing, when the frame is drawn flat.
 	 */
+	/** A frame drawn flat (a window standing in the world): nothing is left leaning from the last screen. */
+	public static void flatFrame() {
+		frameInDepth = false;
+		frameOwner = null;
+		tilt = Tilt.FLAT;
+	}
+
 	static boolean begin(Object owner, Canvas c, int width, int height, double mouseX, double mouseY, boolean allowed, boolean mainMenu) {
 		drawing = false;
 		frameInDepth = false;

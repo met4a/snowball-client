@@ -30,13 +30,17 @@ final class SpatialTypingScreen extends Screen {
 	@Override
 	public boolean keyPressed(KeyEvent event) {
 		int key = event.key();
-		if (key == Keys.ESCAPE) {
+		if (key == Keys.ESCAPE && !view.wantsKeyboard()) {
 			finish();
 			return true;
 		}
 		if (view.keyPressed(key)) {
-			// The window took the key; Enter in a box usually finishes with it, and so does typing here.
-			if (!TextField.anyFocused()) finish();
+			// The window took the key; once it wants no more (Enter in a box, a key bound), typing ends.
+			if (!view.wantsKeyboard()) finish();
+			return true;
+		}
+		if (key == Keys.ESCAPE) {
+			finish();
 			return true;
 		}
 		if (key == Keys.ENTER || key == Keys.KP_ENTER) finish();

@@ -2,6 +2,7 @@ package dev.snowballclient.client.spatial;
 
 import dev.snowballclient.client.gui.TextField;
 import dev.snowballclient.client.gui.smooth.SmoothShapes;
+import dev.snowballclient.client.ui.Depth;
 import dev.snowballclient.client.ui.Host;
 import dev.snowballclient.client.ui.UiTexture;
 import dev.snowballclient.client.ui.View;
@@ -310,6 +311,8 @@ public final class SpatialWindows {
 	public void draw(float partialTick) {
 		if (entries.isEmpty() || placement == null) return;
 		View.startFrame();
+		// Windows stand flat in the world: no lean left over from the last screen that leaned.
+		Depth.flatFrame();
 		for (Entry e : new ArrayList<>(entries)) {
 			SpatialWindow w = e.window;
 			e.canvas.begin(w.width(), w.height(), placement.density());
@@ -518,7 +521,7 @@ public final class SpatialWindows {
 					fail(e, "click", ex);
 					return true;
 				}
-				if (TextField.anyFocused() && pressed == e) {
+				if (e.view.wantsKeyboard() && pressed == e) {
 					// The release will reach the typing screen, not here: finish the click now.
 					release(button);
 					platform.startTyping(e.view);

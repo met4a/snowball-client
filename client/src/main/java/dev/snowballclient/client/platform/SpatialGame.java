@@ -99,7 +99,11 @@ public final class SpatialGame implements SpatialWindows.Platform {
 
 	/** A game tick: views in windows tick, and windows left in another world are dropped. */
 	public static void tick(Minecraft mc) {
-		if (INSTANCE.windows.isEmpty()) return;
+		if (INSTANCE.windows.isEmpty()) {
+			// Nothing open: hold no world that has been left.
+			INSTANCE.level = null;
+			return;
+		}
 		if (mc.level == null || mc.player == null || mc.level != INSTANCE.level || ModuleRegistry.MENU_3D == null || !ModuleRegistry.MENU_3D.windows()) {
 			INSTANCE.windows.clear();
 			return;

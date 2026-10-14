@@ -100,8 +100,10 @@ class SmoothTextTest {
 		Regions c = new Regions();
 		SmoothText.draw(c, "Hi there", SmoothText.Weight.SEMIBOLD, 18, 10f, 30, 0xFFFFFFFF);
 		assertEquals(7, c.drawn.size(), "seven glyphs with ink; the space draws nothing");
+		int pageSize = ((Tex) c.from.get(0)).width();
+		assertTrue(pageSize >= GlyphFace.PAGE);
 		for (int[] r : c.drawn) {
-			assertTrue(r[2] >= 0 && r[3] >= 0 && r[2] + r[4] <= GlyphFace.PAGE && r[3] + r[5] <= GlyphFace.PAGE, "regions stay on the page");
+			assertTrue(r[2] >= 0 && r[3] >= 0 && r[2] + r[4] <= pageSize && r[3] + r[5] <= pageSize, "regions stay on the page");
 		}
 		// Glyphs are white with coverage as alpha.
 		Tex page = (Tex) c.from.get(0);
@@ -197,6 +199,20 @@ class SmoothTextTest {
 			}
 		}
 		assertFalse(lastFrame.isEmpty());
+	}
+
+	@Test
+	void largeTextKeepsEveryLetterAndUnknownCharactersDrawAsMeasured() {
+		Regions c = new Regions();
+		// 4K at a high GUI scale: titles well over 100 pixels.
+		SmoothText.draw(c, "Wxyz", SmoothText.Weight.EXTRABOLD, 150, 0f, 200, 0xFFFFFFFF);
+		assertEquals(4, c.drawn.size(), "lowercase letters still fit at 150 px");
+		c.drawn.clear();
+		// A character the menu font has no shape for counts as '?' when measured, and is drawn as one.
+		float w = SmoothText.width("a\u4e2d", SmoothText.Weight.BOLD, 20);
+		assertTrue(w > SmoothText.width("a", SmoothText.Weight.BOLD, 20));
+		SmoothText.draw(c, "a\u4e2d", SmoothText.Weight.BOLD, 20, 0f, 30, 0xFFFFFFFF);
+		assertEquals(2, c.drawn.size());
 	}
 
 	@Test

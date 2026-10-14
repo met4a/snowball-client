@@ -22,6 +22,7 @@ import java.util.Map;
  * under a new name, the earlier upload being retired rather than replaced in place.
  */
 final class GlyphFace {
+	/** The smallest page; a large face gets larger pages, so its common glyphs always fit. */
 	static final int PAGE = 256;
 	/** Glyphs drawn up front: everything a menu usually says. */
 	private static final String COMMON = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~·…–—‘’“”•×÷°©®™€£";
@@ -32,7 +33,7 @@ final class GlyphFace {
 	}
 
 	private static final class Page {
-		private final BufferedImage image = new BufferedImage(PAGE, PAGE, BufferedImage.TYPE_INT_ARGB);
+		private final BufferedImage image;
 		private final int index;
 		private UiTexture texture;
 		private int uploads;
@@ -41,11 +42,13 @@ final class GlyphFace {
 		private int y = 1;
 		private int rowHeight;
 
-		private Page(int index) {
+		private Page(int index, int size) {
 			this.index = index;
+			this.image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
 		}
 	}
 
+	private final int pageSize;
 	private final Font font;
 	private final FontRenderContext context;
 	private final String name;
@@ -59,7 +62,10 @@ final class GlyphFace {
 		this.name = name;
 		Rectangle h = font.createGlyphVector(context, "H").getPixelBounds(context, 0f, 0f);
 		this.capHeight = h.height > 0 ? -h.y : pixels * 0.7f;
-		pages.add(new Page(0));
+		// Room for every common glyph on the first page: about a dozen rows of a dozen at this size.
+		int need = Math.max(PAGE, (int) Math.ceil(pixels * 1.4f) * 12);
+		this.pageSize = Math.min(2048, Integer.highestOneBit(need - 1) << 1);
+		pages.add(new Page(0, pageSize));
 		for (int i = 0; i < COMMON.length(); ) {
 			int cp = COMMON.codePointAt(i);
 			glyph(cp);
@@ -92,7 +98,7 @@ final class GlyphFace {
 		for (Page page : pages) {
 			if (!page.dirty) continue;
 			if (page.texture != null) SmoothText.retire(page.texture);
-			page.texture = SmoothText.upload(name + "_" + page.index + "_" + (page.uploads++), PAGE, PAGE, pixels(page.image));
+			page.texture = SmoothText.upload(name + "_" + page.index + "_" + (page.uploads++), pageSize, pageSize, pixels(page.image));
 			page.dirty = false;
 		}
 		float pen = x;
@@ -115,9 +121,12 @@ final class GlyphFace {
 	private Glyph glyph(int cp) {
 		Glyph known = glyphs.get(cp);
 		if (known != null) return known;
-		if (!font.canDisplay(cp)) cp = '?';
-		known = glyphs.get(cp);
-		if (known != null) return known;
+		if (!font.canDisplay(cp)) {
+			// Kept under the character itself too, so drawing finds what measuring found.
+			Glyph question = glyph('?');
+			if (question != null) glyphs.put(cp, question);
+			return question;
+		}
 		GlyphVector vector = font.createGlyphVector(context, new String(Character.toChars(cp)));
 		float advance = vector.getGlyphMetrics(0).getAdvanceX();
 		Rectangle bounds = vector.getPixelBounds(context, 0f, 0f);
@@ -129,14 +138,19 @@ final class GlyphFace {
 		int w = bounds.width + 2;
 		int h = bounds.height + 2;
 		Page page = pages.get(pages.size() - 1);
-		if (page.x + w + 1 > PAGE) {
+		if (page.x + w + 1 > pageSize) {
 			page.x = 1;
 			page.y += page.rowHeight + 1;
 			page.rowHeight = 0;
 		}
-		if (page.y + h + 1 > PAGE) {
-			if (pages.size() >= MAX_PAGES || w + 2 > PAGE || h + 2 > PAGE) return null;
-			page = new Page(pages.size());
+		if (page.y + h + 1 > pageSize) {
+			if (pages.size() >= MAX_PAGES || w + 2 > pageSize || h + 2 > pageSize) {
+				// No room: remembered as a space, rather than measured again on every call.
+				Glyph none = new Glyph(page, 0, 0, 0, 0, 0, 0, advance);
+				glyphs.put(cp, none);
+				return none;
+			}
+			page = new Page(pages.size(), pageSize);
 			pages.add(page);
 		}
 		Graphics2D g = page.image.createGraphics();
@@ -159,7 +173,8 @@ final class GlyphFace {
 
 	/** The page's pixels as straight-alpha ARGB, white with the glyphs' coverage as alpha. */
 	private static int[] pixels(BufferedImage image) {
-		int[] argb = image.getRGB(0, 0, PAGE, PAGE, null, 0, PAGE);
+		int size = image.getWidth();
+		int[] argb = image.getRGB(0, 0, size, size, null, 0, size);
 		for (int i = 0; i < argb.length; i++) argb[i] = (argb[i] >>> 24) << 24 | 0x00FFFFFF;
 		return argb;
 	}

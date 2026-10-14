@@ -54,6 +54,14 @@ public abstract class View {
 		return allowsDepth();
 	}
 
+	/**
+	 * Whether the view wants keys typed rather than played with right now: a text box is focused,
+	 * or it waits for a key to bind. A window in the world hands it the keyboard while this holds.
+	 */
+	public boolean wantsKeyboard() {
+		return dev.snowballclient.client.gui.TextField.anyFocused();
+	}
+
 	/** The part of the page the view actually draws its window in, in GUI units. */
 	public record Frame(int x, int y, int width, int height) {
 	}

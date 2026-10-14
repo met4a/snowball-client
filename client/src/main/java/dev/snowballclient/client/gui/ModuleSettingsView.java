@@ -316,7 +316,13 @@ public final class ModuleSettingsView extends View {
 			text.set(editor.value());
 		}
 		editing = -1;
+		editor.setFocused(false);
 		editor = null;
+	}
+
+	@Override
+	public boolean wantsKeyboard() {
+		return capturingKey || editor != null && editor.isFocused();
 	}
 
 	@Override
@@ -333,6 +339,7 @@ public final class ModuleSettingsView extends View {
 			}
 			if (key == Keys.ESCAPE) {
 				editing = -1;
+				editor.setFocused(false);
 				editor = null;
 				return true;
 			}
