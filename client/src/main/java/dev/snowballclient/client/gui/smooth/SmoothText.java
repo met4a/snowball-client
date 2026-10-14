@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -42,10 +43,17 @@ public final class SmoothText {
 	}
 
 	/** Faces kept at once (weight and pixel size): a window resize makes new ones. */
-	private static final int MAX_FACES = 24;
+	private static final int MAX_FACES = 32;
 
 	private static final Map<Weight, Font> FONTS = new EnumMap<>(Weight.class);
-	private static final Map<Long, GlyphFace> FACES = new HashMap<>();
+	/** Least recently used first, so the face nobody has asked for longest is the one let go. */
+	private static final Map<Long, GlyphFace> FACES = new LinkedHashMap<>(16, 0.75f, true);
+	/**
+	 * Counts every upload, to make each texture's name unique. The game keeps textures by name and
+	 * lets go of whatever is under a name when it releases one, so a page made again under an old
+	 * page's name would be released along with that old page two frames later and draw as missing.
+	 */
+	private static long uploads;
 	/** Textures replaced or dropped, with the frame they were let go in; released two frames on. */
 	private static final List<Retired> RETIRED = new ArrayList<>();
 	private static boolean loaded;
@@ -122,7 +130,7 @@ public final class SmoothText {
 	}
 
 	static UiTexture upload(String name, int width, int height, int[] argb) {
-		return textures.upload(name, width, height, argb);
+		return textures.upload(name + "_" + Long.toString(++uploads, 36), width, height, argb);
 	}
 
 	private static GlyphFace face(Weight weight, int pixels) {
@@ -132,9 +140,10 @@ public final class SmoothText {
 		GlyphFace face = FACES.get(key);
 		if (face == null) {
 			if (FACES.size() >= MAX_FACES) {
-				// A window resize left faces nobody asks for: drop them all; their pages go two frames on.
-				for (GlyphFace old : FACES.values()) old.retireAll();
-				FACES.clear();
+				// A window resize left faces nobody asks for: the one unused longest goes; its pages two frames on.
+				var oldest = FACES.entrySet().iterator();
+				oldest.next().getValue().retireAll();
+				oldest.remove();
 			}
 			face = new GlyphFace(FONTS.get(weight), size, "dynamic/smooth/" + weight.name().toLowerCase(java.util.Locale.ROOT) + "_" + size);
 			FACES.put(key, face);

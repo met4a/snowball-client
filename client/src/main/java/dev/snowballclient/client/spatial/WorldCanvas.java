@@ -24,7 +24,9 @@ public final class WorldCanvas implements Canvas {
 	private double density;
 	private int width;
 	private int height;
-	private UiTexture white;
+	/** One white texture for every window's fills, made once per texture source. */
+	private static UiTexture white;
+	private static Textures whiteSource;
 
 	// The current transform, x' = a x + c y + e, y' = b x + d y + f, and the saved ones.
 	private double a = 1, b, c, d = 1, e, f;
@@ -122,10 +124,11 @@ public final class WorldCanvas implements Canvas {
 	@Override
 	public void fill(int x1, int y1, int x2, int y2, int argb) {
 		if ((argb >>> 24) == 0) return;
-		if (white == null) {
+		if (white == null || whiteSource != textures) {
 			int[] px = new int[4 * 4];
 			Arrays.fill(px, 0xFFFFFFFF);
 			white = textures.upload("spatial/white", 4, 4, px);
+			whiteSource = textures;
 		}
 		// The middle of the white texture, so filtering never reaches an edge.
 		quad(white, Math.min(x1, x2), Math.min(y1, y2), Math.max(x1, x2), Math.max(y1, y2), 0.5f, 0.5f, 0.5f, 0.5f, argb);

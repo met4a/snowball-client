@@ -144,6 +144,61 @@ class SmoothTextTest {
 		assertEquals(corners, textures.uploaded.size(), "the same radius reuses its corners at any size");
 	}
 
+	/** Textures kept by name, as the game keeps them: registering replaces, releasing drops whatever is under the name. */
+	private static final class Named implements Textures {
+		final java.util.Map<String, Tex> live = new java.util.HashMap<>();
+
+		@Override
+		public UiTexture bundled(String path, int width, int height) {
+			return new Tex(path, width, height, null);
+		}
+
+		@Override
+		public UiTexture upload(String name, int width, int height, int[] argb) {
+			Tex t = new Tex(name, width, height, argb);
+			live.put(name, t);
+			return t;
+		}
+
+		@Override
+		public void release(UiTexture texture) {
+			live.remove(((Tex) texture).name());
+		}
+
+		@Override
+		public Pixels readPng(Path file, int maxSize) {
+			return null;
+		}
+	}
+
+	@Test
+	void textureNamesAreNeverReusedSoAReleaseNeverTakesANewerTexture() {
+		Named named = new Named();
+		SmoothText.use(named);
+		Regions c = new Regions();
+		// A menu draws ten sizes every frame, and each window resize (or a window in the world at
+		// another density) brings new ones alongside some of the old: more than are kept, so faces are
+		// let go while the same frame still wants them, and made again at once.
+		List<UiTexture> lastFrame = new ArrayList<>();
+		for (int resize = 0; resize < 12; resize++) {
+			for (int frame = 0; frame < 4; frame++) {
+				SmoothText.frameStarted();
+				c.from.clear();
+				for (int k = 0; k < 10; k++) {
+					int px = 8 + (resize * 7 + k) % 40;
+					SmoothText.draw(c, "Abc", SmoothText.Weight.values()[k % 3], px, 0f, 30, 0xFFFFFFFF);
+					SmoothShapes.roundRect(c, 2.0, 0, 0, 40, 20, 2 + (resize + k) % 9, 0xFF101010, 0x40FFFFFF);
+				}
+				// Every texture drawn in this frame must still be the one the game holds under its name.
+				for (UiTexture t : c.from) {
+					assertSame(t, named.live.get(((Tex) t).name()), "drawn but no longer held by the game: " + ((Tex) t).name());
+				}
+				lastFrame = new ArrayList<>(c.from);
+			}
+		}
+		assertFalse(lastFrame.isEmpty());
+	}
+
 	@Test
 	void textFallsBackWhereRegionsCannotBeDrawn() {
 		Canvas plain = new Regions() {
