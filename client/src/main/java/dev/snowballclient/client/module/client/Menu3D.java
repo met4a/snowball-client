@@ -39,7 +39,7 @@ public final class Menu3D extends Module implements Depth.Settings {
 	public final BooleanSetting mainMenu = setting(new BooleanSetting("main_menu", "Main menu too", "Lean the Snowball main menu as well", true));
 
 	public Menu3D() {
-		super("menu_3d", "3D Menus", "Menus lean towards the mouse, with depth", ModuleCategory.CLIENT);
+		super("menu_3d", "3D Menus", "Menus stand in the world as windows, or lean towards the mouse", ModuleCategory.CLIENT);
 		alsoIn(ModuleCategory.VISUALS);
 		Depth.install(this);
 	}

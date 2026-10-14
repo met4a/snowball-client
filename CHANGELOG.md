@@ -9,7 +9,7 @@ installer once.
 
 ---
 
-## Unreleased
+## 1.10.0
 
 ### What's new
 - **Skin changer.** A new Skins page in the launcher and a Skins panel in game
