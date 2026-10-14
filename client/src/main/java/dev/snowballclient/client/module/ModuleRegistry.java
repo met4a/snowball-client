@@ -12,6 +12,7 @@ import dev.snowballclient.client.module.client.Presets;
 import dev.snowballclient.client.module.client.InterfaceSettings;
 import dev.snowballclient.client.module.client.Menu3D;
 import dev.snowballclient.client.module.client.PvpHudModules;
+import dev.snowballclient.client.module.client.Skins;
 import dev.snowballclient.client.module.fps.AdvancedOptions;
 import dev.snowballclient.client.module.fps.AnimationOptimization;
 import dev.snowballclient.client.module.fps.EntityRenderDistance;
@@ -138,6 +139,7 @@ public final class ModuleRegistry {
 		INTERFACE = m.register(new InterfaceSettings(theme, clientSettings));
 		MENU_3D = m.register(new Menu3D());
 		COSMETICS = m.register(new Cosmetics());
+		m.register(new Skins());
 
 		// FPS BOOST: one Boost switch with preset cards; the fine-tuning modules sit under Advanced.
 		FPS_BOOST = m.register(new FpsBoost(requests));
@@ -207,7 +209,7 @@ public final class ModuleRegistry {
 		CONTAINER_SEARCH = m.register(new ContainerSearch());
 		m.register(new ItemCounter());
 
-		m.order(ModuleCategory.CLIENT, "client_hud", "presets", "hud_layout", "interface", "cosmetics", "menu_3d", "watermark", "fps_counter", "ping_display", "coordinates",
+		m.order(ModuleCategory.CLIENT, "client_hud", "presets", "hud_layout", "interface", "cosmetics", "skins", "menu_3d", "watermark", "fps_counter", "ping_display", "coordinates",
 				"direction_hud", "custom_text", "memory_usage", "pack_display");
 		m.order(ModuleCategory.RENDER, "fps_boost", "fov_settings", "potion_hud", "block_outline", "no_hurt_shake", "low_fire", "third_person",
 				"time_changer", "weather_effects");

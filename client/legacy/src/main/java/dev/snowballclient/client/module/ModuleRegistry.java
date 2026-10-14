@@ -10,6 +10,7 @@ import dev.snowballclient.client.module.client.Presets;
 import dev.snowballclient.client.module.client.InterfaceSettings;
 import dev.snowballclient.client.module.client.Menu3D;
 import dev.snowballclient.client.module.client.PvpHudModules;
+import dev.snowballclient.client.module.client.Skins;
 import dev.snowballclient.client.module.fps.FpsBoost;
 import dev.snowballclient.client.module.fps.SmartCulling;
 import dev.snowballclient.client.module.misc.Notifications;
@@ -77,6 +78,7 @@ public final class ModuleRegistry {
 		// Minecraft 1.8.9 has no blur to put behind a menu.
 		INTERFACE.blurBehind.hide();
 		MENU_3D = m.register(new Menu3D());
+		m.register(new Skins());
 
 		// FPS BOOST
 		FPS_BOOST = m.register(new FpsBoost());
@@ -110,7 +112,7 @@ public final class ModuleRegistry {
 		m.register(new StorageScreens.ConfigProfiles());
 		m.register(new StorageScreens.ModProfiles());
 
-		m.order(ModuleCategory.CLIENT, "client_hud", "hud_layout", "fps_counter", "ping_display", "coordinates", "direction_hud",
+		m.order(ModuleCategory.CLIENT, "client_hud", "hud_layout", "skins", "fps_counter", "ping_display", "coordinates", "direction_hud",
 				"speed_display", "combo_counter", "reach_display", "memory_usage", "armor_hud", "interface", "menu_3d");
 		m.order(ModuleCategory.RENDER, "fps_boost", "fullbright", "zoom", "potion_hud", "low_fire", "fov_settings", "render_distance");
 		m.order(ModuleCategory.MISC, "spotify", "notifications", "clock", "server_info", "session_timer");

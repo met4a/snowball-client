@@ -35,6 +35,8 @@ import static dev.snowballclient.client.gui.ToggleWidget.scaleAlpha;
 public final class TitleMenuView extends View {
 	private static final int BUTTON_W = 170;
 	private static final int ICON_BUTTON = 22;
+	/** The pencil on the account chip, which opens the skin changer. */
+	private static final int CHIP_PEN = 8;
 	private static final int GAP = 6;
 	private static final int EDGE = 12;
 	private static final int RADIUS = 6;
@@ -127,8 +129,7 @@ public final class TitleMenuView extends View {
 		if (actions.hasAccessibility()) corner.add(new Item(Kind.ICON, null, LineIcon.ACCESSIBILITY, "Accessibility", actions::accessibility));
 		if (actions.hasRealms()) corner.add(new Item(Kind.ICON, null, LineIcon.CLOUD, "Minecraft Realms", actions::realms));
 		int x = width - EDGE - corner.size() * ICON_BUTTON - (corner.size() - 1) * GAP;
-		chip = new Item(Kind.CHIP, actions.playerName(), null, "Signed in as " + actions.playerName() + ". Accounts are managed in the launcher.", () -> {
-		});
+		chip = new Item(Kind.CHIP, actions.playerName(), null, "Signed in as " + actions.playerName() + ". Click to change your skin.", this::openSkins);
 		// The chip's width needs the font, so it is placed (right-aligned to the buttons) when drawn.
 		place(chip, x - GAP, EDGE, 0, ICON_BUTTON);
 		for (Item item : corner) {
@@ -192,6 +193,10 @@ public final class TitleMenuView extends View {
 		host.open(new RadialMenuView(client));
 	}
 
+	private void openSkins() {
+		host.open(new SkinsView(client));
+	}
+
 	private void openInterfaceSettings() {
 		if (ModuleRegistry.INTERFACE != null) host.open(new ModuleSettingsView(ModuleRegistry.INTERFACE, client));
 	}
@@ -221,7 +226,7 @@ public final class TitleMenuView extends View {
 		UiText.setDensity(c.guiScale());
 
 		// Your account sits just left of the square buttons and grows with your name.
-		int chipW = 8 + 14 + 7 + UiText.width(c, chip.label, UiText.UI_SMALL) + 10;
+		int chipW = 8 + 14 + 7 + UiText.width(c, chip.label, UiText.UI_SMALL) + 8 + CHIP_PEN + 8;
 		chip.x = chip.x + chip.w - chipW;
 		chip.w = chipW;
 
@@ -426,6 +431,9 @@ public final class TitleMenuView extends View {
 		actions.drawPlayerFace(c, item.x + 8, item.y + (item.h - face) / 2, face);
 		int textY = item.y + item.h / 2 - Math.round(UiText.lineHeight(c, UiText.UI_SMALL) / 2f) + 1;
 		UiText.draw(c, item.label, UiText.UI_SMALL, item.x + 8 + face + 7, textY, scaleAlpha(theme.text(), alpha));
+		// A pencil: the chip opens the skin changer.
+		int pen = scaleAlpha(Theme.lerpColor(theme.mutedText(), theme.text(), hover), alpha);
+		Icons.draw(c, LineIcon.EDIT, item.x + item.w - 8 - CHIP_PEN, item.y + (item.h - CHIP_PEN) / 2f, CHIP_PEN, pen);
 	}
 
 	private void drawTooltip(Canvas c, Item item, float alpha) {

@@ -11,6 +11,7 @@ import dev.snowballclient.client.keybind.KeybindTracker;
 import dev.snowballclient.client.module.ModuleManager;
 import dev.snowballclient.client.module.ModuleCategory;
 import dev.snowballclient.client.module.ModuleRegistry;
+import dev.snowballclient.client.skins.SkinHooks;
 import dev.snowballclient.client.social.Rank;
 import dev.snowballclient.client.social.SnowballPlayers;
 import dev.snowballclient.client.social.SnowballPresence;
@@ -162,6 +163,9 @@ public final class SnowballClient implements ClientModInitializer {
 		// Other Snowball players see this player's badge only while this game runs Snowball Client.
 		SnowballPresence.start(SnowballClient::presenceAccount, () -> ModuleRegistry.INTERFACE == null || ModuleRegistry.INTERFACE.showMe.isOn());
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> SnowballPresence.stop());
+		// The skin changer wears skins through Mojang with this account. 1.8.9 keeps the skin it
+		// loaded until you rejoin, so SkinHooks.platform stays as it is.
+		SkinHooks.account = SnowballClient::presenceAccount;
 		// The launcher passes the rank the backend granted this account; the client only reads it.
 		SnowballPlayers.setSelfRank(Rank.byId(System.getProperty("snowball.rank", "snowball")));
 		LOGGER.info("Snowball Client initialised with {} modules", modules.all().size());

@@ -106,6 +106,7 @@ public abstract class View {
 	 */
 	public static void startFrame() {
 		dev.snowballclient.client.gui.smooth.SmoothText.frameStarted();
+		dev.snowballclient.client.gui.icons.Icons.frameStarted();
 	}
 
 	public final boolean clickFrame(double mouseX, double mouseY, int button) {
