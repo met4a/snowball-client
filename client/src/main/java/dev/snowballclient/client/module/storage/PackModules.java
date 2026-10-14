@@ -28,8 +28,8 @@ public final class PackModules {
 
 		@Override
 		public void openSettings(Host host) {
-			// On this version every view is shown by ViewScreen, which can open Minecraft's own screens.
-			((ViewScreen) host).openScreen(parent -> {
+			// From a screen or from a window in the world: closing the packs screen goes back there.
+			ViewScreen.openGameScreen(host, parent -> {
 				Minecraft mc = Minecraft.getInstance();
 				return new PackSelectionScreen(mc.getResourcePackRepository(), repository -> {
 					mc.options.updateResourcePacks(repository);
@@ -51,7 +51,7 @@ public final class PackModules {
 
 		@Override
 		public void openSettings(Host host) {
-			((ViewScreen) host).openScreen(this::shaderScreen);
+			ViewScreen.openGameScreen(host, this::shaderScreen);
 		}
 
 		private Screen shaderScreen(Screen parent) {

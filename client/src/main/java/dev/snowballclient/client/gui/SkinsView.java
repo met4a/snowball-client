@@ -58,7 +58,8 @@ public final class SkinsView extends PanelView {
 	private static final int EQUIPPED = 0xFF5BD47A;
 	private static final int ERROR = 0xFFFF6B6B;
 	private static final int STAR = 0xFFFFC94D;
-	private static final String PREVIEW_TEXTURE = "dynamic/skins_preview";
+	/** Each panel's preview has a name of its own, so two panels open at once never share one. */
+	private static final java.util.concurrent.atomic.AtomicInteger PANELS = new java.util.concurrent.atomic.AtomicInteger();
 	/** The preview is painted again at most this often while it turns. */
 	private static final long PREVIEW_EVERY_NS = 1_000_000_000L / 20;
 	private static final int PREVIEW_MAX_PIXELS = 256;
@@ -68,11 +69,14 @@ public final class SkinsView extends PanelView {
 	private static final ExecutorService WORKER = daemon("Snowball Client skins");
 	private static final ExecutorService PAINTER = daemon("Snowball Client skin preview");
 	/**
-	 * What the worker found, applied on the render thread to the skins panel shown then. Kept for
-	 * the next panel when this one closes first, so a skin Mojang accepts after you closed the panel
-	 * still shows on you once it is opened again.
+	 * What the worker found for a panel that has since closed, applied by the next panel shown, so
+	 * a skin Mojang accepts after you closed the panel still shows on you once it is opened again.
 	 */
-	private static final Queue<Consumer<SkinsView>> RESULTS = new ConcurrentLinkedQueue<>();
+	private static final Queue<Consumer<SkinsView>> LEFT_OVER = new ConcurrentLinkedQueue<>();
+	/** What the worker found for this panel, applied on the render thread before it next draws. */
+	private final Queue<Consumer<SkinsView>> results = new ConcurrentLinkedQueue<>();
+	private boolean closed;
+	private final String previewTexture = "dynamic/skins_preview_" + PANELS.incrementAndGet();
 
 	/** A saved skin with its pixels as Minecraft shows them (64x64, null when its file does not decode) and its face. */
 	private record Row(SkinLibrary.Entry entry, int[] argb, int[] face) {
@@ -205,6 +209,10 @@ public final class SkinsView extends PanelView {
 
 	@Override
 	protected void initContent() {
+		// Shown again (a screen opened over it was closed): results come here once more.
+		synchronized (results) {
+			closed = false;
+		}
 		addBox.setBounds(listX(), top(), addButtonX() - 4 - listX(), 16);
 	}
 
@@ -213,7 +221,8 @@ public final class SkinsView extends PanelView {
 	@Override
 	protected void renderContent(Canvas c, int mouseX, int mouseY) {
 		// What the worker finished, before anything is drawn this frame.
-		for (Consumer<SkinsView> result; (result = RESULTS.poll()) != null; ) result.accept(this);
+		for (Consumer<SkinsView> result; (result = results.poll()) != null; ) result.accept(this);
+		for (Consumer<SkinsView> result; (result = LEFT_OVER.poll()) != null; ) result.accept(this);
 		hint = null;
 
 		button(c, folderButtonX(), panelY + 7, FOLDER_W, 16, LineIcon.FOLDER, "OPEN FOLDER", false, mouseX, mouseY);
@@ -383,7 +392,9 @@ public final class SkinsView extends PanelView {
 			Painted done = painting.getNow(null);
 			painting = null;
 			if (done != null) {
-				preview = host.textures().upload(PREVIEW_TEXTURE, done.pixels(), done.pixels(), done.argb());
+				// Let the last picture go first: 1.8.9 keeps a replaced texture's memory otherwise.
+				if (preview != null) host.textures().release(preview);
+				preview = host.textures().upload(previewTexture, done.pixels(), done.pixels(), done.argb());
 				previewId = done.id();
 				previewKey = done.key();
 				previewSpin = done.spin();
@@ -545,13 +556,21 @@ public final class SkinsView extends PanelView {
 
 	// ---- Work on the worker thread ----
 
-	private static void work(Runnable job) {
+	/** Hands a result to this panel, or to the next one shown if this one has closed meanwhile. */
+	private void post(Consumer<SkinsView> result) {
+		synchronized (results) {
+			if (closed) LEFT_OVER.add(result);
+			else results.add(result);
+		}
+	}
+
+	private void work(Runnable job) {
 		WORKER.execute(() -> {
 			try {
 				job.run();
 			} catch (RuntimeException e) {
 				LOGGER.warn("Skin library job failed", e);
-				RESULTS.add(view -> {
+				post(view -> {
 					view.equipping = null;
 					view.say("Something went wrong. Press REFRESH and try again.", ERROR);
 				});
@@ -580,20 +599,20 @@ public final class SkinsView extends PanelView {
 		SnowballPresence.Account account = account();
 		work(() -> {
 			List<Row> found = readRows();
-			RESULTS.add(view -> view.showRows(found));
+			post(view -> view.showRows(found));
 			if (!MojangSkins.signedIn(account)) {
-				RESULTS.add(view -> view.say(MojangSkins.OFFLINE, 0));
+				post(view -> view.say(MojangSkins.OFFLINE, 0));
 				return;
 			}
 			MojangSkins.Answer<MojangSkins.Worn> worn = MojangSkins.worn(account);
 			if (!worn.ok()) {
-				RESULTS.add(view -> view.say(worn.error(), ERROR));
+				post(view -> view.say(worn.error(), ERROR));
 				return;
 			}
 			MojangSkins.Worn now = worn.value();
 			String texture = now == null ? null : now.texture();
 			boolean slim = now != null && now.slim();
-			RESULTS.add(view -> view.wornIs(texture, slim));
+			post(view -> view.wornIs(texture, slim));
 			if (texture == null || saved(texture)) return;
 			MojangSkins.Answer<MojangSkins.Fetched> current = MojangSkins.current(account, now);
 			if (!current.ok()) {
@@ -606,7 +625,7 @@ public final class SkinsView extends PanelView {
 			SkinLibrary.Entry added = library.add(skin.png(), skin.name(), skin.slim(), skin.source(), skin.texture());
 			if (added == null) return;
 			List<Row> again = readRows();
-			RESULTS.add(view -> {
+			post(view -> {
 				view.showRows(again);
 				if (!view.chosen) view.select(added.id());
 				view.say("Saved the skin you are wearing as " + added.name() + ".", 0);
@@ -635,7 +654,7 @@ public final class SkinsView extends PanelView {
 		work(() -> {
 			MojangSkins.Answer<MojangSkins.Fetched> got = link ? MojangSkins.byUrl(typed) : MojangSkins.byUsername(typed);
 			if (!got.ok()) {
-				RESULTS.add(view -> view.say(got.error(), ERROR));
+				post(view -> view.say(got.error(), ERROR));
 				return;
 			}
 			MojangSkins.Fetched skin = got.value();
@@ -643,7 +662,7 @@ public final class SkinsView extends PanelView {
 			for (SkinLibrary.Entry e : library.list()) {
 				boolean same = skin.texture() != null && skin.texture().equals(e.texture()) || Arrays.equals(skin.png(), library.read(e.id()));
 				if (!same) continue;
-				RESULTS.add(view -> {
+				post(view -> {
 					view.clearAddBox(typed);
 					view.chosen = true;
 					view.select(e.id());
@@ -653,11 +672,11 @@ public final class SkinsView extends PanelView {
 			}
 			SkinLibrary.Entry added = library.add(skin.png(), skin.name(), skin.slim(), skin.source(), skin.texture());
 			if (added == null) {
-				RESULTS.add(view -> view.say("Could not save the skin. Check that the skins folder can be written to.", ERROR));
+				post(view -> view.say("Could not save the skin. Check that the skins folder can be written to.", ERROR));
 				return;
 			}
 			List<Row> found = readRows();
-			RESULTS.add(view -> {
+			post(view -> {
 				view.clearAddBox(typed);
 				view.showRows(found);
 				view.chosen = true;
@@ -694,7 +713,7 @@ public final class SkinsView extends PanelView {
 		work(() -> {
 			byte[] png = library.read(id);
 			if (png == null) {
-				RESULTS.add(view -> {
+				post(view -> {
 					view.equipping = null;
 					view.say("The file for " + name + " is missing. Press REFRESH.", ERROR);
 				});
@@ -702,7 +721,7 @@ public final class SkinsView extends PanelView {
 			}
 			MojangSkins.Answer<MojangSkins.Worn> answer = MojangSkins.equip(account, png, slim);
 			if (!answer.ok()) {
-				RESULTS.add(view -> {
+				post(view -> {
 					view.equipping = null;
 					view.say(answer.error(), ERROR);
 				});
@@ -712,7 +731,7 @@ public final class SkinsView extends PanelView {
 			if (texture != null) library.setTexture(id, texture);
 			int[] argb = SkinPng.decode(png);
 			List<Row> found = readRows();
-			RESULTS.add(view -> view.equipped(account.id(), texture, slim, argb, found));
+			post(view -> view.equipped(account.id(), texture, slim, argb, found));
 		});
 	}
 
@@ -724,7 +743,7 @@ public final class SkinsView extends PanelView {
 		work(() -> {
 			boolean ok = library.setVariant(id, slim);
 			List<Row> found = readRows();
-			RESULTS.add(view -> {
+			post(view -> {
 				view.showRows(found);
 				if (!ok) view.say("Could not save that change.", ERROR);
 				else if (wasWorn) view.say("Saved. Wear it again to change your arms in game.", 0);
@@ -740,7 +759,7 @@ public final class SkinsView extends PanelView {
 		work(() -> {
 			boolean ok = library.setFavourite(id, favourite);
 			List<Row> found = readRows();
-			RESULTS.add(view -> {
+			post(view -> {
 				view.showRows(found);
 				if (!ok) view.say("Could not save that change.", ERROR);
 			});
@@ -755,7 +774,7 @@ public final class SkinsView extends PanelView {
 		work(() -> {
 			boolean ok = library.delete(id);
 			List<Row> found = readRows();
-			RESULTS.add(view -> {
+			post(view -> {
 				view.showRows(found);
 				view.say(ok ? "Deleted " + name + "." : "Could not delete " + name + ".", ok ? 0 : ERROR);
 			});
@@ -787,7 +806,7 @@ public final class SkinsView extends PanelView {
 		work(() -> {
 			boolean ok = library.rename(id, name);
 			List<Row> found = readRows();
-			RESULTS.add(view -> {
+			post(view -> {
 				view.showRows(found);
 				if (!ok) view.say("Could not rename that skin.", ERROR);
 			});
@@ -799,9 +818,9 @@ public final class SkinsView extends PanelView {
 		work(() -> {
 			try {
 				Files.createDirectories(folder);
-				RESULTS.add(view -> view.host.openPath(folder));
+				post(view -> view.host.openPath(folder));
 			} catch (IOException e) {
-				RESULTS.add(view -> view.say("Could not create the skins folder.", ERROR));
+				post(view -> view.say("Could not create the skins folder.", ERROR));
 			}
 		});
 	}
@@ -956,6 +975,11 @@ public final class SkinsView extends PanelView {
 
 	@Override
 	public void removed() {
+		synchronized (results) {
+			closed = true;
+			LEFT_OVER.addAll(results);
+			results.clear();
+		}
 		// Closing happens between frames, so the preview is no longer being drawn.
 		if (preview != null && host != null) host.textures().release(preview);
 		preview = null;

@@ -48,6 +48,21 @@ public final class ViewScreen extends Screen implements Host {
 		return view;
 	}
 
+	/**
+	 * Opens a Minecraft screen from a view, wherever the view is shown: from a screen, closing it
+	 * returns to that screen; from a window in the world, to the game. The factory receives the
+	 * screen to return to (null for the game). A null result opens nothing.
+	 */
+	public static void openGameScreen(Host host, Function<Screen, Screen> factory) {
+		if (host instanceof ViewScreen screen) {
+			screen.openScreen(factory);
+			return;
+		}
+		Minecraft mc = Minecraft.getInstance();
+		Screen next = factory.apply(mc.gui.screen());
+		if (next != null) mc.gui.setScreen(next);
+	}
+
 	/** Opens a Minecraft screen from a view; the factory receives the screen to return to. Null opens nothing. */
 	public void openScreen(Function<Screen, Screen> factory) {
 		Screen next = factory.apply(this);
