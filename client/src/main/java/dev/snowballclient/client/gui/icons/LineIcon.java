@@ -35,7 +35,18 @@ public enum LineIcon {
 	CHEVRON_RIGHT(poly(9, 6, 15, 12, 9, 18)),
 	CHEVRON_DOWN(poly(6, 9, 12, 15, 18, 9)),
 	CHEVRON_UP(poly(6, 15, 12, 9, 18, 15)),
-	MORE(dot(12, 6, 1.6f), dot(12, 12, 1.6f), dot(12, 18, 1.6f));
+	MORE(dot(12, 6, 1.6f), dot(12, 12, 1.6f), dot(12, 18, 1.6f)),
+
+	// Lists and libraries
+	PLUS(line(12, 5, 12, 19), line(5, 12, 19, 12)),
+	CHECK(poly(5, 12.5f, 10, 17.5f, 19, 7)),
+	STAR(poly(12, 3.6f, 14.35f, 9.56f, 20.75f, 9.96f, 15.8f, 14.04f, 17.41f, 20.24f, 12, 16.8f,
+			6.59f, 20.24f, 8.2f, 14.04f, 3.25f, 9.96f, 9.65f, 9.56f, 12, 3.6f)),
+	EDIT(poly(4, 20, 4.5f, 16, 16, 4.5f, 19.5f, 8, 8, 19.5f, 4, 20), line(13.5f, 7, 17, 10.5f)),
+	TRASH(line(4, 6.5f, 20, 6.5f), poly(9.5f, 6.5f, 9.5f, 4, 14.5f, 4, 14.5f, 6.5f), poly(6, 6.5f, 7, 20, 17, 20, 18, 6.5f),
+			line(10, 10, 10, 16.5f), line(14, 10, 14, 16.5f)),
+	FOLDER(poly(3.5f, 18.5f, 3.5f, 5.5f, 9.5f, 5.5f, 11.5f, 8, 20.5f, 8, 20.5f, 18.5f, 3.5f, 18.5f)),
+	REFRESH(arc(12, 13, 7, -40, 270), poly(9.5f, 3, 12.5f, 6, 9.5f, 9));
 
 	/** Stroke width in grid units. */
 	public static final float STROKE = 2f;

@@ -3,6 +3,9 @@ package dev.snowballclient.client.gui;
 import dev.snowballclient.client.SnowballClient;
 import dev.snowballclient.client.gui.anim.FrameClock;
 import dev.snowballclient.client.gui.anim.Smoothed;
+import dev.snowballclient.client.gui.icons.Icons;
+import dev.snowballclient.client.gui.icons.LineIcon;
+import dev.snowballclient.client.gui.smooth.SmoothShapes;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.hud.GuiDraw;
 import dev.snowballclient.client.module.ModuleRegistry;
@@ -12,6 +15,12 @@ import dev.snowballclient.client.ui.TitleActions;
 import dev.snowballclient.client.ui.UiTexture;
 import dev.snowballclient.client.ui.View;
 
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.GradientPaint;
+import java.awt.RadialGradientPaint;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.RoundRectangle2D;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,39 +28,42 @@ import static dev.snowballclient.client.gui.ToggleWidget.scaleAlpha;
 
 /**
  * Snowball's main menu, shown instead of Minecraft's title screen. Every button opens the game's own
- * screen, so nothing the player could do before is lost; the extras are the Snowball menu and the
- * client card. Turn it off under Menu &amp; Accessibility to get the vanilla title screen back.
+ * screen, so nothing the player could do before is lost; the extras are the Snowball menu and your
+ * account. Smooth and rounded: text in the menu font, shapes with anti-aliased edges at any GUI
+ * scale. Turn it off under Menu &amp; Accessibility to get the vanilla title screen back.
  */
 public final class TitleMenuView extends View {
-	private static final int BUTTON_W = 200;
-	private static final int BUTTON_H = 22;
-	private static final int ICON_BUTTON = 20;
-	private static final int CARD_H = 34;
+	private static final int BUTTON_W = 170;
+	private static final int ICON_BUTTON = 22;
+	/** The pencil on the account chip, which opens the skin changer. */
+	private static final int CHIP_PEN = 8;
 	private static final int GAP = 6;
+	private static final int EDGE = 12;
+	private static final int RADIUS = 6;
+	private static final int QUIT_H = 18;
 	private static final String DISCLAIMER = "Not affiliated with Mojang or Microsoft";
 	private static final int SHADE_BANDS = 16;
-	/** Logo size, room under it for the title, and panel padding: roomiest first. */
-	private static final int[][] LAYOUTS = {{64, 36, 14}, {48, 32, 12}, {36, 28, 10}, {26, 24, 8}};
-	private static final int SHADOW_STEPS = 3;
-	/** Room between the logo and the first button: the title sits here. */
-	private static final int TITLE_SPACE = 30;
-	private static final int DOCK_GAP = 10;
+	/** Logo size, room under it, button height, gap between buttons, room above Quit: roomiest first. */
+	private static final int[][] LAYOUTS = {{44, 24, 26, 8, 14}, {34, 16, 23, 6, 10}, {24, 10, 20, 5, 6}};
+	private static final int RED = 0xFFE5534B;
 
 	private enum Kind {
-		/** Singleplayer and Multiplayer. */
+		/** Singleplayer, Multiplayer: the wide dark buttons. */
 		BUTTON,
-		/** The square buttons in the corners and along the bottom. */
+		/** The Snowball menu: the wide button in the menu colour. */
+		ACCENT,
+		/** Quitting the game, under the column. */
+		QUIT,
+		/** The square buttons in the top right. */
 		ICON,
-		/** The account chip in the top left. */
-		CHIP,
-		/** The Snowball card under the buttons. */
-		CARD
+		/** Your account, before them. */
+		CHIP
 	}
 
 	private static final class Item {
 		private final Kind kind;
 		private final String label;
-		private final String[] icon;
+		private final LineIcon icon;
 		private final String tooltip;
 		private final Runnable action;
 		private final Smoothed hover = new Smoothed(0f);
@@ -61,7 +73,7 @@ public final class TitleMenuView extends View {
 		private int w;
 		private int h;
 
-		private Item(Kind kind, String label, String[] icon, String tooltip, Runnable action) {
+		private Item(Kind kind, String label, LineIcon icon, String tooltip, Runnable action) {
 			this.kind = kind;
 			this.label = label;
 			this.icon = icon;
@@ -85,18 +97,8 @@ public final class TitleMenuView extends View {
 	private Item chip;
 	private int hovered = -1;
 	private int focused = -1;
-	private int logoX;
-	private int logoY;
 	private int logoSize;
-	private int panelPad;
-	private int panelX;
-	private int panelY;
-	private int panelW;
-	private int panelH;
-	private int dockX;
-	private int dockY;
-	private int dockW;
-	private int dockH;
+	private int logoY;
 	private float time;
 	/** Seconds since the menu appeared, at the menu's animation speed: the buttons rise in one after another. */
 	private float age;
@@ -119,69 +121,56 @@ public final class TitleMenuView extends View {
 		logo = host.textures().bundled("textures/gui/logo.png", 256, 256);
 		items.clear();
 
-		// The row of small buttons is pinned to the bottom, so it is laid out first and the column above
-		// is then placed in the space that is left. That way the two never run into each other.
-		List<Item> bar = new ArrayList<>();
-		bar.add(new Item(Kind.ICON, null, null, "Snowball menu (Right Shift)", this::openSnowballMenu));
-		bar.add(new Item(Kind.ICON, null, MenuIcons.GEAR, "Options", actions::options));
-		bar.add(new Item(Kind.ICON, null, MenuIcons.GLOBE, "Language", actions::language));
-		if (actions.hasAccessibility()) bar.add(new Item(Kind.ICON, null, MenuIcons.ACCESSIBILITY, "Accessibility", actions::accessibility));
-		if (actions.hasRealms()) bar.add(new Item(Kind.ICON, null, MenuIcons.CLOUD, "Minecraft Realms", actions::realms));
-		int barW = bar.size() * ICON_BUTTON + (bar.size() - 1) * GAP;
-		int barX = width / 2 - barW / 2;
-		int barY = height - ICON_BUTTON - 20;
-		for (int i = 0; i < bar.size(); i++) place(bar.get(i), barX + i * (ICON_BUTTON + GAP), barY, ICON_BUTTON, ICON_BUTTON);
-		dockX = barX - 7;
-		dockY = barY - 5;
-		dockW = barW + 14;
-		dockH = ICON_BUTTON + 10;
-
-		// Pick the roomiest layout that still fits between the account chip and the dock: a shorter window
-		// gets a smaller logo and tighter spacing rather than a menu that runs into its own buttons.
-		int highest = ICON_BUTTON + 14;
-		int titleSpace = LAYOUTS[LAYOUTS.length - 1][1];
-		int pad = LAYOUTS[LAYOUTS.length - 1][2];
-		logoSize = LAYOUTS[LAYOUTS.length - 1][0];
-		for (int[] layout : LAYOUTS) {
-			int columnHeight = layout[0] + layout[1] + (BUTTON_H + GAP) * 2 + 2 + CARD_H;
-			if (highest + columnHeight + layout[2] + DOCK_GAP > dockY) continue;
-			logoSize = layout[0];
-			titleSpace = layout[1];
-			pad = layout[2];
-			break;
+		// Top right: your account, then the square buttons, like the corner of a launcher.
+		List<Item> corner = new ArrayList<>();
+		corner.add(new Item(Kind.ICON, null, LineIcon.PALETTE, "Menu appearance", this::openInterfaceSettings));
+		corner.add(new Item(Kind.ICON, null, LineIcon.GEAR, "Options", actions::options));
+		corner.add(new Item(Kind.ICON, null, LineIcon.WORLD, "Language", actions::language));
+		if (actions.hasAccessibility()) corner.add(new Item(Kind.ICON, null, LineIcon.ACCESSIBILITY, "Accessibility", actions::accessibility));
+		if (actions.hasRealms()) corner.add(new Item(Kind.ICON, null, LineIcon.CLOUD, "Minecraft Realms", actions::realms));
+		int x = width - EDGE - corner.size() * ICON_BUTTON - (corner.size() - 1) * GAP;
+		chip = new Item(Kind.CHIP, actions.playerName(), null, "Signed in as " + actions.playerName() + ". Click to change your skin.", this::openSkins);
+		// The chip's width needs the font, so it is placed (right-aligned to the buttons) when drawn.
+		place(chip, x - GAP, EDGE, 0, ICON_BUTTON);
+		for (Item item : corner) {
+			place(item, x, EDGE, ICON_BUTTON, ICON_BUTTON);
+			x += ICON_BUTTON + GAP;
 		}
-		panelPad = pad;
-		int column = logoSize + titleSpace + (BUTTON_H + GAP) * 2 + 2 + CARD_H;
-		int lowest = dockY - DOCK_GAP - pad - column;
-		int top = Math.max(highest, Math.min((height - column) / 2 - 6, lowest));
-		logoX = width / 2 - logoSize / 2;
-		logoY = top;
 
-		int buttonX = width / 2 - BUTTON_W / 2;
-		int buttonY = top + logoSize + titleSpace;
-		Item single = new Item(Kind.BUTTON, "Singleplayer", MenuIcons.PLAYER, null, actions::singleplayer);
-		place(single, buttonX, buttonY, BUTTON_W, BUTTON_H);
-		Item multi = new Item(Kind.BUTTON, "Multiplayer", MenuIcons.PLAYERS, null, actions::multiplayer);
+		// The column in the middle: the logo with the name, the game's buttons, the Snowball menu, Quit.
+		int top = EDGE + ICON_BUTTON + 10;
+		int bottom = height - 22;
+		int[] layout = LAYOUTS[LAYOUTS.length - 1];
+		for (int[] candidate : LAYOUTS) {
+			if (columnHeight(candidate) <= bottom - top) {
+				layout = candidate;
+				break;
+			}
+		}
+		logoSize = layout[0];
+		int buttonH = layout[2];
+		int buttonGap = layout[3];
+		int column = columnHeight(layout);
+		// A little above the middle, where the eye goes first.
+		logoY = Math.max(top, top + (bottom - top - column) / 2 - 8);
+		int bx = width / 2 - BUTTON_W / 2;
+		int by = logoY + logoSize + layout[1];
+		Item single = new Item(Kind.BUTTON, "Singleplayer", LineIcon.PLAYER, null, actions::singleplayer);
+		place(single, bx, by, BUTTON_W, buttonH);
+		by += buttonH + buttonGap;
+		Item multi = new Item(Kind.BUTTON, "Multiplayer", LineIcon.PLAYERS, null, actions::multiplayer);
 		multi.blocked = actions.multiplayerBlockedReason();
-		place(multi, buttonX, buttonY + BUTTON_H + GAP, BUTTON_W, BUTTON_H);
-
-		int cardY = buttonY + (BUTTON_H + GAP) * 2 + 2;
-		place(new Item(Kind.CARD, null, null, "Open the Snowball menu", this::openSnowballMenu),
-				buttonX, cardY, BUTTON_W, CARD_H);
-
-		// The frosted panel the column sits on.
-		panelX = buttonX - pad;
-		panelY = top - pad + 2;
-		panelW = BUTTON_W + pad * 2;
-		panelH = cardY + CARD_H + pad - panelY;
-
-		// Top corners: the account chip, the theme editor and quitting the game.
-		chip = new Item(Kind.CHIP, actions.playerName(), null, "Signed in as " + actions.playerName() + ". Accounts are managed in the launcher.", () -> {
-		});
-		place(chip, 10, 10, 0, ICON_BUTTON);
-		place(new Item(Kind.ICON, null, MenuIcons.BRUSH, "Menu appearance", this::openInterfaceSettings), width - 10 - ICON_BUTTON * 2 - GAP, 10, ICON_BUTTON, ICON_BUTTON);
-		place(new Item(Kind.ICON, null, MenuIcons.CLOSE, "Quit game", actions::quit), width - 10 - ICON_BUTTON, 10, ICON_BUTTON, ICON_BUTTON);
+		place(multi, bx, by, BUTTON_W, buttonH);
+		by += buttonH + buttonGap + 4;
+		place(new Item(Kind.ACCENT, "SNOWBALL MENU", null, null, this::openSnowballMenu), bx, by, BUTTON_W, buttonH);
+		by += buttonH + layout[4];
+		int quitW = 90;
+		place(new Item(Kind.QUIT, "Quit Game", null, null, actions::quit), width / 2 - quitW / 2, by, quitW, QUIT_H);
 		focused = -1;
+	}
+
+	private static int columnHeight(int[] layout) {
+		return layout[0] + layout[1] + layout[2] * 3 + layout[3] * 2 + 4 + layout[4] + QUIT_H;
 	}
 
 	/** GUI-space centre of the button with this label or tooltip; used by the automated in-game test. */
@@ -204,6 +193,10 @@ public final class TitleMenuView extends View {
 		host.open(new RadialMenuView(client));
 	}
 
+	private void openSkins() {
+		host.open(new SkinsView(client));
+	}
+
 	private void openInterfaceSettings() {
 		if (ModuleRegistry.INTERFACE != null) host.open(new ModuleSettingsView(ModuleRegistry.INTERFACE, client));
 	}
@@ -211,17 +204,27 @@ public final class TitleMenuView extends View {
 	@Override
 	public void renderBackground(Canvas c, int mouseX, int mouseY, float partialTick) {
 		actions.drawBackdrop(c, partialTick);
-		// Shaded at the very top and bottom, where the text sits, and left almost clear across the middle.
+		// The world dimmed all over so the menu stands out, and more at the very top and bottom.
 		int band = Math.max(1, height / SHADE_BANDS);
 		for (int i = 0; i < SHADE_BANDS; i++) {
 			float t = i / (float) (SHADE_BANDS - 1);
-			float strength = 0.30f * (float) Math.pow(1f - t, 2.2f) + 0.42f * (float) Math.pow(t, 2.4f);
+			float strength = 0.34f + 0.22f * (float) Math.pow(1f - t, 2.2f) + 0.30f * (float) Math.pow(t, 2.4f);
 			c.fill(0, i * band, width, i == SHADE_BANDS - 1 ? height : (i + 1) * band, Theme.withAlpha(0xFF010204, strength * fade.get()));
 		}
 	}
 
 	@Override
 	public void render(Canvas c, int mouseX, int mouseY, float partialTick) {
+		// The main menu is always in the smooth font; Snowball's other menus follow Smooth text.
+		UiText.setAlwaysSmooth(true);
+		try {
+			renderMenu(c, mouseX, mouseY, partialTick);
+		} finally {
+			UiText.setAlwaysSmooth(false);
+		}
+	}
+
+	private void renderMenu(Canvas c, int mouseX, int mouseY, float partialTick) {
 		if (ModuleRegistry.INTERFACE != null && !ModuleRegistry.INTERFACE.customMainMenu.isOn()) {
 			actions.showVanillaTitle();
 			return;
@@ -232,43 +235,34 @@ public final class TitleMenuView extends View {
 		float alpha = fade.update(dt, theme.animationSpeed * 10f);
 		UiText.setDensity(c.guiScale());
 
+		// Your account sits just left of the square buttons and grows with your name.
+		int chipW = 8 + 14 + 7 + UiText.width(c, chip.label, UiText.UI_SMALL) + 8 + CHIP_PEN + 8;
+		chip.x = chip.x + chip.w - chipW;
+		chip.w = chipW;
+
 		hovered = -1;
 		for (int i = 0; i < items.size(); i++) {
 			if (items.get(i).contains(mouseX, mouseY)) hovered = i;
 		}
 
-		// The account chip grows with the player's name, which needs the font, so it is sized here.
-		chip.w = 14 + MenuIcons.SIZE + UiText.width(c, chip.label, UiText.UI_SMALL) + 12;
-
-		drawPanel(c, panelX, panelY, panelW, panelH, 10, alpha, true);
-		drawPanel(c, dockX, dockY, dockW, dockH, 9, alpha, false);
-
-		float bob = 1f + 0.02f * (float) Math.sin(time * 1.6f);
-		GuiDraw.glow(c, logoX + logoSize / 2, logoY + logoSize / 2, logoSize, Theme.withAlpha(theme.accent(), 0.30f * alpha), 9);
-		c.push();
-		c.translate(logoX + logoSize / 2f, logoY + logoSize / 2f);
-		c.scale(bob, bob);
-		c.drawTexture(logo, -logoSize / 2, -logoSize / 2, logoSize, logoSize, Theme.withAlpha(0xFFFFFFFF, alpha));
-		c.pop();
-		int titleY = logoY + logoSize + Math.max(4, panelPad / 2);
-		UiText.drawCentered(c, "SNOWBALL CLIENT", UiText.TITLE, width / 2, titleY, scaleAlpha(theme.text(), alpha));
-		c.fill(width / 2 - 22, titleY + 13, width / 2 + 22, titleY + 14, scaleAlpha(theme.accent(), alpha * 0.55f));
+		drawLogo(c, alpha * appear(0));
 
 		for (int i = 0; i < items.size(); i++) {
 			Item item = items.get(i);
 			item.hover.setTarget(i == hovered || i == focused ? 1f : 0f);
 			item.hover.update(dt, theme.animationSpeed * 16f);
-			float t = Math.max(0f, Math.min(1f, (age - 0.1f - i * 0.04f) / 0.3f));
+			float t = appear(i + 1);
 			if (t <= 0f) continue;
 			float k = 1f - t;
 			c.push();
 			c.translate(0f, k * k * k * 8f);
 			float shown = alpha * t;
 			switch (item.kind) {
-				case CHIP -> drawChip(c, item, shown);
-				case CARD -> drawCard(c, item, shown);
-				case BUTTON -> drawWideButton(c, item, shown);
+				case BUTTON -> drawButton(c, item, shown);
+				case ACCENT -> drawAccent(c, item, shown);
+				case QUIT -> drawQuit(c, item, shown);
 				case ICON -> drawIconButton(c, item, shown);
+				case CHIP -> drawChip(c, item, shown);
 			}
 			c.pop();
 		}
@@ -278,110 +272,189 @@ public final class TitleMenuView extends View {
 		int disclaimerW = UiText.width(c, DISCLAIMER, UiText.UI_SMALL);
 		if (!footerFits(c, version, disclaimerW)) version = "Snowball Client " + client.version();
 		boolean showDisclaimer = footerFits(c, version, disclaimerW);
-		UiText.draw(c, version, UiText.UI_SMALL, 10, height - 14, scaleAlpha(theme.mutedText(), alpha));
-		int disclaimerX = width - 10 - disclaimerW;
-		boolean overDisclaimer = showDisclaimer && mouseY >= height - 16 && mouseX >= disclaimerX;
-		if (showDisclaimer) UiText.draw(c, DISCLAIMER, UiText.UI_SMALL, disclaimerX, height - 14, scaleAlpha(overDisclaimer ? theme.text() : theme.mutedText(), alpha));
+		UiText.draw(c, version, UiText.UI_SMALL, EDGE, height - 16, scaleAlpha(theme.mutedText(), alpha));
+		int disclaimerX = width - EDGE - disclaimerW;
+		boolean overDisclaimer = showDisclaimer && mouseY >= height - 18 && mouseX >= disclaimerX;
+		if (showDisclaimer) UiText.draw(c, DISCLAIMER, UiText.UI_SMALL, disclaimerX, height - 16, scaleAlpha(overDisclaimer ? theme.text() : theme.mutedText(), alpha));
 
 		if (hovered >= 0) drawTooltip(c, items.get(hovered), alpha);
 	}
 
-	/** The frosted card the menu sits on: a soft shadow, a translucent fill and a hairline edge. */
-	private void drawPanel(Canvas c, int x, int y, int w, int h, int radius, float alpha, boolean accentEdge) {
-		if (theme.glass()) {
-			// Glass over the panorama: mostly clear, so the world shows through it.
-			Glass.panel(c, theme, x, y, w, h, radius, alpha, theme.panelOpacity * 0.5f);
-			if (accentEdge) c.fill(x + w / 2 - 18, y, x + w / 2 + 18, y + 1, scaleAlpha(theme.accent(), alpha * 0.6f));
-			return;
-		}
-		for (int i = SHADOW_STEPS; i > 0; i--) {
-			GuiDraw.roundedRect(c, x - i, y - i, w + i * 2, h + i * 2, radius + i, Theme.withAlpha(0xFF000000, 0.07f * alpha));
-		}
-		GuiDraw.roundedRect(c, x, y, w, h, radius, scaleAlpha(theme.surface(theme.panelOpacity * 0.45f), alpha));
-		GuiDraw.roundedOutline(c, x, y, w, h, radius, scaleAlpha(theme.border(), alpha * 0.9f));
-		// A hint of light along the top edge, so the panel reads as lit from above.
-		c.fill(x + radius, y, x + w - radius, y + 1, Theme.withAlpha(0xFFFFFFFF, 0.05f * alpha));
-		if (accentEdge) c.fill(x + w / 2 - 18, y, x + w / 2 + 18, y + 1, scaleAlpha(theme.accent(), alpha * 0.45f));
+	/** How far the n-th piece of the menu has come in: 0 before it starts, 1 once it is in place. */
+	private float appear(int n) {
+		return Math.max(0f, Math.min(1f, (age - 0.08f - n * 0.04f) / 0.3f));
 	}
 
-	/** A button's face: frosted glass in the glass looks, the flat fill otherwise. */
-	private void button(Canvas c, int x, int y, int w, int h, int flatFill, float hover, float alpha) {
-		if (!theme.glass()) {
-			GuiDraw.roundedRect(c, x, y, w, h, 5, scaleAlpha(flatFill, alpha));
+	/** The snowball and the name beside it, centred over the buttons. */
+	private void drawLogo(Canvas c, float alpha) {
+		if (alpha <= 0f) return;
+		String name = "SNOWBALL";
+		String rest = " CLIENT";
+		int nameW = UiText.width(c, name, UiText.TITLE);
+		int restW = UiText.width(c, rest, UiText.TITLE);
+		int gap = Math.max(6, logoSize / 4);
+		int groupW = logoSize + gap + nameW + restW;
+		int x = width / 2 - groupW / 2;
+		float bob = 1f + 0.02f * (float) Math.sin(time * 1.6f);
+		c.push();
+		c.translate(x + logoSize / 2f, logoY + logoSize / 2f);
+		c.scale(bob, bob);
+		if (SmoothShapes.usable(c)) {
+			int accent = theme.accent();
+			SmoothShapes.painted(c, UiText.density(), "title_logo_" + Integer.toHexString(accent), -logoSize / 2f, -logoSize / 2f, logoSize, logoSize,
+					Theme.withAlpha(0xFFFFFFFF, alpha), (g, w, h) -> paintSnowball(g, w, accent));
+		} else {
+			GuiDraw.glow(c, 0, 0, logoSize, Theme.withAlpha(theme.accent(), 0.30f * alpha), 9);
+			c.drawTexture(logo, -logoSize / 2, -logoSize / 2, logoSize, logoSize, Theme.withAlpha(0xFFFFFFFF, alpha));
+		}
+		c.pop();
+		int textY = logoY + logoSize / 2 - Math.round(UiText.lineHeight(c, UiText.TITLE) / 2f) + 1;
+		UiText.draw(c, name, UiText.TITLE, x + logoSize + gap, textY, scaleAlpha(theme.text(), alpha));
+		UiText.draw(c, rest, UiText.TITLE, x + logoSize + gap + nameW, textY, scaleAlpha(theme.mutedText(), alpha));
+	}
+
+	/** A soft, round snowball lit from the top left, with a glow in the menu colour. */
+	private static void paintSnowball(java.awt.Graphics2D g, int pixels, int accent) {
+		float size = pixels;
+		float r = size * 0.36f;
+		float cx = size / 2f;
+		float cy = size / 2f;
+		g.setPaint(new RadialGradientPaint(cx, cy, size / 2f, new float[]{0.55f, 1f},
+				new Color[]{new Color(accent & 0xFFFFFF | 0x55000000, true), new Color(accent & 0xFFFFFF, true)}));
+		g.fill(new Ellipse2D.Float(0, 0, size, size));
+		g.setPaint(new RadialGradientPaint(cx - r * 0.35f, cy - r * 0.4f, r * 1.35f, new float[]{0f, 0.5f, 1f},
+				new Color[]{Color.WHITE, new Color(0xE8F3FF), new Color(0xA9CDEF)}));
+		g.fill(new Ellipse2D.Float(cx - r, cy - r, r * 2, r * 2));
+		g.setColor(new Color(0x7FB3E0 | 0x66000000, true));
+		float dot = Math.max(1.2f, r * 0.12f);
+		float[][] specks = {{0.30f, 0.25f}, {-0.15f, 0.45f}, {0.45f, -0.10f}, {-0.40f, 0.05f}};
+		for (float[] p : specks) g.fill(new Ellipse2D.Float(cx + p[0] * r - dot / 2, cy + p[1] * r - dot / 2, dot, dot));
+		g.setColor(new Color(255, 255, 255, 140));
+		g.setStroke(new BasicStroke(Math.max(1f, r * 0.06f)));
+		g.draw(new java.awt.geom.Arc2D.Float(cx - r * 0.78f, cy - r * 0.78f, r * 1.56f, r * 1.56f, 100, 70, java.awt.geom.Arc2D.OPEN));
+	}
+
+	/** A rounded rectangle with smooth edges where the canvas allows it, Minecraft's shapes otherwise. */
+	private void shape(Canvas c, int x, int y, int w, int h, int radius, int fill, int border) {
+		if (SmoothShapes.usable(c)) {
+			SmoothShapes.roundRect(c, UiText.density(), x, y, w, h, radius, fill, border);
 			return;
 		}
-		GuiDraw.roundedRect(c, x, y, w, h, 5, scaleAlpha(theme.surface(theme.panelOpacity * 0.55f), alpha));
-		Glass.chip(c, theme, x, y, w, h, 5, hover, alpha);
+		GuiDraw.roundedRect(c, x, y, w, h, radius, fill);
+		if ((border >>> 24) != 0) GuiDraw.roundedOutline(c, x, y, w, h, radius, border);
+	}
+
+	/** The dark face every button shares, a little lighter under the mouse. */
+	private int face(float hover, float alpha) {
+		int base = Theme.lerpColor(theme.surface(1f), 0xFF000000, 0.35f);
+		int lit = Theme.lerpColor(theme.surface(1f), 0xFF2A303A, 0.55f);
+		return Theme.withAlpha(Theme.lerpColor(base, lit, hover), (0.80f + 0.08f * hover) * alpha);
+	}
+
+	private int edge(Item item, float hover, float alpha) {
+		if (items.indexOf(item) == focused) return scaleAlpha(theme.accent(), alpha);
+		return Theme.withAlpha(0xFFFFFFFF, (0.08f + 0.14f * hover) * alpha);
 	}
 
 	/** Whether the version line and the disclaimer both fit on the footer row without touching. */
 	private boolean footerFits(Canvas c, String version, int disclaimerWidth) {
-		return 10 + UiText.width(c, version, UiText.UI_SMALL) + 8 + disclaimerWidth + 10 <= width;
+		return EDGE + UiText.width(c, version, UiText.UI_SMALL) + 8 + disclaimerWidth + EDGE <= width;
 	}
 
-	private void drawWideButton(Canvas c, Item item, float alpha) {
+	private void drawButton(Canvas c, Item item, float alpha) {
 		float hover = item.hover.get();
 		boolean blocked = item.blocked != null;
-		int fill = Theme.lerpColor(theme.surface(Math.min(1f, theme.panelOpacity + 0.05f)), theme.highlight(), hover * 0.12f);
-		button(c, item.x, item.y, item.w, item.h, fill, hover, alpha * (blocked ? 0.7f : 1f));
-		GuiDraw.roundedOutline(c, item.x, item.y, item.w, item.h, 5, scaleAlpha(Theme.lerpColor(theme.border(), theme.accent(), hover), alpha));
-		c.fill(item.x + 5, item.y + 1, item.x + item.w - 5, item.y + 2, Theme.withAlpha(0xFFFFFFFF, (0.05f + 0.10f * hover) * alpha));
-		if (hover > 0.01f) c.fill(item.x + 1, item.y + 6, item.x + 3, item.y + item.h - 6, scaleAlpha(theme.accent(), alpha * hover));
+		float a = alpha * (blocked ? 0.7f : 1f);
+		shape(c, item.x, item.y, item.w, item.h, RADIUS, face(hover, a), edge(item, hover, a));
+		drawIconAndLabel(c, item, scaleAlpha(blocked ? theme.mutedText() : theme.text(), a));
+	}
 
+	private void drawIconAndLabel(Canvas c, Item item, int color) {
+		int iconSize = 11;
 		int textW = UiText.width(c, item.label, UiText.UI);
-		int groupW = MenuIcons.SIZE + 8 + textW;
-		int iconX = item.x + (item.w - groupW) / 2;
-		int color = scaleAlpha(blocked ? theme.mutedText() : theme.text(), alpha);
-		MenuIcons.draw(c, item.icon, iconX, item.y + (item.h - MenuIcons.SIZE) / 2, color);
-		UiText.draw(c, item.label, UiText.UI, iconX + MenuIcons.SIZE + 8, item.y + (item.h - 8) / 2, color);
+		int groupW = (item.icon != null ? iconSize + 7 : 0) + textW;
+		int x = item.x + (item.w - groupW) / 2;
+		int textY = item.y + item.h / 2 - Math.round(UiText.lineHeight(c, UiText.UI) / 2f) + 1;
+		if (item.icon != null) {
+			Icons.draw(c, item.icon, x, item.y + (item.h - iconSize) / 2f, iconSize, color);
+			x += iconSize + 7;
+		}
+		UiText.draw(c, item.label, UiText.UI, x, textY, color);
+	}
+
+	private void drawAccent(Canvas c, Item item, float alpha) {
+		float hover = item.hover.get();
+		int accent = theme.accent();
+		if (SmoothShapes.usable(c)) {
+			int deep = Theme.lerpColor(accent, 0xFF000000, 0.45f);
+			int rim = Theme.lerpColor(accent, 0xFFFFFFFF, 0.35f);
+			float d = (float) UiText.density();
+			float radius = RADIUS * d;
+			SmoothShapes.painted(c, d, "title_accent_" + Integer.toHexString(accent), item.x, item.y, item.w, item.h, Theme.withAlpha(0xFFFFFFFF, alpha), (g, w, h) -> {
+				RoundRectangle2D.Float body = new RoundRectangle2D.Float(0.5f, 0.5f, w - 1f, h - 1f, radius * 2, radius * 2);
+				g.setPaint(new GradientPaint(0, 0, new Color(accent, true), w, h, new Color(deep, true)));
+				g.fill(body);
+				g.setPaint(new GradientPaint(0, 0, new Color(255, 255, 255, 46), 0, h * 0.55f, new Color(255, 255, 255, 0)));
+				g.fill(body);
+				g.setColor(new Color(rim & 0xFFFFFF | 0x99000000, true));
+				g.setStroke(new BasicStroke(1f));
+				g.draw(body);
+			});
+			if (hover > 0.01f) SmoothShapes.roundRect(c, d, item.x, item.y, item.w, item.h, RADIUS, Theme.withAlpha(0xFFFFFFFF, 0.10f * hover * alpha), 0);
+			if (items.indexOf(item) == focused) SmoothShapes.roundRect(c, d, item.x - 2, item.y - 2, item.w + 4, item.h + 4, RADIUS + 2, 0, scaleAlpha(theme.text(), alpha));
+		} else {
+			shape(c, item.x, item.y, item.w, item.h, RADIUS, scaleAlpha(Theme.lerpColor(accent, 0xFFFFFFFF, 0.12f * hover), alpha), edge(item, hover, alpha));
+		}
+		int text = scaleAlpha(theme.onAccentText(), alpha);
+		int textY = item.y + item.h / 2 - Math.round(UiText.lineHeight(c, UiText.UI) / 2f) + 1;
+		UiText.drawCentered(c, item.label, UiText.UI, item.x + item.w / 2, textY, text);
+		// The key that opens it from anywhere in the game, small on the right.
+		String key = "RSHIFT";
+		int keyW = UiText.width(c, key, UiText.DETAIL);
+		if (keyW + 14 + UiText.width(c, item.label, UiText.UI) / 2 < item.w / 2) {
+			UiText.draw(c, key, UiText.DETAIL, item.x + item.w - 9 - keyW, item.y + item.h / 2 - Math.round(UiText.lineHeight(c, UiText.DETAIL) / 2f) + 1,
+					Theme.withAlpha(theme.onAccentText(), 0.55f * alpha));
+		}
+	}
+
+	private void drawQuit(Canvas c, Item item, float alpha) {
+		float hover = item.hover.get();
+		shape(c, item.x, item.y, item.w, item.h, RADIUS, Theme.withAlpha(RED, (0.10f + 0.16f * hover) * alpha),
+				items.indexOf(item) == focused ? scaleAlpha(RED, alpha) : Theme.withAlpha(RED, 0.20f * hover * alpha));
+		int textY = item.y + item.h / 2 - Math.round(UiText.lineHeight(c, UiText.UI_SMALL) / 2f) + 1;
+		UiText.drawCentered(c, item.label, UiText.UI_SMALL, item.x + item.w / 2, textY,
+				Theme.withAlpha(Theme.lerpColor(RED, 0xFFFFE3E1, hover * 0.5f), (0.75f + 0.25f * hover) * alpha));
 	}
 
 	private void drawIconButton(Canvas c, Item item, float alpha) {
 		float hover = item.hover.get();
-		int fill = Theme.lerpColor(theme.surface(Math.min(1f, theme.panelOpacity + 0.05f)), theme.highlight(), hover * 0.14f);
-		button(c, item.x, item.y, item.w, item.h, fill, hover, alpha);
-		GuiDraw.roundedOutline(c, item.x, item.y, item.w, item.h, 5, scaleAlpha(Theme.lerpColor(theme.border(), theme.accent(), hover), alpha));
-		int color = scaleAlpha(Theme.lerpColor(theme.mutedText(), theme.text(), hover), alpha);
-		if (item.icon == null) {
-			int size = item.h - 8;
-			c.drawTexture(logo, item.x + (item.w - size) / 2, item.y + (item.h - size) / 2, size, size, Theme.withAlpha(0xFFFFFFFF, alpha));
-			return;
-		}
-		MenuIcons.draw(c, item.icon, item.x + (item.w - MenuIcons.SIZE) / 2, item.y + (item.h - MenuIcons.SIZE) / 2, color);
+		shape(c, item.x, item.y, item.w, item.h, RADIUS, face(hover, alpha), edge(item, hover, alpha));
+		int color = scaleAlpha(Theme.lerpColor(theme.mutedText(), theme.text(), 0.55f + 0.45f * hover), alpha);
+		float size = 12;
+		Icons.draw(c, item.icon, item.x + (item.w - size) / 2f, item.y + (item.h - size) / 2f, size, color);
 	}
 
 	private void drawChip(Canvas c, Item item, float alpha) {
 		float hover = item.hover.get();
-		int fill = Theme.lerpColor(theme.surface(Math.min(1f, theme.panelOpacity + 0.05f)), theme.highlight(), hover * 0.1f);
-		button(c, item.x, item.y, item.w, item.h, fill, hover, alpha);
-		GuiDraw.roundedOutline(c, item.x, item.y, item.w, item.h, 5, scaleAlpha(theme.border(), alpha));
-		int face = item.h - 8;
-		actions.drawPlayerFace(c, item.x + 5, item.y + 4, face);
-		UiText.draw(c, item.label, UiText.UI_SMALL, item.x + 5 + face + 6, item.y + (item.h - 8) / 2, scaleAlpha(theme.text(), alpha));
-	}
-
-	private void drawCard(Canvas c, Item item, float alpha) {
-		float hover = item.hover.get();
-		int fill = Theme.lerpColor(theme.surface(Math.min(1f, theme.panelOpacity + 0.05f)), theme.accent(), hover * 0.14f);
-		GuiDraw.roundedRect(c, item.x, item.y, item.w, item.h, 5, scaleAlpha(fill, alpha));
-		GuiDraw.roundedOutline(c, item.x, item.y, item.w, item.h, 5, scaleAlpha(Theme.lerpColor(theme.border(), theme.accent(), hover), alpha));
-		c.drawTexture(logo, item.x + 7, item.y + (item.h - 18) / 2, 18, 18, Theme.withAlpha(0xFFFFFFFF, alpha));
-		UiText.draw(c, "Snowball menu", UiText.UI, item.x + 30, item.y + 7, scaleAlpha(theme.text(), alpha));
-		String detail = actions.modCount() + " mods loaded";
-		UiText.draw(c, detail, UiText.DETAIL, item.x + 30, item.y + 19, scaleAlpha(theme.mutedText(), alpha));
-		String key = "RIGHT SHIFT";
-		UiText.drawRight(c, key, UiText.DETAIL, item.x + item.w - 8, item.y + (item.h - 8) / 2, scaleAlpha(theme.accent(), alpha));
+		shape(c, item.x, item.y, item.w, item.h, RADIUS, face(hover, alpha), edge(item, hover, alpha));
+		int face = 14;
+		actions.drawPlayerFace(c, item.x + 8, item.y + (item.h - face) / 2, face);
+		int textY = item.y + item.h / 2 - Math.round(UiText.lineHeight(c, UiText.UI_SMALL) / 2f) + 1;
+		UiText.draw(c, item.label, UiText.UI_SMALL, item.x + 8 + face + 7, textY, scaleAlpha(theme.text(), alpha));
+		// A pencil: the chip opens the skin changer.
+		int pen = scaleAlpha(Theme.lerpColor(theme.mutedText(), theme.text(), hover), alpha);
+		Icons.draw(c, LineIcon.EDIT, item.x + item.w - 8 - CHIP_PEN, item.y + (item.h - CHIP_PEN) / 2f, CHIP_PEN, pen);
 	}
 
 	private void drawTooltip(Canvas c, Item item, float alpha) {
 		String text = item.blocked != null ? item.blocked : item.tooltip;
 		if (text == null) return;
-		int w = UiText.width(c, text, UiText.UI_SMALL) + 12;
+		int w = UiText.width(c, text, UiText.UI_SMALL) + 14;
+		int h = 18;
 		int x = Math.max(4, Math.min(width - w - 4, item.x + item.w / 2 - w / 2));
-		int y = item.y > height / 2 ? item.y - 20 : item.y + item.h + 6;
-		GuiDraw.roundedRect(c, x, y, w, 16, 4, scaleAlpha(theme.surface(0.95f), alpha));
-		GuiDraw.roundedOutline(c, x, y, w, 16, 4, scaleAlpha(theme.border(), alpha));
-		UiText.draw(c, text, UiText.UI_SMALL, x + 6, y + 4, scaleAlpha(theme.text(), alpha));
+		int y = item.y > height / 2 ? item.y - h - 6 : item.y + item.h + 6;
+		shape(c, x, y, w, h, 5, Theme.withAlpha(Theme.lerpColor(theme.surface(1f), 0xFF000000, 0.3f), 0.94f * alpha), Theme.withAlpha(0xFFFFFFFF, 0.10f * alpha));
+		UiText.draw(c, text, UiText.UI_SMALL, x + 7, y + h / 2 - Math.round(UiText.lineHeight(c, UiText.UI_SMALL) / 2f) + 1, scaleAlpha(theme.text(), alpha));
 	}
 
 	@Override
@@ -395,7 +468,7 @@ public final class TitleMenuView extends View {
 			return true;
 		}
 		Runnable credits = actions.credits();
-		if (credits != null && mouseY >= height - 16 && mouseX >= width - 10 - 180) {
+		if (credits != null && mouseY >= height - 18 && mouseX >= width - EDGE - 180) {
 			credits.run();
 			return true;
 		}

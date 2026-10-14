@@ -66,6 +66,19 @@ describe('Minecraft sessions', () => {
     expect(later.calls).toContain('login_with_xbox');
   });
 
+  it('are dropped, from memory and from disk, when Minecraft refuses them', async () => {
+    const file = join(tempDir(), 'accounts.json');
+    const first = services();
+    const { auth, account } = await signIn(file, first.fetchImpl);
+    expect((await auth.session(account.id)).accessToken).toBe('mc-1');
+
+    // A skin change got a 401: the next session is a new one, not the refused one read back from disk.
+    await auth.invalidateSession(account.id);
+    expect(JSON.parse(readFileSync(file, 'utf8')).accounts[0].session).toBeUndefined();
+    expect((await auth.session(account.id)).accessToken).toBe('mc-2');
+    expect(first.calls.filter((c) => c === 'login_with_xbox')).toHaveLength(2);
+  });
+
   it('are not written anywhere the window can read', async () => {
     const { auth } = await signIn(join(tempDir(), 'accounts.json'), services().fetchImpl);
     expect(Object.keys(auth.list()[0])).not.toContain('session');

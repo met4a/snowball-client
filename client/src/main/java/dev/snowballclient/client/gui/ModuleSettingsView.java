@@ -88,6 +88,11 @@ public final class ModuleSettingsView extends View {
 	}
 
 	@Override
+	public Frame frame() {
+		return new Frame(panelX, panelY, panelW, panelH());
+	}
+
+	@Override
 	public void renderBackground(Canvas c, int mouseX, int mouseY, float partialTick) {
 		c.fill(0, 0, width, height, Theme.withAlpha(0xFF000000, backdropDim(theme.backgroundOpacity * 0.75f)));
 	}
@@ -311,7 +316,13 @@ public final class ModuleSettingsView extends View {
 			text.set(editor.value());
 		}
 		editing = -1;
+		editor.setFocused(false);
 		editor = null;
+	}
+
+	@Override
+	public boolean wantsKeyboard() {
+		return capturingKey || editor != null && editor.isFocused();
 	}
 
 	@Override
@@ -328,6 +339,7 @@ public final class ModuleSettingsView extends View {
 			}
 			if (key == Keys.ESCAPE) {
 				editing = -1;
+				editor.setFocused(false);
 				editor = null;
 				return true;
 			}

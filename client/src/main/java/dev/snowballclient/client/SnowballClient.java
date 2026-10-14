@@ -18,7 +18,10 @@ import dev.snowballclient.client.module.storage.ClientContainerPreviewTooltip;
 import dev.snowballclient.client.module.storage.ContainerPreview;
 import dev.snowballclient.client.perf.ModRequests;
 import dev.snowballclient.client.perf.ModScanner;
+import dev.snowballclient.client.module.client.Menu3D;
+import dev.snowballclient.client.platform.MinecraftSkinPlatform;
 import dev.snowballclient.client.platform.MinecraftTextures;
+import dev.snowballclient.client.platform.SpatialGame;
 import dev.snowballclient.client.platform.ViewScreen;
 import dev.snowballclient.client.social.Rank;
 import dev.snowballclient.client.hud.NotificationCenter;
@@ -31,6 +34,7 @@ import dev.snowballclient.client.emote.SelfSkin;
 import dev.snowballclient.client.gui.EmoteWheelView;
 import dev.snowballclient.client.social.Looks;
 import dev.snowballclient.client.social.SnowballLive;
+import dev.snowballclient.client.skins.SkinHooks;
 import net.minecraft.client.CameraType;
 import dev.snowballclient.client.util.OptionsSaver;
 import dev.snowballclient.client.waypoint.WaypointStore;
@@ -41,6 +45,11 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.ClientTooltipComponentCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+//? if >=26.1 {
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
+//?} else {
+/*import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
+*///?}
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.KeyMapping;
@@ -85,6 +94,8 @@ public final class SnowballClient implements ClientModInitializer {
 	private int autosaveCountdown = AUTOSAVE_TICKS;
 	private int warmupCountdown = 1;
 	private boolean wasInWorld;
+	/** The custom cape version staff last approved for you, to tell others as soon as it changes. */
+	private int knownCapeVersion;
 	private int lastHurtTime;
 	private String savedClientSettings = "";
 
@@ -209,6 +220,15 @@ public final class SnowballClient implements ClientModInitializer {
 			if (ModuleRegistry.CROSSHAIR != null && ModuleRegistry.CROSSHAIR.replacesVanilla(mc)) ModuleRegistry.CROSSHAIR.render(graphics);
 			else original.extractRenderState(graphics, deltaTracker);
 		});
+		// 3D Menus as windows: drawn with the world, and the block behind a window is not outlined.
+		Menu3D.supportWindows(() -> Minecraft.getInstance().level != null);
+		//? if >=26.1 {
+		LevelRenderEvents.COLLECT_SUBMITS.register(context -> SpatialGame.render(context.submitNodeCollector()));
+		LevelRenderEvents.BEFORE_BLOCK_OUTLINE.register((context, outline) -> !SpatialGame.pointing());
+		//?} else {
+		/*WorldRenderEvents.BEFORE_ENTITIES.register(context -> SpatialGame.render(context.commandQueue()));
+		WorldRenderEvents.BEFORE_BLOCK_OUTLINE.register((context, outline) -> !SpatialGame.pointing());
+		*///?}
 		ClientTooltipComponentCallback.EVENT.register(data ->
 				data instanceof ContainerPreview.ContainerPreviewTooltip preview ? new ClientContainerPreviewTooltip(preview) : null);
 		ModuleRegistry.CONTAINER_SEARCH.install();
@@ -227,6 +247,8 @@ public final class SnowballClient implements ClientModInitializer {
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> saveAll());
 		// Other Snowball players see this player's badge only while this game runs Snowball Client.
 		SnowballPresence.start(PRESENCE_ACCOUNT, () -> ModuleRegistry.INTERFACE == null || ModuleRegistry.INTERFACE.showMe.isOn());
+		SkinHooks.account = PRESENCE_ACCOUNT;
+		SkinHooks.platform = new MinecraftSkinPlatform();
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> SnowballPresence.stop());
 		// The launcher passes the rank the backend granted this account; the client only reads it.
 		SnowballPlayers.setSelfRank(Rank.byId(System.getProperty("snowball.rank", "snowball")));
@@ -239,7 +261,8 @@ public final class SnowballClient implements ClientModInitializer {
 
 	private void onEndTick(Minecraft mc) {
 		while (openMenuKey.consumeClick()) {
-			if (mc.gui.screen() == null && mc.player != null) ViewScreen.show(new RadialMenuView(this));
+			// With menus as windows, the key closes the window the crosshair is on, or opens another.
+			if (mc.gui.screen() == null && mc.player != null && !SpatialGame.closePointedAt()) ViewScreen.show(new RadialMenuView(this));
 		}
 		while (emoteWheelKey.consumeClick()) {
 			if (mc.gui.screen() == null && mc.player != null && ModuleRegistry.EMOTES.isEnabled()) ViewScreen.show(new EmoteWheelView(this));
@@ -253,6 +276,7 @@ public final class SnowballClient implements ClientModInitializer {
 			keybinds.releaseAll();
 		}
 		modules.tick();
+		SpatialGame.tick(mc);
 		OptionsSaver.tick(mc);
 
 		// Build the wheel textures for the current window size in the background before the menu opens.
@@ -306,7 +330,10 @@ public final class SnowballClient implements ClientModInitializer {
 			saveIfDirty();
 		}
 		wasInWorld = inWorld;
-		if (inWorld) tickEmote(mc);
+		if (inWorld) {
+			tickEmote(mc);
+			tickCustomCape();
+		}
 		// Whether other players can see your badge, said once when it changes.
 		String badgeNews = SnowballPresence.takeNews();
 		if (badgeNews != null) NotificationCenter.post("Snowball badge", badgeNews);
@@ -321,6 +348,20 @@ public final class SnowballClient implements ClientModInitializer {
 	 * Your own emote: it ends when you walk off or attack (if Emotes says so), and the camera steps
 	 * back into third person for it so you can see it, then returns.
 	 */
+	/**
+	 * Keeps your approved custom cape known while you play, not only while its screens are open:
+	 * otherwise, after a restart, nobody (you included) sees it until you open them. Others hear of
+	 * a change straight away rather than at the next heartbeat.
+	 */
+	private void tickCustomCape() {
+		CustomCapes.refreshStatus();
+		int approved = CustomCapes.approvedVersion();
+		if (approved != knownCapeVersion) {
+			knownCapeVersion = approved;
+			SnowballPresence.nudge();
+		}
+	}
+
 	private void tickEmote(Minecraft mc) {
 		var emotes = ModuleRegistry.EMOTES;
 		boolean emoting = Emotes.playingSelf();

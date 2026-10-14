@@ -7,6 +7,7 @@ import { getLogger, logSink } from '../core/logging/Logger.js';
 import { modrinthLoaders, SEARCH_SORTS } from '../core/mods/Modrinth.js';
 import { PERFORMANCE_PROFILES } from '../core/performance/PerformanceProfiles.js';
 import { splitArgs } from '../core/process/LaunchArguments.js';
+import { SKIN_ID } from '../core/skins/SkinLibrary.js';
 import { safeJoin } from '../core/util/paths.js';
 import { loadChangelog, notesFor } from './releaseNotes.js';
 import { backgroundDataUrl, clearBackground, pickBackground } from './appearance.js';
@@ -444,6 +445,92 @@ export function registerIpc(launcher: Launcher, win: BrowserWindow, updates?: Up
     const account = await launcher.auth.signInWithMicrosoft((request) => openMicrosoftLogin(win, request));
     await launcher.settings.update((s) => (s.accounts.selectedAccountId = account.id));
     return launcher.auth.list().find((a) => a.id === account.id);
+  });
+
+  // ---------- skins ----------
+  /** The account whose skin is changed: the one chosen in Settings, picked as chat picks it. */
+  const skinAccount = () => {
+    const accounts = launcher.auth.list();
+    const accountId = launcher.settings.get().accounts.selectedAccountId ?? accounts[0]?.id;
+    return accounts.find((a) => a.id === accountId) ?? null;
+  };
+  const skinId = (value: unknown): string => {
+    const id = str(value, 'skin id', 12);
+    if (!SKIN_ID.test(id)) throw new Error('Invalid skin id');
+    return id;
+  };
+  // Pictures go to the page as data URLs: its CSP allows data: images, never the filesystem.
+  const skinLibrary = async (): Promise<Snowball.SkinLibrary> => {
+    const account = skinAccount();
+    const skins = await Promise.all((await launcher.skins.library.list()).map(async (skin) => {
+      const png = await launcher.skins.library.png(skin.id).catch(() => null);
+      return png ? { ...skin, image: `data:image/png;base64,${png.toString('base64')}` } : null;
+    }));
+    const worn = account ? launcher.skins.equippedFor(account.id) : null;
+    return {
+      skins: skins.filter((s): s is Snowball.Skin => s !== null),
+      equipped: worn?.texture ?? null,
+      equippedVariant: worn?.variant ?? null,
+      account: account ? { name: account.name, canEquip: account.type === 'msa' } : null,
+    };
+  };
+  const added = async (result: { skin: { id: string }; existed: boolean }): Promise<Snowball.SkinAdded> =>
+    ({ library: await skinLibrary(), id: result.skin.id, existed: result.existed });
+
+  handle('skins:list', () => skinLibrary());
+  handle('skins:sync', async () => {
+    const account = skinAccount();
+    // Offline accounts have no skin at Mojang to ask about; the library still works without one.
+    const result = account?.type === 'msa' ? await launcher.skins.sync(account.id) : null;
+    return { library: await skinLibrary(), imported: result?.added?.id ?? null };
+  });
+  handle('skins:add-username', async (name: unknown) => {
+    const wanted = str(name, 'name', 16).trim();
+    if (!/^[A-Za-z0-9_]{3,16}$/.test(wanted)) throw new Error('Minecraft names are 3 to 16 letters, numbers or underscores.');
+    return added(await launcher.skins.addByUsername(wanted));
+  });
+  handle('skins:add-url', async (url: unknown) => {
+    const link = str(url, 'link', 2048).trim();
+    if (!/^https:\/\//i.test(link)) throw new Error('Only https:// links can be added.');
+    return added(await launcher.skins.addByUrl(link));
+  });
+  // The file is chosen here, in the main process: the page never names a path.
+  handle('skins:import-file', async () => {
+    const result = await dialog.showOpenDialog(win, { title: 'Import a skin', properties: ['openFile'], filters: [{ name: 'Minecraft skins', extensions: ['png'] }] });
+    if (result.canceled || !result.filePaths[0]) return null;
+    return added({ skin: await launcher.skins.addFile(result.filePaths[0]), existed: false });
+  });
+  handle('skins:rename', async (id: unknown, name: unknown) => {
+    const wanted = str(name, 'name', 32).trim();
+    if (!wanted || /[\u0000-\u001f\u007f-\u009f]/.test(wanted)) throw new Error('Skin names are 1 to 32 characters.');
+    await launcher.skins.library.update(skinId(id), { name: wanted });
+    return skinLibrary();
+  });
+  handle('skins:set-favourite', async (id: unknown, favourite: unknown) => {
+    if (typeof favourite !== 'boolean') throw new Error('Invalid favourite');
+    await launcher.skins.library.update(skinId(id), { favourite });
+    return skinLibrary();
+  });
+  handle('skins:set-variant', async (id: unknown, variant: unknown) => {
+    if (variant !== 'classic' && variant !== 'slim') throw new Error('Invalid arm model');
+    await launcher.skins.library.update(skinId(id), { variant });
+    return skinLibrary();
+  });
+  handle('skins:delete', async (id: unknown) => {
+    await launcher.skins.library.remove(skinId(id));
+    return skinLibrary();
+  });
+  handle('skins:equip', async (id: unknown) => {
+    const sid = skinId(id);
+    await launcher.skins.equip(skinAccount()?.id ?? null, sid);
+    return skinLibrary();
+  });
+  // Pictures dropped into this folder join the library the next time it is read.
+  handle('skins:open-folder', async () => {
+    const { mkdir } = await import('node:fs/promises');
+    await mkdir(launcher.paths.skins, { recursive: true });
+    const error = await shell.openPath(launcher.paths.skins);
+    if (error) throw new Error(error);
   });
 
   handle('app:open-folder', async (folder: unknown) => {

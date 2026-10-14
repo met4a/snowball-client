@@ -70,6 +70,11 @@ public final class WaypointView extends View {
 		if (xBox.value().isEmpty()) fillFromPlayer();
 	}
 
+	@Override
+	public Frame frame() {
+		return new Frame(panelX, panelY, PANEL_W, HEADER_H + listRows * ROW_H + 56);
+	}
+
 	private void fillFromPlayer() {
 		int[] pos = module.playerBlock();
 		if (pos == null) return;

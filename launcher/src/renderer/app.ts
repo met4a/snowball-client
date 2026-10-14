@@ -4,7 +4,7 @@
 (() => {
   const api = window.snowball;
 
-  type View = 'home' | 'instances' | 'mods' | 'browse' | 'chat' | 'admin' | 'java' | 'settings';
+  type View = 'home' | 'instances' | 'mods' | 'browse' | 'skins' | 'chat' | 'admin' | 'java' | 'settings';
 
   const ui = {
     state: null as Snowball.AppState | null,
@@ -48,9 +48,34 @@
     lookup: null as Snowball.RankLookup | null,
     /** The chosen background picture as a data URL, read once at start-up. */
     background: null as string | null,
+    /** The Skins page: the library as the launcher last read it, and what the page is doing. */
+    skins: {
+      library: null as Snowball.SkinLibrary | null,
+      error: null as string | null,
+      /** The skin picked on the page; when none is, the equipped one is shown. */
+      selectedId: null as string | null,
+      /** What is under way ('add', 'equip' ...); buttons that would clash with it wait until it ends. */
+      busy: null as string | null,
+      /** Mojang is being asked which skin is worn. */
+      syncing: false,
+      /** Counts changes, so an answer that started before one does not put back the old list. */
+      changes: 0,
+      status: null as { text: string; kind: 'ok' | 'bad' | 'busy' } | null,
+      draft: '',
+      nameDraft: null as { id: string; value: string } | null,
+      /** Where the next redraw puts the keyboard focus (a data-focus key), when not where it already was. */
+      focus: null as string | null,
+      /** How far the preview is turned, kept when the page redraws. */
+      yaw: 0,
+      paint: () => {},
+    },
   };
   /** Redraws the people list where it stands, while the People tab is open. */
   let repaintPeople: (() => void) | null = null;
+  /** Whether the Skins page is open, so Mojang is asked which skin is worn once each time it opens. */
+  let skinsOpen = false;
+  /** Starts the skin preview turning again when the window comes back into focus. */
+  let wakePreview: (() => void) | null = null;
 
   /** Presets, and the hex each one sets. A custom colour is any other value. */
   const ACCENTS: Array<[string, string]> = [
@@ -129,6 +154,8 @@
     instances: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
     mods: '<path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M12 22V12M21 7l-9 5-9-5"/>',
     browse: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+    skins: '<path d="M8 3L3 6l2 5 3-1.5V21h8V9.5l3 1.5 2-5-5-3a4.5 4.5 0 0 1-8 0z"/>',
+    star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>',
     lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
     java: '<path d="M6 8h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17M9 2v3M13 2v3"/>',
     folder: '<path d="M3 7a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.6.8l1 1.2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
@@ -423,6 +450,7 @@
     ['instances', 'INSTANCES'],
     ['mods', 'MODS'],
     ['browse', 'BROWSE'],
+    ['skins', 'SKINS'],
     ['chat', 'CHAT'],
     ['admin', 'ADMIN'],
     ['java', 'JAVA'],
@@ -430,6 +458,7 @@
   ];
 
   function render(): void {
+    if (ui.view !== 'skins') skinsOpen = false;
     const nav = document.getElementById('nav')!;
     // Admin only appears for an account the Snowball server says may use it.
     const entries = NAV.filter(([view]) => view !== 'admin' || canAdminister());
@@ -459,7 +488,7 @@
       content.replaceChildren(h('div', { class: 'empty muted' }, 'Loading...'));
       return;
     }
-    const views: Record<View, () => Node> = { home: homeView, instances: instancesView, mods: modsView, browse: browseView, chat: chatView, admin: adminView, java: javaView, settings: settingsView };
+    const views: Record<View, () => Node> = { home: homeView, instances: instancesView, mods: modsView, browse: browseView, skins: skinsView, chat: chatView, admin: adminView, java: javaView, settings: settingsView };
     const banners = [announcementBanner(), updateBanner()].filter((b): b is HTMLElement => b !== null);
     content.replaceChildren(...banners, views[ui.view]());
   }
@@ -1483,6 +1512,610 @@
       inst.loader === 'vanilla' ? h('div', { class: 'issue warning' }, 'This instance has no mod loader. Choose Fabric, Quilt, Forge or NeoForge in the instance editor to install mods.') : null,
       h('div', { class: 'browse-toolbar' }, search, sortSelect, loaderSelect, versionSelect),
       h('div', { class: 'card' }, results, footer));
+  }
+
+  // ---------- skins ----------
+  /** The figures on the cards and in the preview, in CSS pixels: a player is about three wide to five high. */
+  const CARD_FIGURE: [number, number] = [96, 160];
+  const PREVIEW_FIGURE: [number, number] = [216, 360];
+  /** How fast the preview turns by itself, in radians a second. */
+  const TURN_SPEED = 0.6;
+  /** A dragged preview stays where it was left this long before it turns by itself again. */
+  const TURN_RESUME_MS = 3000;
+  /** A moving preview is drawn at screen size; this long after it stops it is drawn sharp. */
+  const SHARPEN_MS = 180;
+  const SKIN_USERNAME = /^[A-Za-z0-9_]{3,16}$/;
+  /** Where a skin came from, for the line under the preview. */
+  const SKIN_SOURCES: Record<string, string> = {
+    username: "from a player's name",
+    url: 'from a link',
+    file: 'from a file',
+    current: 'the skin you were wearing',
+    folder: 'dropped into the skins folder',
+  };
+
+  /** Repaints the Skins page where it stands, when it is the page on screen. */
+  const paintSkins = () => {
+    if (ui.view === 'skins') ui.skins.paint();
+  };
+
+  const isEquipped = (skin: Snowball.Skin, library: Snowball.SkinLibrary) => library.equipped !== null && skin.texture === library.equipped;
+  const armsName = (variant: Snowball.SkinVariant) => (variant === 'slim' ? 'Slim' : 'Classic');
+
+  /** Each skin's pixels, read from its picture once. A skin's picture never changes, so its id is the key. */
+  const skinPixels = new Map<string, Promise<ImageData | null>>();
+  function pixelsOf(skin: Snowball.Skin): Promise<ImageData | null> {
+    let found = skinPixels.get(skin.id);
+    if (!found) {
+      found = new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = h('canvas', { width: String(img.naturalWidth), height: String(img.naturalHeight) }) as HTMLCanvasElement;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          if (!ctx) return resolve(null);
+          ctx.drawImage(img, 0, 0);
+          resolve(ctx.getImageData(0, 0, canvas.width, canvas.height));
+        };
+        img.onerror = () => resolve(null);
+        img.src = skin.image;
+      });
+      skinPixels.set(skin.id, found);
+    }
+    return found;
+  }
+
+  /** The player wearing `pixels` (plain while they load) as a picture, reusing `into` when it is the right size. */
+  function figurePicture(pixels: ImageData | null, slim: boolean, width: number, height: number, yaw: number, into?: ImageData): ImageData {
+    const picture = into && into.width === width && into.height === height ? into : new ImageData(width, height);
+    SkinFigure.draw(pixels && { width: pixels.width, height: pixels.height, data: pixels.data, slim }, width, height, yaw, picture.data);
+    return picture;
+  }
+
+  /** Card figures already drawn, so redrawing the page does not draw them all again. */
+  const cardPictures = new Map<string, { slim: boolean; picture: ImageData }>();
+  /** Card figures waiting to be drawn, a few each frame, so a long library never stalls the window. */
+  const figureQueue: Array<() => void> = [];
+  function queueFigure(job: () => void): void {
+    figureQueue.push(job);
+    if (figureQueue.length === 1) requestAnimationFrame(drawQueuedFigures);
+  }
+  function drawQueuedFigures(): void {
+    const start = performance.now();
+    while (figureQueue.length && performance.now() - start < 10) figureQueue.shift()!();
+    if (figureQueue.length) requestAnimationFrame(drawQueuedFigures);
+  }
+
+  /** A card's figure: the whole player at the usual three-quarter angle, drawn once. */
+  function cardFigure(skin: Snowball.Skin): HTMLCanvasElement {
+    const ratio = Math.min(2, window.devicePixelRatio || 1);
+    const [width, height] = CARD_FIGURE.map((n) => Math.round(n * ratio));
+    const canvas = h('canvas', { class: 'skin-card-figure', width: String(width), height: String(height), 'aria-hidden': 'true' }) as HTMLCanvasElement;
+    const slim = skin.variant === 'slim';
+    const cached = cardPictures.get(skin.id);
+    if (cached && cached.slim === slim && cached.picture.width === width && cached.picture.height === height) {
+      canvas.getContext('2d')?.putImageData(cached.picture, 0, 0);
+      return canvas;
+    }
+    void pixelsOf(skin).then((pixels) => queueFigure(() => {
+      // Redrawn since: the new card has a figure of its own on the way.
+      if (!canvas.isConnected) return;
+      const picture = figurePicture(pixels, slim, width, height, 0);
+      canvas.getContext('2d')?.putImageData(picture, 0, 0);
+      if (pixels) cardPictures.set(skin.id, { slim, picture });
+    }));
+    return canvas;
+  }
+
+  /**
+   * The big figure in the preview. It turns slowly by itself (not with reduced motion, and only
+   * while the window has focus), follows a drag and the arrow keys, and is drawn at screen size
+   * while it moves, at most once a frame, then once more at full sharpness when it stops.
+   */
+  function turntable(skin: Snowball.Skin | null): HTMLCanvasElement {
+    const s = ui.skins;
+    const ratio = Math.min(2, window.devicePixelRatio || 1);
+    const canvas = h('canvas', {
+      class: 'skin-preview-figure',
+      width: String(PREVIEW_FIGURE[0]),
+      height: String(PREVIEW_FIGURE[1]),
+      tabindex: skin ? '0' : undefined,
+      'data-focus': 'figure',
+      role: 'img',
+      'aria-label': skin ? `${skin.name}, shown in 3D. Drag it, or use the left and right arrow keys, to turn it.` : 'A player with no skin',
+    }) as HTMLCanvasElement;
+    const slim = skin?.variant === 'slim';
+    let pixels: ImageData | null = null;
+    let picture: ImageData | undefined;
+    let drag: { pointer: number; x: number } | null = null;
+    let touched = -Infinity;
+    let pending = 0;
+    let lastFrame = 0;
+    let lastDraw = 0;
+    let sharpenTimer = 0;
+    let resumeTimer = 0;
+
+    const reduced = () => document.body.classList.contains('reduce-motion') || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const turning = (now: number) => skin !== null && !drag && !reduced() && document.hasFocus() && now - touched > TURN_RESUME_MS;
+    const draw = (scale: number) => {
+      const width = Math.round(PREVIEW_FIGURE[0] * scale);
+      const height = Math.round(PREVIEW_FIGURE[1] * scale);
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      picture = figurePicture(pixels, slim, width, height, s.yaw, picture);
+      canvas.getContext('2d')?.putImageData(picture, 0, 0);
+      lastDraw = performance.now();
+    };
+    const frame = (now: number) => {
+      pending = 0;
+      // Gone from the page (it was redrawn, or another page opened): nothing more to draw.
+      if (!canvas.isConnected) return;
+      if (turning(now)) {
+        s.yaw = (s.yaw - Math.min(0.1, (now - lastFrame) / 1000) * TURN_SPEED) % (Math.PI * 2);
+        lastFrame = now;
+        // About thirty frames a second is smooth enough for a slow turn, at half the work.
+        if (now - lastDraw > 30) draw(1);
+        schedule();
+        return;
+      }
+      lastFrame = now;
+      if (drag) {
+        draw(1);
+      } else if (now - touched < SHARPEN_MS) {
+        // Turned with the keys a moment ago, and maybe about to be again.
+        draw(1);
+        clearTimeout(sharpenTimer);
+        sharpenTimer = window.setTimeout(schedule, SHARPEN_MS);
+      } else {
+        draw(ratio);
+      }
+    };
+    const schedule = () => {
+      if (!pending && canvas.isConnected) pending = requestAnimationFrame(frame);
+    };
+    /** After the player turns it: sharpen it, then turn by itself again a while later. */
+    const settle = () => {
+      touched = performance.now();
+      schedule();
+      clearTimeout(resumeTimer);
+      resumeTimer = window.setTimeout(schedule, TURN_RESUME_MS + 50);
+    };
+
+    canvas.addEventListener('pointerdown', (e: PointerEvent) => {
+      if (!skin || e.button !== 0) return;
+      drag = { pointer: e.pointerId, x: e.clientX };
+      canvas.setPointerCapture(e.pointerId);
+      canvas.classList.add('dragging');
+    });
+    canvas.addEventListener('pointermove', (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.pointer) return;
+      // Dragging right turns the front of the figure to the right.
+      s.yaw = (s.yaw - (e.clientX - drag.x) * 0.012) % (Math.PI * 2);
+      drag.x = e.clientX;
+      touched = performance.now();
+      schedule();
+    });
+    const release = (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.pointer) return;
+      drag = null;
+      canvas.classList.remove('dragging');
+      settle();
+    };
+    canvas.addEventListener('pointerup', release);
+    canvas.addEventListener('pointercancel', release);
+    canvas.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') s.yaw += Math.PI / 12;
+      else if (e.key === 'ArrowRight') s.yaw -= Math.PI / 12;
+      else if (e.key === 'Home') s.yaw = 0;
+      else return;
+      e.preventDefault();
+      settle();
+    });
+
+    wakePreview = schedule;
+    if (skin) {
+      void pixelsOf(skin).then((found) => {
+        pixels = found;
+        schedule();
+      });
+    } else {
+      // The canvas is not on the page yet: draw the plain figure once it is.
+      requestAnimationFrame(() => schedule());
+    }
+    return canvas;
+  }
+
+  /** Reads the library, then asks Mojang which skin is worn and adds it when it is missing (design/skins.md). */
+  async function openSkins(): Promise<void> {
+    const s = ui.skins;
+    s.error = null;
+    try {
+      s.library = await api.listSkins();
+    } catch (err) {
+      s.error = errorMessage(err);
+      paintSkins();
+      return;
+    }
+    // Offline accounts have no skin at Mojang to ask about; the library works without one.
+    if (!s.library.account?.canEquip) {
+      paintSkins();
+      return;
+    }
+    s.syncing = true;
+    paintSkins();
+    const changes = s.changes;
+    try {
+      const result = await api.syncSkins();
+      // Something changed while Mojang was being asked, so the list that came back is already old.
+      s.library = s.changes === changes ? result.library : await api.listSkins();
+      if (result.imported && !s.busy) s.status = { text: 'Added the skin you are wearing, so changing skin never loses it.', kind: 'ok' };
+    } catch (err) {
+      s.status = { text: errorMessage(err), kind: 'bad' };
+    } finally {
+      s.syncing = false;
+    }
+    paintSkins();
+  }
+
+  /**
+   * Runs one change that takes a moment (adding, equipping, deleting), one at a time. The status
+   * line says what is happening, then how it ended: `task` returns what to say, or null for nothing.
+   */
+  async function skinTask(busy: string, doing: string, task: () => Promise<string | null>): Promise<void> {
+    const s = ui.skins;
+    if (s.busy) return;
+    s.busy = busy;
+    s.changes++;
+    s.status = { text: doing, kind: 'busy' };
+    paintSkins();
+    try {
+      const done = await task();
+      s.status = done ? { text: done, kind: 'ok' } : null;
+    } catch (err) {
+      s.status = { text: errorMessage(err), kind: 'bad' };
+    } finally {
+      s.busy = null;
+    }
+    paintSkins();
+  }
+
+  /** A quick change to one skin (its name, star or arms); the answer is the whole library. */
+  async function skinChange(change: () => Promise<Snowball.SkinLibrary>): Promise<void> {
+    const s = ui.skins;
+    s.changes++;
+    try {
+      s.library = await change();
+      // A problem from before is old news once something works.
+      if (s.status?.kind === 'bad') s.status = null;
+    } catch (err) {
+      s.status = { text: errorMessage(err), kind: 'bad' };
+    }
+    paintSkins();
+  }
+
+  /** Picks a skin that was just added (or found already there) and says which it was. */
+  function showAdded(result: Snowball.SkinAdded): string {
+    const s = ui.skins;
+    s.library = result.library;
+    s.selectedId = result.id;
+    const name = result.library.skins.find((k) => k.id === result.id)?.name ?? 'the skin';
+    return result.existed ? `That skin is already in your library, as ${name}.` : `Added ${name}.`;
+  }
+
+  /** Adds what was typed into the box: a player's skin by their name, or a picture from an https link. */
+  async function addSkin(): Promise<void> {
+    const s = ui.skins;
+    const text = s.draft.trim();
+    if (!text || s.busy) return;
+    let send: () => Promise<Snowball.SkinAdded>;
+    let doing: string;
+    if (SKIN_USERNAME.test(text)) {
+      send = () => api.addSkinByUsername(text);
+      doing = `Looking up ${text}...`;
+    } else if (/^https:\/\//i.test(text)) {
+      send = () => api.addSkinByUrl(text);
+      doing = 'Downloading the skin...';
+    } else {
+      s.status = {
+        text: /^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? 'Only https:// links can be added.' : "Type a player's Minecraft name (3 to 16 letters, numbers or underscores) or a link starting with https://.",
+        kind: 'bad',
+      };
+      paintSkins();
+      return;
+    }
+    await skinTask('add', doing, async () => {
+      const result = await send();
+      s.draft = '';
+      return showAdded(result);
+    });
+  }
+
+  function importSkin(): Promise<void> {
+    return skinTask('import', 'Choose a skin picture...', async () => {
+      const result = await api.importSkinFile();
+      return result ? showAdded(result) : null;
+    });
+  }
+
+  function equipSkin(skin: Snowball.Skin): Promise<void> {
+    return skinTask('equip', `Equipping ${skin.name}...`, async () => {
+      ui.skins.library = await api.equipSkin(skin.id);
+      return 'Equipped. Other players see it after you rejoin a server.';
+    });
+  }
+
+  function deleteSkin(skin: Snowball.Skin, equipped: boolean): void {
+    confirmDialog('Delete skin',
+      `Delete ${skin.name}? It leaves your library here and in game.${equipped ? ' You keep wearing it until you equip another.' : ''}`,
+      'Delete', () => skinTask('delete', `Deleting ${skin.name}...`, async () => {
+        ui.skins.library = await api.deleteSkin(skin.id);
+        if (ui.skins.selectedId === skin.id) ui.skins.selectedId = null;
+        // The Delete button went with the skin; the keyboard carries on from the skin shown now.
+        ui.skins.focus = 'chosen';
+        return `Deleted ${skin.name}.`;
+      }));
+  }
+
+  /** The favourite star: in a card's corner, or framed beside the arms switch in the preview. */
+  function starButton(skin: Snowball.Skin, framed: boolean): HTMLButtonElement {
+    const on = skin.favourite;
+    return h('button', {
+      class: `skin-star${framed ? ' framed' : ''}${on ? ' on' : ''}`,
+      'aria-pressed': String(on),
+      'aria-label': `Favourite ${skin.name}`,
+      'data-focus': framed ? 'star' : `star:${skin.id}`,
+      title: on ? 'Remove from favourites' : 'Add to favourites',
+      onClick: () => void skinChange(() => api.setSkinFavourite(skin.id, !on)),
+    }, icon('star'));
+  }
+
+  function skinCard(skin: Snowball.Skin, library: Snowball.SkinLibrary, chosen: boolean): HTMLElement {
+    const equipped = isEquipped(skin, library);
+    return h('div', { class: `skin-card${chosen ? ' selected' : ''}${equipped ? ' equipped' : ''}`, role: 'listitem' },
+      h('button', {
+        class: 'skin-card-pick',
+        'aria-pressed': String(chosen),
+        'data-focus': `pick:${skin.id}`,
+        'aria-label': `${skin.name}, ${armsName(skin.variant)}${equipped ? ', equipped' : ''}`,
+        onClick: () => {
+          ui.skins.selectedId = skin.id;
+          ui.skins.nameDraft = null;
+          if (ui.skins.status?.kind === 'bad') ui.skins.status = null;
+          paintSkins();
+        },
+      },
+        h('span', { class: 'skin-card-stage' }, cardFigure(skin)),
+        h('span', { class: 'skin-card-name truncate' }, skin.name),
+        h('span', { class: `tag${skin.variant === 'slim' ? ' accent' : ''}` }, armsName(skin.variant))),
+      equipped ? h('span', { class: 'skin-badge' }, 'Equipped') : null,
+      starButton(skin, false));
+  }
+
+  /** The chosen skin, large and turning, with its name, arms, Equip and Delete, and which skin is worn. */
+  function skinPreview(skin: Snowball.Skin | null, library: Snowball.SkinLibrary, repainting: () => boolean): HTMLElement {
+    const s = ui.skins;
+    const stage = h('div', { class: 'skin-stage' }, turntable(skin));
+    if (!skin) return h('div', { class: 'card skin-preview' }, stage, h('p', { class: 'muted skin-meta' }, 'Add a skin to try it on here.'));
+
+    const equipped = isEquipped(skin, library);
+    // Mojang knows a skin's picture by its hash, but not its arms: switched since, it can be equipped again.
+    const wornAsIs = equipped && library.equippedVariant === skin.variant;
+    const canEquip = library.account?.canEquip ?? false;
+    const busy = s.busy !== null;
+    if (equipped) stage.append(h('span', { class: 'skin-badge' }, 'Equipped'));
+
+    const name = h('input', {
+      class: 'input skin-name',
+      value: s.nameDraft?.id === skin.id ? s.nameDraft.value : skin.name,
+      maxlength: '32',
+      spellcheck: 'false',
+      'aria-label': 'Skin name',
+      'data-focus': 'name',
+      title: 'Rename this skin',
+    }) as HTMLInputElement;
+    name.addEventListener('input', () => {
+      s.nameDraft = { id: skin.id, value: name.value };
+    });
+    name.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter') name.blur();
+      if (e.key === 'Escape') {
+        s.nameDraft = null;
+        name.value = skin.name;
+        name.blur();
+      }
+    });
+    name.addEventListener('blur', () => {
+      // Chromium blurs a focused field it takes off the page; a redraw is not the player leaving it.
+      if (repainting()) return;
+      // A whole-page redraw takes the field away too: by the next microtask it is off the page.
+      queueMicrotask(() => {
+        if (!name.isConnected) return;
+        const wanted = name.value.trim();
+        s.nameDraft = null;
+        if (!wanted || wanted === skin.name) {
+          name.value = skin.name;
+          return;
+        }
+        void skinChange(() => api.renameSkin(skin.id, wanted));
+      });
+    });
+
+    const setArms = (variant: Snowball.SkinVariant) => {
+      if (skin.variant === variant || s.busy) return;
+      s.focus = `arms:${variant}`;
+      void skinChange(() => api.setSkinVariant(skin.id, variant));
+    };
+    // A radio group: one stop for Tab, the arrow keys move between Classic and Slim.
+    const arms = (variant: Snowball.SkinVariant, hint: string) => h('button', {
+      class: `skin-arms-option${skin.variant === variant ? ' on' : ''}`,
+      role: 'radio',
+      'aria-checked': String(skin.variant === variant),
+      tabindex: skin.variant === variant ? '0' : '-1',
+      'data-focus': `arms:${variant}`,
+      title: hint,
+      disabled: busy,
+      onClick: () => setArms(variant),
+    }, armsName(variant));
+    const armsGroup = h('div', { class: 'skin-arms', role: 'radiogroup', 'aria-label': 'Arms' },
+      arms('classic', 'Classic: arms 4 pixels wide (Minecraft calls it Wide)'),
+      arms('slim', 'Slim: arms 3 pixels wide'));
+    armsGroup.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+      e.preventDefault();
+      setArms(skin.variant === 'slim' ? 'classic' : 'slim');
+    });
+
+    // Not disabled outright: a disabled button drops the keyboard focus, and Equip is pressed by keyboard too.
+    const equipBlocked = busy || wornAsIs || !canEquip;
+    const equipLabel = s.busy === 'equip' ? 'Equipping...' : wornAsIs ? 'Equipped' : equipped ? `Equip as ${armsName(skin.variant)}` : 'Equip';
+    const from = SKIN_SOURCES[skin.source];
+
+    // What the account wears now, from Mojang, and a way back to it when another skin is shown.
+    const worn = library.skins.find((k) => isEquipped(k, library));
+    const wearing = library.equipped === null || equipped ? null : h('div', { class: 'skin-wearing' },
+      h('span', { class: 'muted' }, 'Wearing'),
+      worn
+        ? h('button', {
+            class: 'skin-wearing-pick truncate',
+            'data-focus': 'wearing',
+            title: 'Show the skin you are wearing',
+            onClick: () => {
+              s.selectedId = worn.id;
+              s.nameDraft = null;
+              s.focus = 'name';
+              paintSkins();
+            },
+          }, worn.name)
+        : h('span', { class: 'muted' }, 'a skin that is not in your library'));
+
+    return h('div', { class: 'card skin-preview' },
+      stage,
+      name,
+      h('div', { class: 'row' }, armsGroup, starButton(skin, true)),
+      h('button', {
+        class: 'btn primary skin-equip',
+        'aria-disabled': String(equipBlocked),
+        'data-focus': 'equip',
+        title: canEquip ? '' : 'Sign in with a Microsoft account to change your skin.',
+        onClick: () => {
+          if (!equipBlocked) void equipSkin(skin);
+        },
+      }, wornAsIs ? icon('check') : null, equipLabel),
+      wearing,
+      h('div', { class: 'row' },
+        h('p', { class: 'muted skin-meta grow-1' }, `Added ${fmtWhen(skin.added)}${from ? `, ${from}` : ''}.`),
+        h('button', { class: 'btn small danger', 'data-focus': 'delete', disabled: busy, onClick: () => deleteSkin(skin, equipped) }, 'Delete')));
+  }
+
+  function skinsView(): Node {
+    const s = ui.skins;
+    if (!skinsOpen) {
+      skinsOpen = true;
+      // What was said last time the page was open is old news, unless it is still going on.
+      if (!s.busy) s.status = null;
+      s.focus = null;
+      void openSkins();
+    }
+
+    const input = h('input', {
+      class: 'input',
+      placeholder: 'Add a skin by username or URL...',
+      value: s.draft,
+      maxlength: '2048',
+      spellcheck: 'false',
+      'aria-label': "A player's Minecraft name, or an https link to a skin",
+    }) as HTMLInputElement;
+    const addButton = h('button', { class: 'btn primary', onClick: () => void addSkin() }, 'Add');
+    const importButton = h('button', { class: 'btn', title: 'Add a PNG skin from this computer', onClick: () => void importSkin() }, 'Import file');
+    /** The Add button says which of the two it will do with what is typed. */
+    const labelAdd = () => {
+      const text = s.draft.trim();
+      addButton.disabled = s.busy !== null || !text;
+      addButton.textContent = s.busy === 'add' ? 'Adding...' : SKIN_USERNAME.test(text) ? 'Add by name' : /^https:\/\//i.test(text) ? 'Add from link' : 'Add';
+    };
+    input.addEventListener('input', () => {
+      s.draft = input.value;
+      labelAdd();
+    });
+    input.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter') void addSkin();
+    });
+    const banner = h('div', { class: 'skins-banner' });
+    const status = h('div', { class: 'skins-status', role: 'status', 'aria-live': 'polite' });
+    const body = h('div', { class: 'skins-body' });
+    let repainting = false;
+
+    s.paint = () => {
+      const library = s.library;
+      if (input.value !== s.draft) input.value = s.draft;
+      labelAdd();
+      importButton.disabled = s.busy !== null;
+
+      const shown = s.status ?? (s.syncing ? { text: 'Checking which skin you are wearing...', kind: 'busy' as const } : null);
+      status.className = `skins-status${shown ? ` show ${shown.kind}` : ''}`;
+      status.textContent = shown?.text ?? '';
+
+      const account = library?.account;
+      banner.replaceChildren(...(library && !account?.canEquip ? [h('div', { class: 'issue warning row' },
+        h('div', { class: 'grow-1' },
+          h('div', {}, 'Sign in with a Microsoft account to change your skin.'),
+          h('div', { class: 'muted' }, account
+            ? `${account.name} is an offline account. Skins you add here are kept for when you sign in.`
+            : 'Skins you add here are kept for when you sign in.')),
+        h('button', { class: 'btn small', onClick: () => { ui.view = 'settings'; render(); } }, 'Accounts'))] : []));
+
+      if (!library) {
+        body.replaceChildren(s.error
+          ? h('div', { class: 'card' },
+              h('div', { class: 'issue' }, `Could not read your skins: ${s.error}`),
+              h('button', { class: 'btn small', onClick: () => void openSkins() }, 'Retry'))
+          : h('div', { class: 'card muted' }, 'Loading your skins...'));
+        return;
+      }
+      // Pictures of skins that have gone are let go.
+      const ids = new Set(library.skins.map((k) => k.id));
+      for (const id of [...skinPixels.keys()]) if (!ids.has(id)) skinPixels.delete(id);
+      for (const id of [...cardPictures.keys()]) if (!ids.has(id)) cardPictures.delete(id);
+
+      const chosen = library.skins.find((k) => k.id === s.selectedId) ?? library.skins.find((k) => isEquipped(k, library)) ?? library.skins[0] ?? null;
+      // The keyboard focus survives the redraw: on the same control when it is still there, or where
+      // the change asked for (s.focus), so starring, renaming or switching arms never drops it.
+      const active = document.activeElement;
+      const held = active instanceof HTMLElement && body.contains(active) ? active.dataset.focus ?? null : null;
+      const wanted = s.focus ?? held;
+      s.focus = null;
+      repainting = true;
+      try {
+        body.replaceChildren(
+          library.skins.length
+            ? h('div', { class: 'skins-grid', role: 'list', 'aria-label': 'Your skins' }, ...library.skins.map((k) => skinCard(k, library, k.id === chosen?.id)))
+            : h('div', { class: 'card empty' },
+                h('h2', { class: 'page-title' }, 'NO SKINS YET'),
+                h('p', { class: 'muted' }, "Add one by a player's name or a link, import a PNG, or drop PNG files into the skins folder."),
+                h('button', { class: 'btn', 'data-focus': 'folder', onClick: () => void guard(() => api.openSkinsFolder()) }, icon('folder'), 'Open skins folder')),
+          skinPreview(chosen, library, () => repainting));
+      } finally {
+        repainting = false;
+      }
+      if (wanted) {
+        const key = wanted === 'chosen' && chosen ? `pick:${chosen.id}` : wanted;
+        const target = body.querySelector<HTMLElement>(`[data-focus="${CSS.escape(key)}"]`);
+        const usable = target && !(target instanceof HTMLButtonElement && target.disabled) ? target : null;
+        // Gone (a deleted skin) or out of reach for now (busy): the skin shown, else the add box.
+        (usable ?? body.querySelector<HTMLElement>('.skin-card.selected .skin-card-pick') ?? input).focus();
+        if (usable instanceof HTMLInputElement) usable.setSelectionRange(usable.value.length, usable.value.length);
+      }
+    };
+    s.paint();
+
+    return h('div', { class: 'stack page-skins' },
+      header('SKINS', 'Saved skins, shared with the game. Equip one and everyone sees it.',
+        h('button', { class: 'btn ghost', title: 'PNG skins dropped into this folder are added', onClick: () => void guard(() => api.openSkinsFolder()) }, icon('folder'), 'Open folder')),
+      banner,
+      h('div', { class: 'skins-add' }, input, addButton, importButton),
+      status,
+      body);
   }
 
   function chatView(): Node {
@@ -2797,6 +3430,8 @@
     if (ui.launcherLogs.length > 500) ui.launcherLogs.shift();
   });
   api.on('state', () => void refresh());
+  // The skin preview only turns by itself while the window has focus.
+  window.addEventListener('focus', () => wakePreview?.());
   // Admin moved from the chat page to its own; these used to redraw only 'chat', so the people
   // list, bug reports and lookups arrived and were never shown.
   const whatAdminShows = (s: Snowball.ChatState | null) => JSON.stringify([s?.status, s?.rank, s?.permissions, s?.flags]);

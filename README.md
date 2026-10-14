@@ -83,7 +83,7 @@ mouse is re-captured on close and that `modules.json` persisted the change.
 
 | Category | Modules |
 | --- | --- |
-| CLIENT | Client HUD, Custom Crosshair, FPS Counter, Ping Counter, Coordinates, Direction HUD, Speed, Combo Counter, Reach Display, Memory Usage, Pack Display, Armor HUD, Menu & Accessibility (look: liquid glass, frosted or classic), 3D Menus, Cosmetics (capes; Snowball+ Cape Studio) |
+| CLIENT | Client HUD, Custom Crosshair, FPS Counter, Ping Counter, Coordinates, Direction HUD, Speed, Combo Counter, Reach Display, Memory Usage, Pack Display, Armor HUD, Menu & Accessibility (look: liquid glass, frosted or classic), 3D Menus (windows standing in the world, or leaning screens), Skins (skin changer), Cosmetics (capes; Snowball+ Cape Studio) |
 | FPS BOOST | Boost (preset cards: Max FPS, Balanced, Quality, Off), Smart Culling (skips entities and block entities walls hide). Under Advanced: Faster Rendering (Sodium), Faster Game Logic (Lithium), Lower Memory Use (FerriteCore), Skip Hidden Mobs (Entity Culling), Faster HUD (ImmediatelyFast), Animation Optimization, Background FPS Limit, Particle Limiter, Performance Advisor |
 | RENDER | Boost, Fullbright, Zoom, Freelook, Third-Person Camera, Time Changer, Hit Colour, Crystal Glow, Block Outline, No Hurt Shake, Low Fire, FOV Settings, Render Distance, Entity Distance, Weather Effects, Potion HUD |
 | MISC | Chat Upgrades (stack repeats, mention highlight, right-click copy, timestamps), Emotes (wheel on B), Spotify (now playing, no sign-in), Nick Hider, Screenshot Utility, Notifications, Time Display, Server Information, Session Timer |
@@ -149,6 +149,7 @@ instances/<name>/minecraft/          isolated game directory: mods, config, save
                                      shaderpacks, screenshots, logs
 versions/ libraries/ assets/         shared, checksum-verified game files
 runtimes/                            Java runtimes downloaded from Mojang
+skins/skins.json, skins/<id>.png     the skin library, shared with the game (design/skins.md)
 logs/launcher-YYYY-MM-DD.log         structured JSON logs (tokens redacted)
 settings.json accounts.json
 ```
@@ -172,6 +173,12 @@ settings.json accounts.json
   filters, one-click installs that pick the file for the instance's exact Minecraft version and
   loader, required dependencies resolved before anything downloads, and updates from the MODS page.
   Installed mods are recognised by SHA-1, so hand-added and profile-installed mods count too.
+- Skin changer (SKINS page): saved skins with a turning 3D preview, added by a player's name, an
+  https link or a PNG file, Classic/Slim arms (detected from the picture), favourites, rename and
+  delete, and Equip through Mojang's API for the signed-in Microsoft account. The skin you are wearing
+  is added when the page opens, so changing skin never loses it. The library lives in
+  `<data folder>/skins/` and is passed to the game as `-Dsnowball.skinsDir`, so the in-game Skins panel
+  shows the same skins; PNGs dropped into that folder are added too. Format and rules: `design/skins.md`.
 - New Fabric instances get the newest Fabric API for their exact Minecraft version once; if it cannot
   be installed yet it is retried on launch, and removing it afterwards is respected.
 - Snowball Client is part of the launcher, not a mod in the instance (`src/core/snowball/`), the way

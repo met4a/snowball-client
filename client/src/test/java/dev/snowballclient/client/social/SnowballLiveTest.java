@@ -38,4 +38,14 @@ class SnowballLiveTest {
 		SnowballLive.receive("{\"type\":\"gone\",\"uuid\":\"" + ID + "\"}", now);
 		assertFalse(SnowballPlayers.isSnowball(PLAYER));
 	}
+
+	@Test
+	void aPlayerWhoLeavesSnowballGetsTheirOwnCapeBack() {
+		long now = System.currentTimeMillis();
+		Looks.setShowOthers(true);
+		SnowballLive.receive("{\"type\":\"looks\",\"uuid\":\"" + ID + "\",\"looks\":{\"cape\":\"aurora\"}}", now);
+		assertEquals("aurora", Looks.cape(PLAYER));
+		SnowballLive.receive("{\"type\":\"gone\",\"uuid\":\"" + ID + "\"}", now);
+		assertNull(Looks.cape(PLAYER), "a Snowball cape would otherwise keep covering their real one");
+	}
 }

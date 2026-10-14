@@ -88,4 +88,14 @@ public final class GuiCanvas implements Canvas {
 	public void drawTexture(UiTexture texture, int x, int y, int width, int height, int argb) {
 		graphics.blit(RenderPipelines.GUI_TEXTURED, MinecraftTextures.id(texture), x, y, 0f, 0f, width, height, width, height, argb);
 	}
+
+	@Override
+	public boolean drawsRegions() {
+		return true;
+	}
+
+	@Override
+	public void drawTextureRegion(UiTexture texture, int x, int y, int u, int v, int width, int height, int argb) {
+		graphics.blit(RenderPipelines.GUI_TEXTURED, MinecraftTextures.id(texture), x, y, u, v, width, height, texture.width(), texture.height(), argb);
+	}
 }

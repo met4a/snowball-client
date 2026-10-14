@@ -1,11 +1,16 @@
 package dev.snowballclient.client.gui;
 
+import dev.snowballclient.client.gui.smooth.SmoothText;
+import dev.snowballclient.client.module.ModuleRegistry;
 import dev.snowballclient.client.ui.Canvas;
 
 /**
- * Menu text in Minecraft's own font. The menu is drawn at fractional scales (it grows with the
- * screen), which would make the pixel font blurry or uneven, so text is rescaled so that one font
- * pixel covers a whole number of screen pixels. Titles get one extra screen pixel per font pixel.
+ * Menu text. Normally smooth: Nunito, drawn at the exact number of screen pixels it covers
+ * ({@link SmoothText}), sized to stand where Minecraft's font would. With smooth text off (Menu &amp;
+ * Accessibility), or where it cannot be drawn, Minecraft's own font: the menu is drawn at fractional
+ * scales (it grows with the screen), which would make the pixel font blurry or uneven, so text is
+ * rescaled so that one font pixel covers a whole number of screen pixels. Titles get one extra
+ * screen pixel per font pixel. Line heights are the same either way, so layouts do not move.
  */
 public final class UiText {
 	public enum Kind {
@@ -29,6 +34,11 @@ public final class UiText {
 	public static final Kind UI = Kind.UI;
 	public static final Kind UI_SMALL = Kind.UI_SMALL;
 	public static final Kind DETAIL = Kind.DETAIL;
+
+	/** Smooth text size, in screen pixels, per pixel of Minecraft's font at the same place. */
+	private static final float SMOOTH_SIZE = 9.2f;
+	/** Where Minecraft's font has its baseline, in font pixels below the top of the line. */
+	private static final int BASELINE = 7;
 
 	private static double density = 2.0;
 
@@ -77,10 +87,15 @@ public final class UiText {
 	}
 
 	public static int width(Canvas c, String text, Kind kind) {
+		if (smooth(c)) return (int) Math.ceil(SmoothText.width(plain(text), weight(kind), smoothPixels(kind)) / density);
 		return Math.round(c.textWidth(text) * scaleFor(kind));
 	}
 
 	public static void draw(Canvas c, String text, Kind kind, int x, int y, int argb) {
+		if (smooth(c)) {
+			drawSmooth(c, plain(text), kind, smoothPixels(kind), x, y, argb);
+			return;
+		}
 		drawScaled(c, text, x, y, scaleFor(kind), argb);
 	}
 
@@ -93,6 +108,19 @@ public final class UiText {
 	 * otherwise shrinks just enough to fit (used where space is fixed, like wheel segments).
 	 */
 	public static void drawCenteredFitted(Canvas c, String text, Kind kind, int centerX, int y, int maxWidth, int argb) {
+		if (smooth(c)) {
+			String plain = plain(text);
+			int pixels = smoothPixels(kind);
+			float w = SmoothText.width(plain, weight(kind), pixels);
+			float room = (float) (maxWidth * density);
+			// Shrinks to fit by drawing smaller, which stays sharp, rather than scaling the drawing down.
+			if (w > room && w > 0) {
+				pixels = Math.max(6, (int) Math.floor(pixels * room / w));
+				w = SmoothText.width(plain, weight(kind), pixels);
+			}
+			drawSmoothAt(c, plain, kind, pixels, (float) (centerX * density - w / 2f), y, argb);
+			return;
+		}
 		int raw = Math.max(1, c.textWidth(text));
 		float scale = Math.min(scaleFor(kind), maxWidth / (float) raw);
 		int w = Math.round(raw * scale);
@@ -111,6 +139,61 @@ public final class UiText {
 		String s = text;
 		while (s.length() > 1 && width(c, s + "..", kind) > maxWidth) s = s.substring(0, s.length() - 1);
 		return s.trim() + "..";
+	}
+
+	/** Whether text on this canvas is smooth right now. */
+	public static boolean smooth(Canvas c) {
+		return (alwaysSmooth || ModuleRegistry.INTERFACE == null || ModuleRegistry.INTERFACE.smoothText.isOn()) && SmoothText.usable(c);
+	}
+
+	private static boolean alwaysSmooth;
+
+	/** Smooth text whatever Smooth text says, until set back: the main menu always has it. Render thread only. */
+	public static void setAlwaysSmooth(boolean on) {
+		alwaysSmooth = on;
+	}
+
+	/** The weight of the smooth font used for this kind of text. */
+	public static SmoothText.Weight weight(Kind kind) {
+		return switch (kind) {
+			case TITLE, TITLE_SMALL -> SmoothText.Weight.EXTRABOLD;
+			case UI -> SmoothText.Weight.BOLD;
+			case UI_SMALL, DETAIL -> SmoothText.Weight.SEMIBOLD;
+		};
+	}
+
+	/** The size in screen pixels of the smooth font for this kind of text, where it is about to be drawn. */
+	public static int smoothPixels(Kind kind) {
+		return Math.max(6, Math.round(pixelsFor(kind) * SMOOTH_SIZE));
+	}
+
+	private static void drawSmooth(Canvas c, String text, Kind kind, int pixels, int x, int y, int argb) {
+		drawSmoothAt(c, text, kind, pixels, (float) (x * density), y, argb);
+	}
+
+	/** Smooth text with its left edge at {@code xPixels} (screen pixels) on the line whose top is at y (units). */
+	private static void drawSmoothAt(Canvas c, String text, Kind kind, int pixels, float xPixels, int y, int argb) {
+		if ((argb >>> 24) < 4 || text.isEmpty()) return;
+		int baseline = (int) Math.round(y * density) + BASELINE * pixelsFor(kind);
+		c.push();
+		c.scale((float) (1.0 / density), (float) (1.0 / density));
+		// A soft shadow a pixel or two down, as Minecraft's text has, so it reads on any panel.
+		int drop = Math.max(1, Math.round(pixelsFor(kind) * 0.5f));
+		SmoothText.draw(c, text, weight(kind), pixels, xPixels, baseline + drop, (int) ((argb >>> 24) * 0.32f) << 24);
+		SmoothText.draw(c, text, weight(kind), pixels, xPixels, baseline, argb);
+		c.pop();
+	}
+
+	/** Text without Minecraft's formatting codes, which the smooth font would print as they are. */
+	private static String plain(String text) {
+		if (text.indexOf('\u00a7') < 0) return text;
+		StringBuilder out = new StringBuilder(text.length());
+		for (int i = 0; i < text.length(); i++) {
+			char ch = text.charAt(i);
+			if (ch == '\u00a7' && i + 1 < text.length()) i++;
+			else out.append(ch);
+		}
+		return out.toString();
 	}
 
 	private static void drawScaled(Canvas c, String text, int x, int y, float scale, int argb) {

@@ -20,7 +20,10 @@ public abstract class View {
 
 	/** Called when the view is shown and again whenever the window size changes. */
 	public final void attach(Host host, int width, int height) {
-		if (host != null) dev.snowballclient.client.gui.icons.Icons.use(host.textures());
+		if (host != null) {
+			dev.snowballclient.client.gui.icons.Icons.use(host.textures());
+			dev.snowballclient.client.gui.smooth.SmoothText.use(host.textures());
+		}
 		this.host = host;
 		this.width = width;
 		this.height = height;
@@ -41,6 +44,34 @@ public abstract class View {
 	/** Whether this view leans in 3D while 3D Menus is on. Views that need exact positions say no. */
 	protected boolean allowsDepth() {
 		return true;
+	}
+
+	/**
+	 * Whether this view can stand in the world as a window while 3D Menus is set to windows. Views
+	 * that work on the screen itself (the HUD editor, the hold-to-pick emote wheel) say no.
+	 */
+	public boolean floats() {
+		return allowsDepth();
+	}
+
+	/**
+	 * Whether the view wants keys typed rather than played with right now: a text box is focused,
+	 * or it waits for a key to bind. A window in the world hands it the keyboard while this holds.
+	 */
+	public boolean wantsKeyboard() {
+		return dev.snowballclient.client.gui.TextField.anyFocused();
+	}
+
+	/** The part of the page the view actually draws its window in, in GUI units. */
+	public record Frame(int x, int y, int width, int height) {
+	}
+
+	/**
+	 * Where the view's panel is on its page, so a window in the world can be just that panel: the
+	 * crosshair only counts over it and the grab bar sits right under it. Null means the whole page.
+	 */
+	public Frame frame() {
+		return null;
 	}
 
 	/** Whether the game should blur what is behind this view (where the version can). */
@@ -64,6 +95,7 @@ public abstract class View {
 
 	/** Draws one frame, leaning in 3D when that is on; the mouse is mapped onto the leaning page. */
 	public final void renderFrame(Canvas c, int mouseX, int mouseY, float partialTick) {
+		startFrame();
 		if (!Depth.begin(this, c, width, height, mouseX, mouseY, allowsDepth(), showsPanorama())) {
 			render(c, mouseX, mouseY, partialTick);
 			return;
@@ -74,6 +106,15 @@ public abstract class View {
 		} finally {
 			Depth.end(c);
 		}
+	}
+
+	/**
+	 * Tells the texture caches a new frame has begun, so what they replaced in an earlier frame can
+	 * be let go. Whoever draws views calls this once per frame before drawing.
+	 */
+	public static void startFrame() {
+		dev.snowballclient.client.gui.smooth.SmoothText.frameStarted();
+		dev.snowballclient.client.gui.icons.Icons.frameStarted();
 	}
 
 	public final boolean clickFrame(double mouseX, double mouseY, int button) {

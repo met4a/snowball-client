@@ -23,6 +23,8 @@ import { GameActivityInterpreter } from './process/GameOutput.js';
 import { buildLaunchPlan } from './process/LaunchArguments.js';
 import { ProcessManager, type GameExit, type GameRecordEvent } from './process/ProcessManager.js';
 import { SettingsStore } from './settings/LauncherSettings.js';
+import { SkinLibrary, type SkinDecoder } from './skins/SkinLibrary.js';
+import { SkinService } from './skins/SkinService.js';
 import { ClientBuildRegistry, SnowballCore, type CoreReport, type CoreTarget } from './snowball/SnowballCore.js';
 import { createLauncherPaths, type LauncherPaths } from './util/paths.js';
 
@@ -79,6 +81,8 @@ export interface LauncherOptions {
   consoleLogs?: boolean;
   /** Azure application (client) ID shipped with this build (app-config.json); Settings can override it. */
   defaultMicrosoftClientId?: string;
+  /** Reads skin pixels to tell slim arms from classic ones; without it every added skin is classic. */
+  skinDecoder?: SkinDecoder;
 }
 
 /**
@@ -112,6 +116,7 @@ export class Launcher extends EventEmitter {
     readonly loaders: ModLoaderRegistry,
     readonly auth: AuthManager,
     readonly processes: ProcessManager,
+    readonly skins: SkinService,
     private readonly options: LauncherOptions,
   ) {
     super();
@@ -120,7 +125,7 @@ export class Launcher extends EventEmitter {
 
   static async create(options: LauncherOptions): Promise<Launcher> {
     const paths = createLauncherPaths(options.root);
-    for (const dir of [paths.root, paths.instances, paths.versions, paths.libraries, paths.assets, paths.runtimes, paths.cache, paths.logs, paths.client]) {
+    for (const dir of [paths.root, paths.instances, paths.versions, paths.libraries, paths.assets, paths.runtimes, paths.cache, paths.logs, paths.client, paths.skins]) {
       await mkdir(dir, { recursive: true });
     }
     logSink.configure({ directory: paths.logs, console: options.consoleLogs ?? true });
@@ -147,8 +152,9 @@ export class Launcher extends EventEmitter {
     const auth = new AuthManager(paths.accountsFile, options.cipher, () => settings.get().accounts.microsoftClientId || options.defaultMicrosoftClientId || '');
     await auth.load();
     const processes = new ProcessManager();
+    const skins = new SkinService(new SkinLibrary(paths.skins, options.skinDecoder), auth);
 
-    const launcher = new Launcher(paths, settings, downloads, versions, java, instances, mods, modrinth, core, loaders, auth, processes, options);
+    const launcher = new Launcher(paths, settings, downloads, versions, java, instances, mods, modrinth, core, loaders, auth, processes, skins, options);
     processes.on('record', ({ instanceId, record }: GameRecordEvent) => {
       for (const line of launcher.interpreters.get(instanceId)?.interpret(record) ?? []) launcher.activity.add(instanceId, line.level, line.message);
       if (launcher.phases.get(instanceId) === 'launching' && WINDOW_UP.test(record.message)) launcher.setPhase(instanceId, 'running');
@@ -613,6 +619,8 @@ export class Launcher extends EventEmitter {
           `-Dsnowball.rank=${this.settings.get().accounts.rank}`,
           // So the client can ask which of the players around you are on Snowball.
           ...(this.options.chatUrl ? [`-Dsnowball.chatUrl=${this.options.chatUrl}`] : []),
+          // The skin library the Skins page keeps, so the game's Skins panel shows the same skins.
+          `-Dsnowball.skinsDir=${this.paths.skins}`,
         ],
       });
       cancel.signal.throwIfAborted();

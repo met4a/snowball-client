@@ -50,6 +50,11 @@ public abstract class PanelView extends View {
 	}
 
 	@Override
+	public Frame frame() {
+		return new Frame(panelX, panelY, panelW, panelH);
+	}
+
+	@Override
 	public void renderBackground(Canvas c, int mouseX, int mouseY, float partialTick) {
 		c.fill(0, 0, width, height, Theme.withAlpha(0xFF020306, backdropDim(theme.backgroundOpacity * 0.9f)));
 	}

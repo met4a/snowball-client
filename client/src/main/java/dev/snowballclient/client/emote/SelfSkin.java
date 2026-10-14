@@ -46,6 +46,13 @@ public final class SelfSkin {
 		request = CompletableFuture.supplyAsync(() -> fetch(player, textures)).exceptionally(e -> null);
 	}
 
+	/** Puts {@code skin} in place as {@code player}'s skin straight away, as after changing skin in game. Any thread. */
+	public static synchronized void set(UUID player, Skin skin) {
+		if (player == null) return;
+		requestedFor = player;
+		request = CompletableFuture.completedFuture(skin);
+	}
+
 	/** The skin of {@code player}; null until it has arrived, or when there is none to be had. */
 	public static synchronized Skin get(UUID player, Textures textures) {
 		prefetch(player, textures);

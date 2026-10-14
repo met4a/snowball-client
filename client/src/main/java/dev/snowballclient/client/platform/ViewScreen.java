@@ -1,6 +1,5 @@
 package dev.snowballclient.client.platform;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import dev.snowballclient.client.SnowballClient;
 import dev.snowballclient.client.ui.Host;
 import dev.snowballclient.client.ui.PlayerSpot;
@@ -13,18 +12,12 @@ import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
-import net.minecraft.util.Util;
 
 import java.nio.file.Path;
 import java.util.function.Function;
 
 /** Shows a {@link View} as a Minecraft screen and gives it this version's {@link Host} services. */
 public final class ViewScreen extends Screen implements Host {
-	private static final int KEY_LEFT_CONTROL = 341;
-	private static final int KEY_RIGHT_CONTROL = 345;
-	private static final int KEY_LEFT_SHIFT = 340;
-	private static final int KEY_RIGHT_SHIFT = 344;
-
 	private final View view;
 	private final Screen parent;
 	private final GuiCanvas canvas = new GuiCanvas();
@@ -36,14 +29,38 @@ public final class ViewScreen extends Screen implements Host {
 		this.parent = parent;
 	}
 
-	/** Opens a view on top of whatever is on screen now; closing it returns there. */
+	/**
+	 * Opens a view: in a world with 3D Menus set to windows, as a window standing in front of the
+	 * player; otherwise on top of whatever is on screen now, and closing it returns there.
+	 */
 	public static void show(View view) {
+		if (SpatialGame.takes(view)) SpatialGame.open(view);
+		else showOnScreen(view);
+	}
+
+	/** Opens a view on top of whatever is on screen now; closing it returns there. */
+	public static void showOnScreen(View view) {
 		Minecraft mc = Minecraft.getInstance();
 		mc.gui.setScreen(new ViewScreen(view, mc.gui.screen()));
 	}
 
 	public View view() {
 		return view;
+	}
+
+	/**
+	 * Opens a Minecraft screen from a view, wherever the view is shown: from a screen, closing it
+	 * returns to that screen; from a window in the world, to the game. The factory receives the
+	 * screen to return to (null for the game). A null result opens nothing.
+	 */
+	public static void openGameScreen(Host host, Function<Screen, Screen> factory) {
+		if (host instanceof ViewScreen screen) {
+			screen.openScreen(factory);
+			return;
+		}
+		Minecraft mc = Minecraft.getInstance();
+		Screen next = factory.apply(mc.gui.screen());
+		if (next != null) mc.gui.setScreen(next);
 	}
 
 	/** Opens a Minecraft screen from a view; the factory receives the screen to return to. Null opens nothing. */
@@ -165,27 +182,27 @@ public final class ViewScreen extends Screen implements Host {
 
 	@Override
 	public Textures textures() {
-		return MinecraftTextures.INSTANCE;
+		return GameHost.INSTANCE.textures();
 	}
 
 	@Override
 	public double guiScale() {
-		return minecraft.getWindow().getGuiScale();
+		return GameHost.INSTANCE.guiScale();
 	}
 
 	@Override
 	public int fps() {
-		return minecraft.getFps();
+		return GameHost.INSTANCE.fps();
 	}
 
 	@Override
 	public boolean inWorld() {
-		return minecraft.level != null;
+		return GameHost.INSTANCE.inWorld();
 	}
 
 	@Override
 	public String keyName(int key) {
-		return InputConstants.Type.KEYSYM.getOrCreate(key).getDisplayName().getString();
+		return GameHost.INSTANCE.keyName(key);
 	}
 
 	@Override
@@ -195,33 +212,31 @@ public final class ViewScreen extends Screen implements Host {
 
 	@Override
 	public boolean isControlDown() {
-		return InputConstants.isKeyDown(minecraft.getWindow(), KEY_LEFT_CONTROL) || InputConstants.isKeyDown(minecraft.getWindow(), KEY_RIGHT_CONTROL);
+		return GameHost.INSTANCE.isControlDown();
 	}
 
 	@Override
 	public boolean isShiftDown() {
-		return InputConstants.isKeyDown(minecraft.getWindow(), KEY_LEFT_SHIFT) || InputConstants.isKeyDown(minecraft.getWindow(), KEY_RIGHT_SHIFT);
+		return GameHost.INSTANCE.isShiftDown();
 	}
 
 	@Override
 	public String clipboard() {
-		return minecraft.keyboardHandler.getClipboard();
+		return GameHost.INSTANCE.clipboard();
 	}
 
 	@Override
 	public void copyToClipboard(String text) {
-		minecraft.keyboardHandler.setClipboard(text);
+		GameHost.INSTANCE.copyToClipboard(text);
 	}
 
 	@Override
 	public PlayerSpot playerSpot() {
-		var player = minecraft.player;
-		if (player == null || minecraft.level == null) return null;
-		return new PlayerSpot(player.getX(), player.getY(), player.getZ(), minecraft.level.dimension().identifier().getPath());
+		return GameHost.INSTANCE.playerSpot();
 	}
 
 	@Override
 	public void openPath(Path path) {
-		Util.getPlatform().openPath(path);
+		GameHost.INSTANCE.openPath(path);
 	}
 }

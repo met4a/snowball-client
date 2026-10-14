@@ -161,6 +161,20 @@ export class AuthManager {
     await this.persist();
   }
 
+  /**
+   * Forgets an account's Minecraft session after Minecraft refused it (HTTP 401), so the next
+   * session() signs in again with the refresh token. The copy in accounts.json goes too: otherwise
+   * session() would read the same refused token straight back from disk.
+   */
+  async invalidateSession(accountId: string): Promise<void> {
+    this.sessions.delete(accountId);
+    this.expiry.delete(accountId);
+    const account = this.accounts.find((a) => a.id === accountId);
+    if (!account) return;
+    delete account.session;
+    await this.persist();
+  }
+
   private clientId(): string {
     const id = this.getClientId().trim();
     if (!/^[0-9a-f-]{36}$/i.test(id)) {
