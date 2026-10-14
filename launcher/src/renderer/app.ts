@@ -1720,7 +1720,8 @@
         schedule();
       });
     } else {
-      schedule();
+      // The canvas is not on the page yet: draw the plain figure once it is.
+      requestAnimationFrame(() => schedule());
     }
     return canvas;
   }
@@ -1927,13 +1928,17 @@
     name.addEventListener('blur', () => {
       // Chromium blurs a focused field it takes off the page; a redraw is not the player leaving it.
       if (repainting()) return;
-      const wanted = name.value.trim();
-      s.nameDraft = null;
-      if (!wanted || wanted === skin.name) {
-        name.value = skin.name;
-        return;
-      }
-      void skinChange(() => api.renameSkin(skin.id, wanted));
+      // A whole-page redraw takes the field away too: by the next microtask it is off the page.
+      queueMicrotask(() => {
+        if (!name.isConnected) return;
+        const wanted = name.value.trim();
+        s.nameDraft = null;
+        if (!wanted || wanted === skin.name) {
+          name.value = skin.name;
+          return;
+        }
+        void skinChange(() => api.renameSkin(skin.id, wanted));
+      });
     });
 
     const setArms = (variant: Snowball.SkinVariant) => {

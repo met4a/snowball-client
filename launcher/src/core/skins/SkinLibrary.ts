@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, readFile, readdir, rename, rm, stat } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, rename, rm, stat, utimes } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getLogger } from '../logging/Logger.js';
 import { readJson, writeFileAtomic, writeJsonAtomic } from '../util/fsutil.js';
@@ -226,7 +226,11 @@ export class SkinLibrary {
         const png = await readFile(path);
         if (!skinPngSize(png)) continue;
         const id = await this.newId(listed);
-        await rename(path, join(this.dir, `${id}.png`));
+        const target = join(this.dir, `${id}.png`);
+        await rename(path, target);
+        // Fresh, as the game does: until it is listed the game sees it as just written and leaves it be.
+        const now = new Date(this.now());
+        await utimes(target, now, now).catch(() => undefined);
         listed.add(id);
         adopted.push({ id, name: skinName(base), variant: detectVariant(png, this.decode), favourite: false, added: this.now(), source: 'folder', texture: null });
       } catch (err) {
