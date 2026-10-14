@@ -1,7 +1,7 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { crc32, deflateRawSync } from 'node:zlib';
+import { crc32, deflateRawSync, deflateSync } from 'node:zlib';
 
 export function tempDir(prefix = 'snowball-test-'): string {
   return mkdtempSync(join(tmpdir(), prefix));
@@ -48,4 +48,27 @@ export function makeZip(entries: Record<string, string | Buffer>): Buffer {
   end.writeUInt32LE(centralBuf.length, 12);
   end.writeUInt32LE(offset, 16);
   return Buffer.concat([...locals, centralBuf, end]);
+}
+
+/** Builds a real RGBA PNG (8 bits a channel, no filtering) so tests can make skins without fixtures. */
+export function makePng(width: number, height: number, pixel: (x: number, y: number) => [number, number, number, number]): Buffer {
+  const chunk = (type: string, data: Buffer) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type, 'latin1'), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(body) >>> 0);
+    return Buffer.concat([length, body, crc]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 6;
+  const raw = Buffer.alloc((width * 4 + 1) * height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) raw.set(pixel(x, y), y * (width * 4 + 1) + 1 + x * 4);
+  }
+  const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  return Buffer.concat([signature, chunk('IHDR', header), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
 }

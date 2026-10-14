@@ -70,6 +70,17 @@ const api = {
   pickBackground: invoke('appearance:pick-background'),
   getBackground: invoke('appearance:background'),
   clearBackground: invoke('appearance:clear-background'),
+  listSkins: invoke('skins:list'),
+  syncSkins: invoke('skins:sync'),
+  addSkinByUsername: invoke('skins:add-username'),
+  addSkinByUrl: invoke('skins:add-url'),
+  importSkinFile: invoke('skins:import-file'),
+  renameSkin: invoke('skins:rename'),
+  setSkinFavourite: invoke('skins:set-favourite'),
+  setSkinVariant: invoke('skins:set-variant'),
+  deleteSkin: invoke('skins:delete'),
+  equipSkin: invoke('skins:equip'),
+  openSkinsFolder: invoke('skins:open-folder'),
   on(event: string, listener: (payload: unknown) => void): () => void {
     if (!EVENTS.has(event)) throw new Error(`Unknown event ${event}`);
     const wrapped = (_e: unknown, payload: unknown) => listener(payload);

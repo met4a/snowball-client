@@ -405,6 +405,41 @@ declare namespace Snowball {
     canRetry?: boolean;
   }
 
+  type SkinVariant = 'classic' | 'slim';
+
+  /** A skin in the library the launcher and the game share (design/skins.md). */
+  interface Skin {
+    id: string;
+    name: string;
+    /** classic: 4-pixel arms (Minecraft's "wide"); slim: 3-pixel arms. */
+    variant: SkinVariant;
+    favourite: boolean;
+    added: number;
+    source: string;
+    /** Mojang's hash for this skin, when known; the skin is equipped when it matches SkinLibrary.equipped. */
+    texture: string | null;
+    /** The PNG as a data URL: the page may show data: images, never files. */
+    image: string;
+  }
+
+  interface SkinLibrary {
+    /** Favourites first, then newest. */
+    skins: Skin[];
+    /** The hash of the skin the account wears, once Mojang has been asked; null until then. */
+    equipped: string | null;
+    /** The arms that skin is worn with, so a skin switched to the other arm model can be equipped again. */
+    equippedVariant: SkinVariant | null;
+    /** The account skins are changed for. Offline accounts cannot equip (canEquip false). */
+    account: { name: string; canEquip: boolean } | null;
+  }
+
+  interface SkinAdded {
+    library: SkinLibrary;
+    id: string;
+    /** The skin was already in the library, so nothing was added. */
+    existed: boolean;
+  }
+
   type EventName = 'progress' | 'game-log' | 'game-exit' | 'launch-error' | 'launcher-log' | 'state' | 'activity' | 'update' | 'chat-state' | 'chat-message' | 'chat-history' | 'chat-people' | 'chat-bugs' | 'chat-bug-filed' | 'chat-lookup' | 'chat-rank-set' | 'chat-history-ranks' | 'chat-capes' | 'chat-ranked' | 'chat-admin-result';
 
   interface Api {
@@ -478,6 +513,21 @@ declare namespace Snowball {
     pickBackground(): Promise<{ ok: boolean; dataUrl?: string; reason?: string }>;
     getBackground(): Promise<string | null>;
     clearBackground(): Promise<void>;
+    listSkins(): Promise<SkinLibrary>;
+    /** Asks Mojang which skin is worn, adding it to the library when it is not there yet. */
+    syncSkins(): Promise<{ library: SkinLibrary; imported: string | null }>;
+    addSkinByUsername(name: string): Promise<SkinAdded>;
+    /** https links only. */
+    addSkinByUrl(url: string): Promise<SkinAdded>;
+    /** Shows a file dialog; null when nothing was chosen. */
+    importSkinFile(): Promise<SkinAdded | null>;
+    renameSkin(id: string, name: string): Promise<SkinLibrary>;
+    setSkinFavourite(id: string, favourite: boolean): Promise<SkinLibrary>;
+    setSkinVariant(id: string, variant: SkinVariant): Promise<SkinLibrary>;
+    deleteSkin(id: string): Promise<SkinLibrary>;
+    /** Makes the skin the account's real skin at Mojang. */
+    equipSkin(id: string): Promise<SkinLibrary>;
+    openSkinsFolder(): Promise<void>;
     on(event: EventName, listener: (payload: any) => void): () => void;
   }
 }

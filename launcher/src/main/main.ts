@@ -1,10 +1,11 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage } from 'electron';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { SecretCipher } from '../core/auth/AuthManager.js';
 import { Launcher, type LaunchPhaseEvent } from '../core/Launcher.js';
 import type { GameExit } from '../core/process/ProcessManager.js';
 import { getLogger } from '../core/logging/Logger.js';
+import type { SkinDecoder } from '../core/skins/SkinLibrary.js';
 import { defaultDataRoot } from '../core/util/paths.js';
 import { registerIpc } from './ipc.js';
 import { ChatClient } from '../core/social/ChatClient.js';
@@ -19,6 +20,14 @@ const cipher: SecretCipher = {
   isAvailable: () => safeStorage.isEncryptionAvailable(),
   encrypt: (plain) => safeStorage.encryptString(plain).toString('base64'),
   decrypt: (encoded) => safeStorage.decryptString(Buffer.from(encoded, 'base64')),
+};
+
+/** Skin pictures are decoded by Chromium's own image code, here in the main process (BGRA pixels). */
+const skinDecoder: SkinDecoder = (png) => {
+  const image = nativeImage.createFromBuffer(png);
+  if (image.isEmpty()) return null;
+  const { width, height } = image.getSize();
+  return { width, height, pixels: image.toBitmap() };
 };
 
 function clientBuildDirs(): string[] {
@@ -57,6 +66,7 @@ async function createWindow(): Promise<void> {
     defaultMicrosoftClientId: microsoftClientIdFromConfig(),
     discordAppId: typeof appConfig().discordAppId === "string" ? String(appConfig().discordAppId) : "",
     chatUrl: typeof appConfig().chatUrl === "string" ? String(appConfig().chatUrl).trim() : "",
+    skinDecoder,
   });
   mark('launcherReady');
   const win = new BrowserWindow({
@@ -188,7 +198,7 @@ async function captureViews(win: BrowserWindow, dir: string): Promise<void> {
   if (!sizes.length) sizes.push({ width: 1200, height: 760 });
 
   const only = process.env.SNOWBALLCLIENT_CAPTURE_PAGES?.split(',').map((p) => p.trim()).filter(Boolean);
-  const pages = ['home', 'instances', 'mods', 'browse', 'chat', 'java', 'settings'];
+  const pages = ['home', 'instances', 'mods', 'browse', 'skins', 'chat', 'java', 'settings'];
   await wait(1500);
   for (const size of sizes) {
     win.setContentSize(size.width, size.height);
@@ -198,7 +208,9 @@ async function captureViews(win: BrowserWindow, dir: string): Promise<void> {
     const tag = sizes.length > 1 ? `${size.width}x${size.height}_` : '';
     for (let i = 0; i < pages.length; i++) {
       if (only && !only.includes(pages[i])) continue;
-      await win.webContents.executeJavaScript(`document.querySelectorAll('.nav-item')[${i}].click()`);
+      // By the page's name rather than its place: Admin only shows for some accounts, which
+      // moved every page after it along by one.
+      await win.webContents.executeJavaScript(`document.querySelector('.nav-item[aria-label="${pages[i].toUpperCase()}"]')?.click()`);
       await wait(900);
       // SNOWBALLCLIENT_CAPTURE_CLICK is a selector clicked once the page is up, so dialogs and
       // other states can be reviewed as pictures too rather than only the bare pages.

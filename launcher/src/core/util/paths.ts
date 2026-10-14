@@ -87,6 +87,8 @@ export interface LauncherPaths {
   logs: string;
   /** Verified Snowball Client jars the launcher loads into instances (never copied into mods folders). */
   client: string;
+  /** The skin library shared with the game (design/skins.md). */
+  skins: string;
   settingsFile: string;
   accountsFile: string;
 }
@@ -102,6 +104,7 @@ export function createLauncherPaths(root: string): LauncherPaths {
     cache: join(root, 'cache'),
     logs: join(root, 'logs'),
     client: join(root, 'client'),
+    skins: join(root, 'skins'),
     settingsFile: join(root, 'settings.json'),
     accountsFile: join(root, 'accounts.json'),
   };

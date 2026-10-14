@@ -2425,3 +2425,322 @@ body.reduce-motion *::after {
 .admin-rank-guide .rank-chip {
   min-width: 112px;
 }
+
+/* ============================================================================
+   Skins: the saved skins as cards on the left, the chosen one large on the
+   right, turning slowly and turned by dragging. Like Lunar's Locker, in the
+   launcher's own colours.
+   ========================================================================== */
+.skins-add {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.skins-add .input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.skins-add .btn {
+  flex: none;
+}
+.skins-banner:empty {
+  display: none;
+}
+.skins-banner .issue {
+  margin-bottom: 0;
+}
+.skins-banner .btn {
+  flex: none;
+}
+.page-skins .btn svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+/* Says what is happening and how it ended; announced rather than changing silently. */
+.skins-status {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: rgba(16, 21, 28, 0.7);
+  font-size: 13px;
+}
+.skins-status.show {
+  display: flex;
+}
+.skins-status.ok {
+  border-color: var(--accent-glow);
+  color: var(--accent);
+}
+.skins-status.bad {
+  border-color: rgba(255, 107, 107, 0.4);
+  color: var(--danger);
+}
+.skins-status.busy {
+  color: var(--muted);
+}
+.skins-status.busy::before {
+  content: '';
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  animation: skins-spin 0.8s linear infinite;
+}
+@keyframes skins-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.skins-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(240px, 28vw, 300px);
+  gap: 16px;
+  align-items: start;
+}
+.skins-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+  gap: 12px;
+}
+
+/* ---------- cards ---------- */
+.skin-card {
+  position: relative;
+  min-width: 0;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(22, 29, 38, 0.55), rgba(11, 15, 20, 0.85));
+  transition:
+    border-color var(--speed) cubic-bezier(0.2, 0, 0, 1),
+    box-shadow var(--speed) cubic-bezier(0.2, 0, 0, 1),
+    transform var(--speed) cubic-bezier(0.2, 0, 0, 1);
+}
+.skin-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+}
+.skin-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 8px 26px var(--accent-soft);
+}
+.skin-card-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 16px 10px 12px;
+  border: none;
+  border-radius: inherit;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.skin-card-pick:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* A soft pool of the accent colour for the figure to stand in. */
+.skin-card-stage {
+  display: block;
+  border-radius: 8px;
+  background: radial-gradient(60% 46% at 50% 58%, var(--accent-soft), transparent 72%);
+}
+.skin-card-figure {
+  display: block;
+  width: 96px;
+  height: 160px;
+}
+.skin-card-name {
+  display: block;
+  max-width: 100%;
+  font-size: 12px;
+}
+.skin-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 1px 7px;
+  border-radius: 20px;
+  background: var(--accent);
+  color: var(--on-accent, #05070a);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.skin-star {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color var(--speed), background var(--speed), transform 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+/* On a card the star sits in the top corner; in the preview it is framed like the switch beside it. */
+.skin-card .skin-star {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+}
+.skin-star.framed {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-color: var(--border-strong);
+  border-radius: 9px;
+  background: rgba(5, 7, 10, 0.8);
+}
+.skin-star svg {
+  width: 16px;
+  height: 16px;
+}
+.skin-star:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.skin-star:active {
+  transform: scale(0.88);
+}
+.skin-star:focus-visible {
+  outline: 2px solid var(--accent);
+}
+.skin-star.on {
+  color: var(--warning);
+}
+.skin-star.on svg {
+  fill: currentColor;
+}
+
+/* ---------- the preview ---------- */
+.skin-preview {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.skin-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: radial-gradient(58% 44% at 50% 58%, var(--accent-soft), transparent 72%);
+}
+/* As tall as fits a short window; the width follows from the canvas's own shape. */
+.skin-preview-figure {
+  display: block;
+  width: auto;
+  height: min(340px, 42vh);
+  max-width: 100%;
+  border-radius: 8px;
+  cursor: grab;
+  touch-action: none;
+  outline: none;
+}
+.skin-preview-figure.dragging {
+  cursor: grabbing;
+}
+.skin-preview-figure:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.skin-name {
+  font-size: 14px;
+}
+.skin-arms {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 9px;
+  border: 1px solid var(--border-strong);
+  background: rgba(5, 7, 10, 0.8);
+}
+.skin-arms-option {
+  padding: 6px 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background var(--speed), color var(--speed);
+}
+.skin-arms-option:hover:not(:disabled) {
+  color: var(--text);
+}
+.skin-arms-option.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.skin-arms-option:disabled {
+  cursor: not-allowed;
+}
+.skin-arms-option:focus-visible {
+  outline: 2px solid var(--accent);
+}
+.skin-equip {
+  width: 100%;
+  padding: 10px 16px;
+  letter-spacing: 0.12em;
+}
+/* Looks disabled but keeps the keyboard focus, which a disabled button would drop. */
+.skin-equip[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.skin-equip[aria-disabled='true']:hover {
+  background: var(--accent);
+}
+.skin-equip[aria-disabled='true']:active {
+  transform: none;
+}
+/* Which skin the account wears, when another one is being looked at. */
+.skin-wearing {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+}
+.skin-wearing-pick {
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.skin-wearing-pick:hover {
+  color: var(--text);
+}
+.skin-meta {
+  margin: 0;
+  font-size: 12px;
+}
+body.compact .skins-grid {
+  gap: 8px;
+}
