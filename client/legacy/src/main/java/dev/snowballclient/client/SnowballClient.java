@@ -131,6 +131,10 @@ public final class SnowballClient implements ClientModInitializer {
 				loader::isModLoaded, ModScanner.disabledMods(loader.getGameDir().resolve("mods")));
 		config.loadAll(modules, theme, waypoints);
 		ModuleRegistry.INTERFACE.pullFromTheme(config.clientSettings());
+		// Menus cannot stand in the world on this version: 3D Menus only leans, so its window settings are not shown.
+		ModuleRegistry.MENU_3D.style.hide();
+		ModuleRegistry.MENU_3D.distance.hide();
+		ModuleRegistry.MENU_3D.size.hide();
 		modules.clearDirty();
 		savedClientSettings = config.clientSettings().toJson().toString();
 		keybinds = new KeybindTracker(modules);

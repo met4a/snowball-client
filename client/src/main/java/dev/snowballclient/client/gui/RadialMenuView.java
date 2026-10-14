@@ -136,6 +136,18 @@ public final class RadialMenuView extends View {
 		client.wheelTextures().update(host.textures(), metrics.texturePixels(), theme, layout);
 	}
 
+	@Override
+	public Frame frame() {
+		if (metrics == null) return null;
+		// The wheel and the list beside it.
+		float s = metrics.scale();
+		float half = Math.max(WheelGeometry.TOTAL_R, panelHeight(rows().size()) / 2f) * s;
+		int left = Math.round(metrics.centerX() - WheelGeometry.TOTAL_R * s);
+		int right = Math.round(metrics.centerX() + (PANEL_X + PANEL_W) * s);
+		int top = Math.round(metrics.centerY() - half);
+		return new Frame(left, top, right - left, Math.round(2 * half));
+	}
+
 	// ---- accessors used by the automated in-game UI test ----
 
 	public ModuleCategory selectedCategory() {

@@ -111,6 +111,11 @@ public final class ColorPickerView extends View {
 	}
 
 	@Override
+	public Frame frame() {
+		return new Frame(panelX, panelY, Math.round(PANEL_W * fit), Math.round(panelH * fit));
+	}
+
+	@Override
 	public void renderBackground(Canvas c, int mouseX, int mouseY, float partialTick) {
 		c.fill(0, 0, width, height, Theme.withAlpha(0xFF000000, backdropDim(theme.backgroundOpacity * 0.75f)));
 	}

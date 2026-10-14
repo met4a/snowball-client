@@ -3,6 +3,7 @@ package dev.snowballclient.client.mixin;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import dev.snowballclient.client.module.ModuleRegistry;
+import dev.snowballclient.client.platform.SpatialGame;
 import dev.snowballclient.client.util.CpsTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
@@ -28,6 +29,12 @@ public abstract class MouseHandlerMixin {
 		original.call(player, xo * scale, yo * scale);
 	}
 
+	/** Clicks over a window in the world (3D Menus as windows) go to the window, not to the game. */
+	@Inject(method = "onButton", at = @At("HEAD"), cancellable = true)
+	private void snowballclient$windowClick(long handle, MouseButtonInfo buttonInfo, int action, CallbackInfo ci) {
+		if (SpatialGame.button(buttonInfo.button(), action)) ci.cancel();
+	}
+
 	@Inject(method = "onButton", at = @At("HEAD"))
 	private void snowballclient$countClicks(long handle, MouseButtonInfo buttonInfo, int action, CallbackInfo ci) {
 		if (action != GLFW_PRESS || Minecraft.getInstance().gui.screen() != null) return;
@@ -37,6 +44,11 @@ public abstract class MouseHandlerMixin {
 
 	@Inject(method = "onScroll", at = @At("HEAD"), cancellable = true)
 	private void snowballclient$zoomScroll(long handle, double xoffset, double yoffset, CallbackInfo ci) {
+		// Over a window in the world the wheel scrolls the window, not the hotbar.
+		if (SpatialGame.scroll(yoffset)) {
+			ci.cancel();
+			return;
+		}
 		if (ModuleRegistry.ZOOM != null && Minecraft.getInstance().gui.screen() == null && ModuleRegistry.ZOOM.onScroll(yoffset)) {
 			ci.cancel();
 		}

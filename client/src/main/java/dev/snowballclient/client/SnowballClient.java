@@ -18,7 +18,9 @@ import dev.snowballclient.client.module.storage.ClientContainerPreviewTooltip;
 import dev.snowballclient.client.module.storage.ContainerPreview;
 import dev.snowballclient.client.perf.ModRequests;
 import dev.snowballclient.client.perf.ModScanner;
+import dev.snowballclient.client.module.client.Menu3D;
 import dev.snowballclient.client.platform.MinecraftTextures;
+import dev.snowballclient.client.platform.SpatialGame;
 import dev.snowballclient.client.platform.ViewScreen;
 import dev.snowballclient.client.social.Rank;
 import dev.snowballclient.client.hud.NotificationCenter;
@@ -41,6 +43,11 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.ClientTooltipComponentCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+//? if >=26.1 {
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
+//?} else {
+/*import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
+*///?}
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.KeyMapping;
@@ -209,6 +216,15 @@ public final class SnowballClient implements ClientModInitializer {
 			if (ModuleRegistry.CROSSHAIR != null && ModuleRegistry.CROSSHAIR.replacesVanilla(mc)) ModuleRegistry.CROSSHAIR.render(graphics);
 			else original.extractRenderState(graphics, deltaTracker);
 		});
+		// 3D Menus as windows: drawn with the world, and the block behind a window is not outlined.
+		Menu3D.supportWindows(() -> Minecraft.getInstance().level != null);
+		//? if >=26.1 {
+		LevelRenderEvents.COLLECT_SUBMITS.register(context -> SpatialGame.render(context.submitNodeCollector()));
+		LevelRenderEvents.BEFORE_BLOCK_OUTLINE.register((context, outline) -> !SpatialGame.pointing());
+		//?} else {
+		/*WorldRenderEvents.BEFORE_ENTITIES.register(context -> SpatialGame.render(context.commandQueue()));
+		WorldRenderEvents.BEFORE_BLOCK_OUTLINE.register((context, outline) -> !SpatialGame.pointing());
+		*///?}
 		ClientTooltipComponentCallback.EVENT.register(data ->
 				data instanceof ContainerPreview.ContainerPreviewTooltip preview ? new ClientContainerPreviewTooltip(preview) : null);
 		ModuleRegistry.CONTAINER_SEARCH.install();
@@ -239,7 +255,8 @@ public final class SnowballClient implements ClientModInitializer {
 
 	private void onEndTick(Minecraft mc) {
 		while (openMenuKey.consumeClick()) {
-			if (mc.gui.screen() == null && mc.player != null) ViewScreen.show(new RadialMenuView(this));
+			// With menus as windows, the key closes the window the crosshair is on, or opens another.
+			if (mc.gui.screen() == null && mc.player != null && !SpatialGame.closePointedAt()) ViewScreen.show(new RadialMenuView(this));
 		}
 		while (emoteWheelKey.consumeClick()) {
 			if (mc.gui.screen() == null && mc.player != null && ModuleRegistry.EMOTES.isEnabled()) ViewScreen.show(new EmoteWheelView(this));
@@ -253,6 +270,7 @@ public final class SnowballClient implements ClientModInitializer {
 			keybinds.releaseAll();
 		}
 		modules.tick();
+		SpatialGame.tick(mc);
 		OptionsSaver.tick(mc);
 
 		// Build the wheel textures for the current window size in the background before the menu opens.

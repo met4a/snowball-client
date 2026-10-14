@@ -88,6 +88,11 @@ public final class ModuleSettingsView extends View {
 	}
 
 	@Override
+	public Frame frame() {
+		return new Frame(panelX, panelY, panelW, panelH());
+	}
+
+	@Override
 	public void renderBackground(Canvas c, int mouseX, int mouseY, float partialTick) {
 		c.fill(0, 0, width, height, Theme.withAlpha(0xFF000000, backdropDim(theme.backgroundOpacity * 0.75f)));
 	}

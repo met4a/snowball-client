@@ -21,6 +21,8 @@ public final class TextField {
 	private int y;
 	private int width;
 	private int height;
+	/** The box focused last, wherever it is: a window in the world asks it whether someone is typing. */
+	private static TextField lastFocused;
 
 	public TextField(int maxLength, String hint) {
 		this.maxLength = maxLength;
@@ -55,12 +57,24 @@ public final class TextField {
 
 	public void setFocused(boolean focused) {
 		this.focused = focused;
+		if (focused) lastFocused = this;
 	}
 
 	/** Focuses the box when the click is inside it and unfocuses it otherwise; true when it was clicked. */
 	public boolean mouseClicked(double mouseX, double mouseY) {
-		focused = mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height;
+		setFocused(mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height);
 		return focused;
+	}
+
+	/** Whether a text box anywhere has the keyboard. */
+	public static boolean anyFocused() {
+		return lastFocused != null && lastFocused.focused;
+	}
+
+	/** Takes the keyboard away from whichever text box has it. */
+	public static void unfocusAll() {
+		if (lastFocused != null) lastFocused.focused = false;
+		lastFocused = null;
 	}
 
 	public boolean keyPressed(int key, Host host) {
