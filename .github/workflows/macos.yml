@@ -8,7 +8,8 @@ name: macOS
 # macOS asks before opening it the first time and it cannot replace itself: updates are downloads.
 on:
   push:
-    tags: ['v*']
+    # Release tags with or without the "v": v1.8.2 and older, 1.9.0 and newer.
+    tags: ['v*', '[0-9]*']
     # A branch under ci/ runs it without touching main.
     branches: ['ci/**']
   workflow_dispatch:
