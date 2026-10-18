@@ -20,6 +20,8 @@
     "LevelRendererMixin",
     "LightmapRenderStateExtractorMixin",
     "LoadingOverlayMixin",
+    "MapArtSlotMixin",
+    "MinecraftCrashMixin",
     "MouseHandlerMixin",
     "OverlayTextureMixin",
     "ParticleEngineMixin",
@@ -31,6 +33,7 @@
     "ScreenBackgroundMixin",
     "ScreenEffectRendererMixin",
     "SetScreenMixin",
+    "SidebarNickMixin",
     "TextureAtlasMixin",
     "WeatherEffectRendererMixin"
   ],

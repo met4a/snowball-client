@@ -9,6 +9,53 @@ installer once.
 
 ---
 
+## 1.11.0
+
+### What's new
+- **Anti-Crash.** When a mod (or the game) hits an error while you play,
+  Snowball saves and closes your world, writes the usual crash report, and shows
+  a screen saying what went wrong, which mod it most likely came from and where
+  the report is. Press Rejoin to go straight back into the same world or server
+  and keep playing, no restart needed. Before, the whole game just closed.
+  It's on by default, under Client in the Snowball menu. It can't stop every
+  crash: running out of memory, crashes of Java itself or of your graphics
+  driver, and errors while the game is still starting still close the game.
+  If errors keep coming (three in two minutes), it steps aside and the game
+  closes as usual, so a problem never hides behind it. On Minecraft 1.8.9 it
+  covers the game itself; a crash of 1.8.9's built-in singleplayer server
+  still closes the game.
+- **Nick Hider changes your real nametag.** It used to swap your name in chat
+  only. Now it also swaps it above your head in third person (F5), in the Tab
+  player list and on the scoreboard sidebar, with your Snowball badge kept.
+  Each place can be switched off in its settings. It only changes your own
+  screen: everyone else still sees your real name, and nothing is sent to the
+  server. Other players are left alone too: someone called "Steve_2" stays
+  "Steve_2" when you are "Steve".
+- **Discord presence works.** Discord now shows that you're on Snowball:
+  browsing in the launcher, starting a game, or playing (the Minecraft version
+  and your instance's name). It never shows your account, file paths, IP
+  addresses or server addresses. Don't want it? Turn off "Show on Discord" in
+  the launcher's Settings. In game, switch on Discord presence (under Misc) to
+  show what you're doing instead, such as "In singleplayer", or a public
+  server's name if you allow it.
+- **Map Art Viewer.** A filled map shows its picture in its slot instead of the
+  plain map icon, in your inventory, in chests and on the hotbar, so map art is
+  easy to tell apart. On by default, under Storage. (Not on 1.8.9 yet.)
+- **Search works in 3D Menus windows.** Click the search box in a window and
+  type; Esc or Enter hands the keyboard back to the game.
+- **Nick Hider and the in-game Discord presence on Minecraft 1.8.9.** Nick
+  Hider works in chat, the Tab list and the sidebar (1.8.9 never shows your own
+  nametag, so there is nothing to swap there).
+
+### Fixed
+- 3D Menus no longer tilts or moves the Snowball main menu. The "Main menu too"
+  option is gone; the main menu always stays still.
+- Long cape names on the cosmetics page ("Northern lights") no longer run into
+  each other; they wrap onto two lines. The cape studio note gets two lines too.
+- Nick Hider no longer changes other players whose names contain yours.
+- Switching the game's Discord presence on or off while you play no longer
+  leaves you with two presences on Discord, or none, until the game closes.
+
 ## 1.10.0
 
 ### What's new

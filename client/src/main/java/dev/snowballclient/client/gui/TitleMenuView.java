@@ -116,6 +116,12 @@ public final class TitleMenuView extends View {
 		return true;
 	}
 
+	/** The main menu never leans or moves, whatever 3D Menus is set to. */
+	@Override
+	protected boolean allowsDepth() {
+		return false;
+	}
+
 	@Override
 	protected void init() {
 		logo = host.textures().bundled("textures/gui/logo.png", 256, 256);

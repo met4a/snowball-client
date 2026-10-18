@@ -4,12 +4,15 @@
 	"compatibilityLevel": "JAVA_${java}",
 	"client": [
 		"BlockEntityCullingMixin",
+		"ChatHudMixin",
 		"ClientPlayerInteractionManagerMixin",
 		"EntityCullingMixin",
 		"GameRendererMixin",
 		"HeldItemRendererMixin",
 		"KeyBindingMixin",
 		"MinecraftClientMixin",
+		"PlayerListHudMixin",
+		"ScoreboardNickMixin",
 		"TitleScreenAccessor"
 	],
 	"injectors": {

@@ -96,7 +96,7 @@ public abstract class View {
 	/** Draws one frame, leaning in 3D when that is on; the mouse is mapped onto the leaning page. */
 	public final void renderFrame(Canvas c, int mouseX, int mouseY, float partialTick) {
 		startFrame();
-		if (!Depth.begin(this, c, width, height, mouseX, mouseY, allowsDepth(), showsPanorama())) {
+		if (!Depth.begin(this, c, width, height, mouseX, mouseY, allowsDepth())) {
 			render(c, mouseX, mouseY, partialTick);
 			return;
 		}

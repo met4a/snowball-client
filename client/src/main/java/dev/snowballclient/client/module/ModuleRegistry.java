@@ -3,6 +3,7 @@ package dev.snowballclient.client.module;
 import dev.snowballclient.client.combat.CombatTracker;
 import dev.snowballclient.client.config.ClientSettings;
 import dev.snowballclient.client.gui.theme.Theme;
+import dev.snowballclient.client.module.client.AntiCrash;
 import dev.snowballclient.client.module.client.ClientHud;
 import dev.snowballclient.client.module.client.ClientHudModules;
 import dev.snowballclient.client.module.client.ClientHudExtras;
@@ -55,6 +56,7 @@ import dev.snowballclient.client.module.render.WeatherEffects;
 import dev.snowballclient.client.module.storage.ContainerPreview;
 import dev.snowballclient.client.module.storage.ContainerSearch;
 import dev.snowballclient.client.module.storage.ItemCounter;
+import dev.snowballclient.client.module.storage.MapArtViewer;
 import dev.snowballclient.client.module.storage.PackModules;
 import dev.snowballclient.client.module.storage.StorageScreens;
 import dev.snowballclient.client.perf.ModRequests;
@@ -109,6 +111,8 @@ public final class ModuleRegistry {
 	public static VisualModules.TimeChanger TIME_CHANGER;
 	public static NickHider NICK_HIDER;
 	public static ThirdPersonCamera THIRD_PERSON;
+	public static AntiCrash ANTI_CRASH;
+	public static MapArtViewer MAP_ART;
 	public static final List<ExternalModModule> EXTERNAL_MODS = new ArrayList<>();
 
 	/**
@@ -140,6 +144,7 @@ public final class ModuleRegistry {
 		MENU_3D = m.register(new Menu3D());
 		COSMETICS = m.register(new Cosmetics());
 		m.register(new Skins());
+		ANTI_CRASH = m.register(new AntiCrash());
 
 		// FPS BOOST: one Boost switch with preset cards; the fine-tuning modules sit under Advanced.
 		FPS_BOOST = m.register(new FpsBoost(requests));
@@ -208,9 +213,10 @@ public final class ModuleRegistry {
 		CONTAINER_PREVIEW = m.register(new ContainerPreview());
 		CONTAINER_SEARCH = m.register(new ContainerSearch());
 		m.register(new ItemCounter());
+		MAP_ART = m.register(new MapArtViewer());
 
 		m.order(ModuleCategory.CLIENT, "client_hud", "presets", "hud_layout", "interface", "cosmetics", "skins", "menu_3d", "watermark", "fps_counter", "ping_display", "coordinates",
-				"direction_hud", "custom_text", "memory_usage", "pack_display");
+				"direction_hud", "custom_text", "memory_usage", "pack_display", "anti_crash");
 		m.order(ModuleCategory.RENDER, "fps_boost", "fov_settings", "potion_hud", "block_outline", "no_hurt_shake", "low_fire", "third_person",
 				"time_changer", "weather_effects");
 		m.order(ModuleCategory.PVP, "crosshair", "armor_hud", "cps_counter", "combo_counter", "reach_display", "target_info");

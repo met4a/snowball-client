@@ -22,9 +22,9 @@
     ['M4 4h16a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z', 'M5 9v10h14V9M10 13h4'],
   ];
 
-  // Categories and rows as ModuleCategory and ModuleRegistry have them in Snowball Client 1.10.0.
+  // Categories and rows as ModuleCategory and ModuleRegistry have them in Snowball Client 1.11.0.
   const CATS = [
-    { name: 'CLIENT', rows: ['client_hud', 'presets', 'hud_layout', 'interface', 'cosmetics', 'skins', 'menu_3d', 'watermark', 'custom_text', 'fps_counter', 'ping_display', 'coordinates', 'direction_hud', 'memory_usage', 'pack_display'] },
+    { name: 'CLIENT', rows: ['client_hud', 'presets', 'hud_layout', 'interface', 'cosmetics', 'skins', 'menu_3d', 'watermark', 'custom_text', 'fps_counter', 'ping_display', 'coordinates', 'direction_hud', 'memory_usage', 'pack_display', 'anti_crash'] },
     { name: 'FPS BOOST', cards: true, rows: ['fps_boost', 'smart_culling', 'advanced', 'mod_sodium', 'mod_lithium', 'mod_ferritecore', 'mod_entityculling', 'mod_immediatelyfast', 'animation_optimization', 'inactive_fps', 'particle_limiter', 'performance_advisor'] },
     { name: 'RENDER', rows: ['fps_boost', 'smart_culling', 'fov_settings', 'weather_effects', 'potion_hud', 'no_hurt_shake', 'low_fire', 'block_outline', 'time_changer', 'zoom', 'freelook', 'third_person'] },
     { name: 'PVP', rows: ['crosshair', 'armor_hud', 'cps_counter', 'combo_counter', 'reach_display', 'target_info', 'crystal_glow'] },
@@ -33,7 +33,7 @@
     { name: 'WORLD', rows: ['render_distance', 'entity_distance', 'waypoints'] },
     { name: 'MISC', rows: ['screenshot_utility', 'clock', 'server_info', 'notifications', 'chat_settings', 'session_timer', 'nick_hider', 'discord', 'spotify', 'emotes'] },
     { name: 'QOL', rows: ['keystrokes', 'ez_pots', 'nether_travel', 'third_person', 'coordinates'] },
-    { name: 'STORAGE', rows: ['screenshots', 'config_profiles', 'mod_profiles', 'resource_packs', 'shader_packs', 'container_preview', 'container_search', 'item_counter'] },
+    { name: 'STORAGE', rows: ['screenshots', 'config_profiles', 'mod_profiles', 'resource_packs', 'shader_packs', 'container_preview', 'container_search', 'item_counter', 'map_art_viewer'] },
   ];
   const N = CATS.length;
   const STEP = 360 / N;
@@ -97,7 +97,7 @@
     weather_effects: ['Weather Effects', 'Hide rain and snow', 't', false, false],
     potion_hud: ['Potion HUD', 'Shows effects and timers', 't', false, true],
     chat_settings: ['Chat Upgrades', 'Stack spam, mentions, copy', 't', true, true],
-    nick_hider: ['Nick Hider', 'Hide your name in chat', 't', false, true],
+    nick_hider: ['Nick Hider', 'Swap your name, on your screen only', 't', false, true],
     screenshot_utility: ['Screenshot Utility', 'Actions after a screenshot', 't', true, true],
     notifications: ['Notifications', 'Pop-up cards for events', 't', true, true],
     clock: ['Time Display', 'Shows the real time', 't', false, true],
@@ -116,6 +116,8 @@
     container_preview: ['Container Preview', 'See inside shulker boxes', 't', true, true],
     container_search: ['Container Search', 'Find items in chests', 't', true, true],
     item_counter: ['Item Counter', 'Count the item you hold', 't', false, true],
+    map_art_viewer: ['Map Art Viewer', "Show a map's picture in its slot", 't', true, false],
+    anti_crash: ['Anti-Crash', 'Keep the game open after most mod errors', 't', true, false],
   };
   const CARDS = [['max_fps', 'MAX FPS', 'Most FPS'], ['balanced', 'BALANCED', 'Best of both'], ['quality', 'QUALITY', 'Best visuals'], ['off', 'OFF', 'Your settings']];
   const BOOST_FPS = { off: 118, max_fps: 236, balanced: 184, quality: 146 };

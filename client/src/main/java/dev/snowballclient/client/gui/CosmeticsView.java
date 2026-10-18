@@ -93,19 +93,65 @@ public final class CosmeticsView extends PanelView {
 				GuiDraw.roundedOutline(c, px, py, 30, 48, 2, theme.border());
 				c.fill(px + 8, py + 23, px + 22, py + 25, theme.mutedText());
 			}
-			UiText.drawCentered(c, label(id), UiText.DETAIL, p[0] + TILE_W / 2, p[1] + TILE_H - 14, chosen ? theme.accent() : theme.text());
+			drawLabel(c, label(id), p[0] + TILE_W / 2, p[1] + TILE_H - 14, chosen ? theme.accent() : theme.text());
 			if (chosen) GuiDraw.roundedOutline(c, p[0], p[1], TILE_W, TILE_H, 4, theme.accent());
 		}
 
 		int y = panelY + panelH - 44;
 		if (plus()) {
 			button(c, panelX + 12, y, 96, 16, "CAPE STUDIO", false, mouseX, mouseY);
-			UiText.draw(c, UiText.fit(c, customLine(), UiText.DETAIL, panelW - 130), UiText.DETAIL, panelX + 116, y + 5, theme.mutedText());
+			drawWrapped(c, customLine(), panelX + 116, y, panelW - 130, theme.mutedText());
 		} else {
 			UiText.draw(c, "Draw your own cape with Snowball+", UiText.DETAIL, panelX + 12, y + 5, theme.mutedText());
 		}
 		boolean others = cosmetics.showOthers.isOn();
 		button(c, panelX + 12, y + 20, 150, 16, others ? "OTHERS' CAPES: SHOWN" : "OTHERS' CAPES: HIDDEN", false, mouseX, mouseY);
+	}
+
+	/**
+	 * A cape's name under its tile, never wider than the tile and the gap beside it: a name too wide
+	 * for one line goes on two, split at the space nearest the middle, and a single word that still
+	 * does not fit is drawn a little smaller. Unchecked, "Northern lights" ran into its neighbours.
+	 */
+	private static void drawLabel(Canvas c, String label, int centerX, int y, int argb) {
+		int room = TILE_W + GAP - 2;
+		int split = middleSpace(label);
+		if (split < 0 || UiText.width(c, label, UiText.DETAIL) <= room) {
+			UiText.drawCenteredFitted(c, label, UiText.DETAIL, centerX, y, room, argb);
+			return;
+		}
+		int line = Math.round(UiText.lineHeight(c, UiText.DETAIL));
+		UiText.drawCenteredFitted(c, label.substring(0, split), UiText.DETAIL, centerX, y - line / 2 - 1, room, argb);
+		UiText.drawCenteredFitted(c, label.substring(split + 1), UiText.DETAIL, centerX, y + line / 2, room, argb);
+	}
+
+	private static int middleSpace(String text) {
+		int best = -1;
+		for (int i = text.indexOf(' '); i >= 0; i = text.indexOf(' ', i + 1)) {
+			if (best < 0 || Math.abs(i - text.length() / 2) < Math.abs(best - text.length() / 2)) best = i;
+		}
+		return best;
+	}
+
+	/** Up to two lines beside the cape studio button, centred on it when one is enough; "..." only past the second. */
+	private static void drawWrapped(Canvas c, String text, int x, int y, int width, int argb) {
+		String first = text;
+		String rest = "";
+		if (UiText.width(c, text, UiText.DETAIL) > width) {
+			int cut = text.length();
+			while (cut > 0 && (UiText.width(c, text.substring(0, cut), UiText.DETAIL) > width || (cut < text.length() && text.charAt(cut) != ' '))) cut--;
+			if (cut > 0) {
+				first = text.substring(0, cut);
+				rest = text.substring(cut).strip();
+			}
+		}
+		if (rest.isEmpty()) {
+			UiText.draw(c, UiText.fit(c, first, UiText.DETAIL, width), UiText.DETAIL, x, y + 5, argb);
+			return;
+		}
+		int line = Math.round(UiText.lineHeight(c, UiText.DETAIL));
+		UiText.draw(c, first, UiText.DETAIL, x, y + 8 - line, argb);
+		UiText.draw(c, UiText.fit(c, rest, UiText.DETAIL, width), UiText.DETAIL, x, y + 8, argb);
 	}
 
 	private static String customLine() {

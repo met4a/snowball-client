@@ -69,7 +69,6 @@ class DepthTest {
 		float tilt = 22f;
 		boolean follow = true;
 		boolean drift = false;
-		boolean mainMenu = true;
 
 		@Override public boolean enabled() { return on; }
 		@Override public float tiltDegrees() { return tilt; }
@@ -77,7 +76,6 @@ class DepthTest {
 		@Override public int thickness() { return 4; }
 		@Override public boolean followMouse() { return follow; }
 		@Override public boolean drift() { return drift; }
-		@Override public boolean mainMenu() { return mainMenu; }
 		@Override public boolean shadows() { return true; }
 	}
 
