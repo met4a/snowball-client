@@ -8,24 +8,36 @@
   const NS = 'http://www.w3.org/2000/svg';
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // 9x9 category icons, same bitmaps as CategoryIcons.java.
+  // Line icons on a 24-unit grid, in the client's category order (the same set the page uses).
   const ICONS = [
-    ['.........', '#########', '#.......#', '#.......#', '#.......#', '#########', '....#....', '..#####..', '.........'],
-    ['.....##..', '....##...', '...##....', '..######.', '.....##..', '....##...', '...##....', '..##.....', '.........'],
-    ['.........', '...###...', '.##...##.', '#...#...#', '#..###..#', '#...#...#', '.##...##.', '...###...', '.........'],
-    ['.........', '.##...##.', '.##...##.', '.........', '.........', '.##...##.', '.##...##.', '.........', '.........'],
-    ['....#....', '....#....', '...###...', '#########', '...###...', '....#....', '....#....', '.........', '.........'],
-    ['.........', '#########', '#.......#', '#########', '#.......#', '#..###..#', '#.......#', '#########', '.........'],
+    ['M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z', 'M9 20h6M12 16v4'],
+    ['M13 2 4.5 13.5H11L10 22l8.5-11.5H12z'],
+    ['M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z', 'M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z'],
+    ['M12 3 19.5 6v5.5c0 4.6-3.2 7.9-7.5 9.5-4.3-1.6-7.5-4.9-7.5-9.5V6z', 'm8.8 12 2.3 2.3 4.2-4.6'],
+    ['m5 6 6 6-6 6M13 6l6 6-6 6'],
+    ['M4 20 15 9M13 7l4 4M18 3v3M16.5 4.5h3M20.5 9.5v2M19.5 10.5h2'],
+    ['M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z', 'M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18'],
+    ['M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1', 'M17 7a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM11 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM19 17a2 2 0 1 1-4 0 2 2 0 0 1 4 0z'],
+    ['M12 3c.7 5 2.5 7.3 8 9-5.5 1.7-7.3 4-8 9-.7-5-2.5-7.3-8-9 5.5-1.7 7.3-4 8-9z'],
+    ['M4 4h16a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z', 'M5 9v10h14V9M10 13h4'],
   ];
 
+  // Categories and rows as ModuleCategory and ModuleRegistry have them in Snowball Client 1.10.0.
   const CATS = [
-    { name: 'CLIENT', rows: ['client_hud', 'crosshair', 'fps_counter', 'ping_display', 'coordinates', 'direction_hud', 'speed_display', 'combo_counter', 'reach_display', 'memory_usage', 'pack_display', 'armor_hud', 'interface'] },
-    { name: 'FPS BOOST', cards: true, rows: ['fps_boost', 'advanced', 'mod_sodium', 'mod_lithium', 'mod_ferritecore', 'mod_entityculling', 'mod_immediatelyfast', 'animation_optimization', 'inactive_fps', 'particle_limiter', 'performance_advisor'] },
-    { name: 'RENDER', rows: ['fps_boost', 'fullbright', 'zoom', 'freelook', 'third_person', 'time_changer', 'hit_color', 'crystal_glow', 'block_outline', 'no_hurt_shake', 'low_fire', 'fov_settings', 'render_distance', 'entity_distance', 'weather_effects', 'potion_hud'] },
-    { name: 'MISC', rows: ['chat_settings', 'nick_hider', 'screenshot_utility', 'notifications', 'clock', 'server_info', 'session_timer'] },
-    { name: 'QOL', rows: ['keystrokes', 'toggle_sprint', 'zoom', 'freelook', 'snaplook', 'third_person', 'waypoints', 'cps_counter', 'coordinates'] },
+    { name: 'CLIENT', rows: ['client_hud', 'presets', 'hud_layout', 'interface', 'cosmetics', 'skins', 'menu_3d', 'watermark', 'custom_text', 'fps_counter', 'ping_display', 'coordinates', 'direction_hud', 'memory_usage', 'pack_display'] },
+    { name: 'FPS BOOST', cards: true, rows: ['fps_boost', 'smart_culling', 'advanced', 'mod_sodium', 'mod_lithium', 'mod_ferritecore', 'mod_entityculling', 'mod_immediatelyfast', 'animation_optimization', 'inactive_fps', 'particle_limiter', 'performance_advisor'] },
+    { name: 'RENDER', rows: ['fps_boost', 'smart_culling', 'fov_settings', 'weather_effects', 'potion_hud', 'no_hurt_shake', 'low_fire', 'block_outline', 'time_changer', 'zoom', 'freelook', 'third_person'] },
+    { name: 'PVP', rows: ['crosshair', 'armor_hud', 'cps_counter', 'combo_counter', 'reach_display', 'target_info', 'crystal_glow'] },
+    { name: 'MOVE', rows: ['speed_display', 'toggle_sprint'] },
+    { name: 'VISUALS', rows: ['menu_3d', 'fullbright', 'glass_gui', 'hit_color', 'crystal_glow', 'zoom', 'freelook', 'snaplook'] },
+    { name: 'WORLD', rows: ['render_distance', 'entity_distance', 'waypoints'] },
+    { name: 'MISC', rows: ['screenshot_utility', 'clock', 'server_info', 'notifications', 'chat_settings', 'session_timer', 'nick_hider', 'discord', 'spotify', 'emotes'] },
+    { name: 'QOL', rows: ['keystrokes', 'ez_pots', 'nether_travel', 'third_person', 'coordinates'] },
     { name: 'STORAGE', rows: ['screenshots', 'config_profiles', 'mod_profiles', 'resource_packs', 'shader_packs', 'container_preview', 'container_search', 'item_counter'] },
   ];
+  const N = CATS.length;
+  const STEP = 360 / N;
+  const midOf = (i) => i * STEP - STEP / 2;
 
   // [name, description, kind, enabled, has settings, status, advanced]
   // kind: t = toggle, a = opens a screen, x = the Advanced row
@@ -42,7 +54,22 @@
     memory_usage: ['Memory Usage', 'Shows game memory use', 't', false, true],
     pack_display: ['Pack Display', 'Shows your resource pack', 't', false, true],
     armor_hud: ['Armor HUD', 'Shows armour and durability', 't', false, true],
-    interface: ['Menu & Accessibility', 'Menu size, contrast, motion', 'a'],
+    interface: ['Menu & Accessibility', 'Colours, size, contrast, motion', 'a'],
+    presets: ['Presets', 'Ready-made setups you can apply in one click', 'a'],
+    hud_layout: ['HUD Layout', 'Move, resize and turn your HUD', 'a'],
+    cosmetics: ['Cosmetics', 'Capes other Snowball players see', 'a'],
+    skins: ['Skins', 'Change your Minecraft skin', 'a'],
+    menu_3d: ['3D Menus', 'Menus stand in the world as windows', 't', false, true],
+    watermark: ['Watermark', 'The Snowball mark in the corner', 't', false, true],
+    custom_text: ['Custom Text', 'Your own words on screen', 't', false, true],
+    target_info: ['Target Info', 'Who you are looking at, and their health', 't', false, true],
+    smart_culling: ['Smart Culling', 'Skip drawing what walls hide: more FPS', 't', true, true],
+    glass_gui: ['Glass GUI', "See through Minecraft's menus", 't', false, true],
+    discord: ['Discord presence', 'Tell Discord you are on Snowball Client', 't', false, true],
+    spotify: ['Spotify', 'The song Spotify is playing', 't', false, true],
+    emotes: ['Emotes', 'Wheel of emotes others can see', 't', true, true],
+    ez_pots: ['EZ Pots', 'Hear when a potion is about to run out', 't', false, true],
+    nether_travel: ['Nether Travel', 'Overworld and Nether coordinates', 'a'],
     fps_boost: ['Boost', 'More FPS with one switch', 't', false, true],
     advanced: ['Advanced', 'Optimisation mods, fine-tuning', 'x'],
     mod_sodium: ['Faster Rendering', 'Sodium, after restart', 't', false, false, 'MISSING', true],
@@ -100,8 +127,8 @@
   let current = 0;
   let query = '';
   let expanded = false;
-  let angle = -30;
-  let shown = -30;
+  let angle = midOf(0);
+  let shown = midOf(0);
   let animating = false;
 
   // ---------- helpers ----------
@@ -126,18 +153,8 @@
     return `M${pt(r1, a0 + d1)}A${r1},${r1} 0 0 1 ${pt(r1, a1 - d1)}L${pt(r0, a1 - d0)}A${r0},${r0} 0 0 0 ${pt(r0, a0 + d0)}Z`;
   };
   const arc = (r, a0, a1) => `M${pt(r, a0)}A${r},${r} 0 0 1 ${pt(r, a1)}`;
-  const pixels = (rows, parent) => {
-    rows.forEach((line, y) => {
-      let start = -1;
-      for (let x = 0; x <= line.length; x++) {
-        const lit = x < line.length && line[x] === '#';
-        if (lit && start < 0) start = x;
-        if (!lit && start >= 0) {
-          make('rect', { x: start, y, width: x - start, height: 1 }, parent);
-          start = -1;
-        }
-      }
-    });
+  const lineIcon = (i, parent) => {
+    for (const d of ICONS[i]) make('path', { d }, parent);
   };
   const wrapDeg = (d) => ((((d + 180) % 360) + 360) % 360) - 180;
   const categoryOf = (id) => CATS.find((c) => c.rows.includes(id)).name;
@@ -159,8 +176,8 @@
   make('circle', { r: 93, class: 'w-base' }, svg);
 
   const segs = CATS.map((c, i) => {
-    const mid = i * 60 - 30;
-    const p = make('path', { d: sector(44, 89, rad(mid - 30), rad(mid + 30), 2.5), class: 'w-seg', tabindex: 0, role: 'button', 'aria-label': c.name + ' category' }, svg);
+    const mid = midOf(i);
+    const p = make('path', { d: sector(44, 89, rad(mid - STEP / 2), rad(mid + STEP / 2), 2.5), class: 'w-seg', tabindex: 0, role: 'button', 'aria-label': c.name + ' category' }, svg);
     p.addEventListener('click', () => select(i));
     p.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -170,16 +187,17 @@
     });
     return p;
   });
-  for (let k = 0; k < 6; k++) {
-    const a = rad(k * 60);
+  for (let k = 0; k < N; k++) {
+    const a = rad(k * STEP);
     make('circle', { cx: f(96.5 * Math.sin(a)), cy: f(-96.5 * Math.cos(a)), r: 0.9, class: 'w-dot' }, svg);
   }
 
+  const half = STEP / 2;
   const selG = make('g', { class: 'w-sel' }, svg);
-  make('path', { d: arc(101, rad(-28), rad(28)), class: 'w-sel-glow', filter: 'url(#wGlow)' }, selG);
-  make('path', { d: arc(96.5, rad(-29), rad(29)), class: 'w-sel-rim' }, selG);
-  make('path', { d: sector(44, 89, rad(-30), rad(30), 2.5), class: 'w-sel-fill' }, selG);
-  make('path', { d: arc(88.4, rad(-28.6), rad(28.6)), class: 'w-sel-edge' }, selG);
+  make('path', { d: arc(101, rad(-half + 1.5), rad(half - 1.5)), class: 'w-sel-glow', filter: 'url(#wGlow)' }, selG);
+  make('path', { d: arc(96.5, rad(-half + 0.8), rad(half - 0.8)), class: 'w-sel-rim' }, selG);
+  make('path', { d: sector(44, 89, rad(-half), rad(half), 2.5), class: 'w-sel-fill' }, selG);
+  make('path', { d: arc(88.4, rad(-half + 1), rad(half - 1)), class: 'w-sel-edge' }, selG);
   selG.setAttribute('transform', `rotate(${angle})`);
 
   make('circle', { r: 44, class: 'w-hubring' }, svg);
@@ -187,11 +205,17 @@
   make('image', { href: 'assets/logo.png', x: -14, y: -21, width: 28, height: 28, class: 'w-logo' }, svg);
   const hubText = make('text', { x: 0, y: 19, class: 'w-hubtext' }, svg);
 
+  // Like the client, a segment shows only its icon; the chosen one adds its name underneath.
   const labels = CATS.map((c, i) => {
-    const a = rad(i * 60 - 30);
-    const g = make('g', { class: 'w-label', transform: `translate(${f(67 * Math.sin(a))} ${f(-67 * Math.cos(a))})` }, svg);
-    pixels(ICONS[i], make('g', { transform: 'translate(-4.05 -13.55) scale(0.9)', 'shape-rendering': 'crispEdges' }, g));
-    make('text', { x: 0, y: 2.5 }, g).textContent = c.name;
+    const a = rad(midOf(i));
+    const g = make('g', { class: c.name.includes(' ') ? 'w-label two' : 'w-label', transform: `translate(${f(67 * Math.sin(a))} ${f(-67 * Math.cos(a))})` }, svg);
+    const lift = make('g', { class: 'w-lift' }, g);
+    lineIcon(i, make('g', { class: 'w-ic', transform: 'translate(-5.5 -5.5) scale(0.46)' }, lift));
+    const text = make('text', { x: 0, y: 0 }, g);
+    const words = c.name.split(' ');
+    words.forEach((w, k) => {
+      make('tspan', { x: 0, y: 3.5 + k * 7.5 - (words.length - 1) * 2 }, text).textContent = w;
+    });
     return g;
   });
 
@@ -222,7 +246,7 @@
   const tip = root.querySelector('.demo-tip');
 
   const head = el('div', 'p-head');
-  const headIcon = make('svg', { viewBox: '0 0 9 9', class: 'p-icon', 'shape-rendering': 'crispEdges', 'aria-hidden': 'true' });
+  const headIcon = make('svg', { viewBox: '0 0 24 24', class: 'p-icon', 'aria-hidden': 'true' });
   const headTitle = el('span', 'p-title');
   const headCount = el('span', 'p-count');
   head.append(headIcon, headTitle, headCount);
@@ -337,14 +361,14 @@
     headIcon.textContent = '';
     if (searching()) {
       headTitle.textContent = 'SEARCH';
-      make('circle', { cx: 4, cy: 4, r: 2.6, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.2 }, headIcon);
-      make('path', { d: 'M6 6 8.5 8.5', stroke: 'currentColor', 'stroke-width': 1.2 }, headIcon);
+      make('circle', { cx: 10.5, cy: 10.5, r: 6.5 }, headIcon);
+      make('path', { d: 'm15.5 15.5 5 5' }, headIcon);
       const n = visibleRows().length;
       headCount.textContent = n + (n === 1 ? ' result' : ' results');
       headCount.classList.remove('accent');
     } else {
       headTitle.textContent = CATS[current].name;
-      pixels(ICONS[current], headIcon);
+      lineIcon(current, headIcon);
       if (CATS[current].cards) {
         headCount.textContent = fps() + ' FPS';
         headCount.classList.add('accent');
@@ -381,7 +405,7 @@
   }
 
   function select(i) {
-    const target = i * 60 - 30;
+    const target = midOf(i);
     angle += ((((target - angle) % 360) + 540) % 360) - 180;
     animateSel();
     const changed = i !== current || searching() || !list.firstChild;
@@ -624,7 +648,7 @@
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
       e.preventDefault();
       const inPanel = panel.contains(document.activeElement);
-      select((current + (e.key === 'ArrowRight' ? 1 : 5)) % 6);
+      select((current + (e.key === 'ArrowRight' ? 1 : N - 1)) % N);
       const first = list.querySelector('.p-row');
       if (inPanel && first) first.focus();
       else segs[current].focus();

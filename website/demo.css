@@ -12,7 +12,7 @@
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: #0b1016;
-  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.6), 0 0 80px rgba(127, 203, 255, 0.08);
+  box-shadow: var(--shadow);
   -webkit-user-select: none;
   user-select: none;
 }
@@ -38,7 +38,7 @@
 .demo-scene {
   position: absolute;
   inset: 0;
-  background: #1b2735 url('assets/scene.jpg') center / cover no-repeat;
+  background: #1b2735 url('assets/scene-sunset.jpg') center / cover no-repeat;
   transition: transform 0.25s ease, filter 0.25s ease;
 }
 
@@ -172,10 +172,39 @@
   color: #ffffff;
 }
 
+.w-ic {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Only the chosen segment names itself; its icon moves up to make room. */
+.w-label text {
+  display: none;
+}
+
+.w-label.sel text {
+  display: inline;
+}
+
+.w-lift {
+  transition: transform 0.15s ease;
+}
+
+.w-label.sel .w-lift {
+  transform: translateY(-7px);
+}
+
+.w-label.two.sel .w-lift {
+  transform: translateY(-9.5px);
+}
+
 .w-label text,
 .w-hubtext {
   font-family: 'Monocraft', Consolas, 'Courier New', monospace;
-  font-size: 8px;
+  font-size: 7px;
   text-anchor: middle;
   dominant-baseline: central;
 }
@@ -241,8 +270,11 @@
   flex-shrink: 0;
   width: calc(var(--u) * 8);
   height: calc(var(--u) * 8);
-  fill: var(--accent);
-  color: var(--accent);
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .p-title {
@@ -792,6 +824,7 @@
   .demo .wheel,
   .demo .panel,
   .demo-scene,
+  .w-lift,
   .hud-toast,
   .p-switch,
   .p-switch::after {
