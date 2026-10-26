@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Snowball+ - Snowball Client</title>
+    <meta name="description" content="Snowball+ is a monthly extra for Snowball Client: paint your own cape in the Cape Studio and wear the Snowball+ badge. Snowball Client itself stays free." />
+    <link rel="canonical" href="https://snowball.krakensmp.xyz/store.html" />
+    <meta name="theme-color" content="#05070a" />
+    <link rel="icon" type="image/png" href="assets/logo.png" />
+    <link rel="preload" href="assets/fonts/monocraft.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="stylesheet" href="styles.css?v=7" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap">
+        <a class="brand" href="index.html"><img src="assets/logo.png" alt="" width="28" height="28" />SNOWBALL <span>CLIENT</span></a>
+        <nav class="nav" aria-label="Main">
+          <a href="index.html#features">Features</a>
+          <a href="index.html#launcher">Launcher</a>
+          <a href="store.html" aria-current="page">Snowball+</a>
+          <a href="index.html#faq">FAQ</a>
+        </nav>
+        <a class="btn primary small" href="index.html#download">Download</a>
+      </div>
+    </header>
+
+    <main class="wrap store">
+      <p class="eyebrow">STORE</p>
+      <h1><img src="assets/ranks/plus.png" alt="" width="32" height="32" /><span>SNOWBALL<em>+</em></span></h1>
+      <p class="lead">Snowball Client is free and stays free: every module, the eight capes, emotes and the skin changer. Snowball+ is a monthly extra for players who want to paint their own cape.</p>
+
+      <p class="store-thanks" id="thanks" role="status" hidden>Thanks! Snowball+ reaches your account as soon as Stripe confirms the payment, usually within a minute. Open the launcher or join a world and it is there.</p>
+
+      <form class="plus-buy" id="buy" novalidate>
+        <div class="plus-price">
+          <h2>Snowball+</h2>
+          <p>US$2.99 a month</p>
+        </div>
+        <div class="plus-form">
+          <label for="mc-name">Minecraft name</label>
+          <div class="plus-row">
+            <input id="mc-name" name="username" type="text" autocomplete="username" spellcheck="false" maxlength="16" placeholder="Your name" required />
+            <button class="btn primary" id="subscribe" type="submit" disabled>Subscribe</button>
+          </div>
+          <p class="plus-msg" id="msg" role="alert"></p>
+        </div>
+      </form>
+      <p class="note">Buying for a friend? Type their name instead of yours. Payment happens on Stripe's checkout. Snowball never sees your card details.</p>
+
+      <h2 class="store-h">What you get</h2>
+      <div class="plus-perks">
+        <div class="plus-perk">
+          <h3>Cape Studio</h3>
+          <p>Paint the outside of your cape one pixel at a time, right in the game: Right Shift, Cosmetics, Cape Studio. Staff look at each design before it shows on your back to other Snowball players.</p>
+        </div>
+        <div class="plus-perk">
+          <h3>The Snowball+ badge</h3>
+          <p>Your snowball in Tab and above your head turns into the Snowball+ one while you play with Snowball Client, and your messages in the launcher's chat carry a Snowball+ tag.</p>
+        </div>
+      </div>
+
+      <h2 class="store-h">How it works</h2>
+      <ol class="steps plus-steps">
+        <li><b>1</b><span>Type the Minecraft name that should get Snowball+ and press Subscribe.</span></li>
+        <li><b>2</b><span>Pay on Stripe's checkout. Snowball+ arrives on that account within a minute; nothing to install.</span></li>
+        <li><b>3</b><span>It renews every month. Cancel any time at <a href="https://app.link.com">link.com</a>, signing in with the email you paid with; Snowball+ stays until the month you paid for runs out.</span></li>
+      </ol>
+
+      <h2 class="store-h">Questions</h2>
+      <details>
+        <summary>Who takes the payment?</summary>
+        <p>Stripe sells Snowball+ through Link, its checkout, which takes the payment and handles sales tax, receipts and refund requests. Your bank statement shows LINK.COM. Your card details never reach Snowball; Snowball's server only hears which Minecraft account paid and whether the subscription is still running.</p>
+      </details>
+      <details>
+        <summary>I paid but I do not have Snowball+</summary>
+        <p>Check the name you typed at checkout: Snowball+ goes to that account. If it is right, restart the launcher, then ask staff in the launcher's chat and say when you paid.</p>
+      </details>
+      <details>
+        <summary>What happens to my cape if I cancel?</summary>
+        <p>When Snowball+ ends, your custom cape comes off and the Cape Studio closes. Your approved design is kept: subscribe again and you can wear it straight away.</p>
+      </details>
+      <details>
+        <summary>Does Snowball+ give an advantage in game?</summary>
+        <p>No. It is cosmetic. Every module that changes how you play is in the free client.</p>
+      </details>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <a class="brand small" href="index.html"><img src="assets/logo.png" alt="" width="22" height="22" />SNOWBALL <span>CLIENT</span></a>
+        <div class="links">
+          <a href="index.html#download">Download</a>
+          <a href="store.html">Snowball+</a>
+          <a href="https://github.com/met4a/snowball-client">Source</a>
+          <a href="privacy.html">Privacy</a>
+          <a href="terms.html">Terms</a>
+        </div>
+        <p class="disclaimer">&copy; 2026 Snowball Client. Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.</p>
+      </div>
+    </footer>
+
+    <script src="store.js?v=1" defer></script>
+  </body>
+</html>

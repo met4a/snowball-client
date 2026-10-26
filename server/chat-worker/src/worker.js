@@ -35,6 +35,49 @@ const CUSTOM_CAPE = /^[0-9a-f]{960}$/;
 const CAPE_SUBMIT_GAP_MS = 60_000;
 
 /**
+ * Snowball+ sold as a monthly subscription through a Stripe Payment Link. Stripe signs every
+ * webhook with the endpoint's secret (STRIPE_WEBHOOK_SECRET, set with `wrangler secret put`). A
+ * subscription in these states is still paid for; past_due means Stripe is retrying the card.
+ */
+const STRIPE_PAID = ['active', 'trialing', 'past_due'];
+/** How old a signed webhook may be, the same five minutes Stripe's own libraries allow. */
+const STRIPE_TOLERANCE_S = 300;
+/** Who the rank history says gave Snowball+ when the store did. */
+const STORE = { uuid: 'store', name: 'Store' };
+
+/**
+ * Whether Stripe signed this body. The Stripe-Signature header holds the time it was signed (t)
+ * and one or more v1 signatures: HMAC-SHA256, keyed with the secret, of "t.body".
+ */
+async function stripeSigned(body, header, secret, now = Date.now()) {
+  const parts = header.split(',').map((part) => part.trim().split('='));
+  const t = Number(parts.find(([k]) => k === 't')?.[1]);
+  const signatures = parts.filter(([k, v]) => k === 'v1' && /^[0-9a-f]{64}$/.test(v ?? '')).map(([, v]) => v);
+  if (!Number.isInteger(t) || !signatures.length || Math.abs(now / 1000 - t) > STRIPE_TOLERANCE_S) return false;
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+  const prefix = encoder.encode(`${t}.`);
+  const signed = new Uint8Array(prefix.length + body.length);
+  signed.set(prefix);
+  signed.set(body, prefix.length);
+  for (const signature of signatures) {
+    const given = Uint8Array.from(signature.match(/../g), (pair) => parseInt(pair, 16));
+    if (await crypto.subtle.verify('HMAC', key, given, signed)) return true;
+  }
+  return false;
+}
+
+/**
+ * The Minecraft account a checkout bought Snowball+ for. The store page looks the name up and sends
+ * the buyer to the Payment Link with client_reference_id "<account id>_<name>"; any other checkout
+ * on the Stripe account is not a Snowball+ one.
+ */
+function plusAccount(reference) {
+  const match = /^([0-9a-f]{32})_([A-Za-z0-9_]{1,16})$/.exec(String(reference ?? ''));
+  return match ? { uuid: match[1], name: match[2] } : null;
+}
+
+/**
  * The looks a game asked for, kept to what the client ships. "custom" only stands for a design
  * staff approved, and carries its version so games fetch the new one when it changes.
  */
@@ -150,6 +193,9 @@ export class ChatRoom {
     // Custom capes: account id -> { name, approved: { pixels, version, at, by } | null,
     // request: { pixels, at, status: 'pending' | 'denied', reason } | null }.
     this.capes = new Map();
+    // Snowball+ subscriptions from the store: Stripe subscription id -> { uuid, name, paid, at }, at
+    // being when Stripe created the latest event about it, in seconds.
+    this.subs = new Map();
     this.ready = state.blockConcurrencyWhile(async () => {
       this.history = (await state.storage.get('history')) ?? [];
       this.announcement = (await state.storage.get('announcement')) ?? null;
@@ -160,6 +206,7 @@ export class ChatRoom {
       this.bugs = (await state.storage.get('bugs')) ?? [];
       this.flags = (await state.storage.get('flags')) ?? {};
       this.capes = new Map((await state.storage.get('capes')) ?? []);
+      this.subs = new Map((await state.storage.get('subs')) ?? []);
     });
   }
 
@@ -263,6 +310,8 @@ export class ChatRoom {
       if (!approved) return new Response('Not found', { status: 404 });
       return Response.json({ pixels: approved.pixels, version: approved.version });
     }
+    // Snowball+ bought on the website: Stripe takes the payment and tells this room.
+    if (url.pathname.endsWith('/store/stripe') && request.method === 'POST') return this.onStripe(request);
     // Emotes travel live: a game opens this with the ticket its heartbeat holds, says whose emotes it
     // wants (the players it can see), and hears theirs as they happen.
     if (url.pathname.endsWith('/live')) {
@@ -366,6 +415,85 @@ export class ChatRoom {
     return this.ranks.get(uuid)?.rank ?? 'snowball';
   }
 
+  /**
+   * A webhook from Stripe. Snowball+ is given when the checkout for it is paid, kept while the
+   * subscription is paid for, and taken back when it is cancelled or the card keeps failing. The
+   * store only ever takes back the Snowball+ it gave: a rank staff handed out, Snowball+ or higher,
+   * stays.
+   */
+  async onStripe(request) {
+    const secret = String(this.env.STRIPE_WEBHOOK_SECRET ?? '');
+    if (!secret) return new Response('The store is not set up yet.', { status: 503 });
+    const body = new Uint8Array(await request.arrayBuffer());
+    if (!(await stripeSigned(body, request.headers.get('stripe-signature') ?? '', secret))) return new Response('Bad signature', { status: 403 });
+    let event;
+    try {
+      event = JSON.parse(new TextDecoder().decode(body));
+    } catch {
+      return new Response('Not JSON', { status: 400 });
+    }
+
+    const object = event.data?.object ?? {};
+    let id;
+    let buyer;
+    let paid;
+    if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
+      buyer = plusAccount(object.client_reference_id);
+      if (!buyer || object.mode !== 'subscription' || !object.subscription) return Response.json({ ok: true, ignored: 'not a Snowball+ checkout' });
+      id = String(object.subscription);
+      paid = object.payment_status === 'paid' || object.payment_status === 'no_payment_required';
+    } else if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
+      id = String(object.id ?? '');
+      buyer = this.subs.get(id);
+      if (!buyer) return Response.json({ ok: true, ignored: 'not a Snowball+ subscription' });
+      paid = event.type === 'customer.subscription.updated' && STRIPE_PAID.includes(object.status);
+    } else {
+      return Response.json({ ok: true, ignored: event.type });
+    }
+
+    // Stripe sends a webhook again when it did not hear back, and in no set order, so an old one
+    // can land after a newer one.
+    const at = Number(event.created) || Math.floor(Date.now() / 1000);
+    const known = this.subs.get(id);
+    if (known && known.at > at) return Response.json({ ok: true, ignored: 'older than the last one' });
+    this.subs.set(id, { uuid: buyer.uuid, name: buyer.name, paid, at });
+    await this.state.storage.put('subs', [...this.subs]);
+
+    if (buyer.uuid === String(this.env.ADMIN_UUID ?? '').replace(/-/g, '')) return Response.json({ ok: true });
+    // Somebody given two subscriptions keeps Snowball+ until the last one ends.
+    const stillPaid = [...this.subs.values()].some((sub) => sub.uuid === buyer.uuid && sub.paid);
+    const held = this.ranks.get(buyer.uuid);
+    if (stillPaid && !held) await this.setRank(buyer.uuid, 'plus', STORE, { name: buyer.name });
+    else if (!stillPaid && held?.rank === 'plus' && held.by === STORE.uuid) await this.setRank(buyer.uuid, 'snowball', STORE, { name: buyer.name });
+    return Response.json({ ok: true });
+  }
+
+  /**
+   * Gives an account a rank ('snowball' takes it away), keeps the record, and tells the launchers
+   * signed in to it and the games that can see it.
+   */
+  async setRank(uuid, rank, by, extra = {}) {
+    const entry = { rank, at: Date.now(), by: by.uuid, byName: by.name, ...extra };
+    if (rank === 'snowball') this.ranks.delete(uuid);
+    else this.ranks.set(uuid, entry);
+    const log = this.rankLog.get(uuid) ?? [];
+    log.unshift(entry);
+    if (log.length > 50) log.length = 50;
+    this.rankLog.set(uuid, log);
+    await this.state.storage.put('ranks', [...this.ranks]);
+    await this.state.storage.put('rankLog', [...this.rankLog]);
+
+    // Anyone connected under that account hears at once, so nothing needs reinstalling.
+    for (const [other, person] of this.sockets) {
+      if (person.uuid !== uuid) continue;
+      person.rank = rank;
+      other.send(JSON.stringify({ type: 'you', rank, permissions: permissionsOf(rank), owner: person.owner, flags: this.flags }));
+    }
+    // Players who can see them in game get the new badge now.
+    if (this.playingNow(uuid)) this.liveSend(uuid, { type: 'rank', uuid, rank });
+    if (this.looks.get(uuid)?.cape === 'custom') this.setLooks(uuid, { cape: 'custom' });
+  }
+
   /** The designs waiting for staff, oldest first. */
   pendingCapes() {
     const out = [];
@@ -390,7 +518,9 @@ export class ChatRoom {
 
   /** Stores what a player wears and tells the games watching them straight away when it changes. */
   setLooks(uuid, raw) {
-    const looks = looksOf(raw, this.capes.get(uuid)?.approved);
+    // A custom cape is a Snowball+ feature, so it comes off when Snowball+ ends; the design is kept.
+    const approved = can({ rank: this.rankOf(uuid) }, 'plus.features') ? this.capes.get(uuid)?.approved : null;
+    const looks = looksOf(raw, approved);
     const before = JSON.stringify(this.looks.get(uuid) ?? null);
     if (looks) this.looks.set(uuid, looks);
     else this.looks.delete(uuid);
@@ -582,7 +712,7 @@ export class ChatRoom {
     if (payload.action === 'ranked') {
       // Everyone holding a rank above plain Snowball, with who gave it, for the Ranks overview.
       const owner = String(this.env.ADMIN_UUID ?? '').replace(/-/g, '');
-      const people = [...this.ranks].map(([uuid, given]) => ({ uuid, name: this.people.get(uuid)?.name ?? '', rank: given.rank, at: given.at ?? 0, byName: given.byName ?? '' }));
+      const people = [...this.ranks].map(([uuid, given]) => ({ uuid, name: this.people.get(uuid)?.name ?? given.name ?? '', rank: given.rank, at: given.at ?? 0, byName: given.byName ?? '' }));
       if (owner && !this.ranks.has(owner)) people.push({ uuid: owner, name: this.people.get(owner)?.name ?? '', rank: 'owner', at: 0, byName: '' });
       people.sort((a, b) => RANKS.indexOf(b.rank) - RANKS.indexOf(a.rank) || a.name.localeCompare(b.name));
       return socket.send(JSON.stringify({ type: 'ranked', people }));
@@ -683,25 +813,8 @@ export class ChatRoom {
       else if (payload.action === 'grant') rank = 'plus';
       if (rank === 'owner') return reply(false, 'Owner cannot be handed out.');
 
-      const entry = { rank, at: Date.now(), by: member.uuid, byName: member.name };
-      if (rank === 'snowball') this.ranks.delete(uuid);
-      else this.ranks.set(uuid, entry);
-      const log = this.rankLog.get(uuid) ?? [];
-      log.unshift(entry);
-      if (log.length > 50) log.length = 50;
-      this.rankLog.set(uuid, log);
-      await this.state.storage.put('ranks', [...this.ranks]);
-      await this.state.storage.put('rankLog', [...this.rankLog]);
-
-      // Anyone connected under that account hears at once, so nothing needs reinstalling.
-      for (const [other, person] of this.sockets) {
-        if (person.uuid !== uuid) continue;
-        person.rank = rank;
-        other.send(JSON.stringify({ type: 'you', rank, permissions: permissionsOf(rank), owner: person.owner, flags: this.flags }));
-      }
+      await this.setRank(uuid, rank, member);
       socket.send(JSON.stringify({ type: 'rank-set', uuid, rank, history: this.rankLog.get(uuid) ?? [] }));
-      // Players who can see them in game get the new badge now.
-      if (this.playingNow(uuid)) this.liveSend(uuid, { type: 'rank', uuid, rank });
       reply(true, rank === 'snowball' ? `${nameOf(uuid)} is back to plain Snowball.` : `${nameOf(uuid)} is now ${RANK_NAMES[rank] ?? rank}. They see it straight away.`);
       return;
     }
