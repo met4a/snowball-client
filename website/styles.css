@@ -1226,6 +1226,11 @@ details > p {
   font-size: 13px;
 }
 
+.plus-perk .plus-capes {
+  grid-template-columns: repeat(3, 40px);
+  margin-top: 12px;
+}
+
 .steps.plus-steps {
   flex-direction: column;
   align-items: flex-start;

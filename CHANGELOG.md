@@ -9,6 +9,35 @@ installer once.
 
 ---
 
+## 1.12.0
+
+### What's new
+- **Snowball+ is in the store.** Snowball Client stays free; Snowball+ is an
+  optional monthly extra at snowball.krakensmp.xyz/store.html. It adds:
+  - **Animated capes.** The Cape Studio now draws up to four frames (1-4, +
+    copies the frame you are on, - removes it, Play shows the loop). Other
+    Snowball players see them change a quarter of a second each. Staff still
+    approve each design first.
+  - **Three Snowball+ capes:** Glacier, Comet and Prism. Everyone sees them;
+    without Snowball+ they show dimmed with a + in Cosmetics.
+  - **Name colour.** Pick one of seven colours under Cosmetics. It colours your
+    name on your Snowball nametag and in the launcher's chat.
+  - **Four more emotes:** Snowball Throw, Flex, Victory and Float, on the third
+    page of the emote wheel (B).
+  When Snowball+ ends, all of these come off; an approved cape design is kept
+  for if you come back.
+
+### Fixed
+- **The player count on Home was wrong.** "Playing right now" counted open
+  launcher chats, so it said 0 while people were in game, and "All time" only
+  counted people who had opened the chat. Both now count everyone playing with
+  Snowball, each account once, and the numbers refresh every 20 seconds instead
+  of every minute. All time starts counting from this release.
+- **Rank tags in the launcher's chat** only showed after reopening the chat;
+  new messages now show them straight away.
+
+---
+
 ## 1.11.0
 
 ### What's new

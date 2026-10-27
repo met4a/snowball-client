@@ -21,3 +21,12 @@ test('emote ids match the client', () => {
   const ids = [...emotes.matchAll(/^\t[A-Z_]+\("([a-z_]+)", "/gm)].map((m) => m[1]);
   assert.deepEqual(ids, list('EMOTES'));
 });
+
+test('name colours match the client and the launcher', () => {
+  const looks = readFileSync(join(client, 'social', 'Looks.java'), 'utf8');
+  const javaColours = [...looks.matchAll(/colours\.put\("([a-z_]+)", 0x([0-9A-F]{6})\)/g)];
+  assert.deepEqual(javaColours.map((m) => m[1]), list('COLOURS'));
+  const app = readFileSync(join(here, '..', '..', '..', 'launcher', 'src', 'renderer', 'app.ts'), 'utf8');
+  const launcher = Object.fromEntries([...app.match(/NAME_COLOURS[^{]*\{([^}]*)\}/)[1].matchAll(/([a-z_]+): '#([0-9a-f]{6})'/g)].map((m) => [m[1], m[2]]));
+  assert.deepEqual(launcher, Object.fromEntries(javaColours.map((m) => [m[1], m[2].toLowerCase()])));
+});

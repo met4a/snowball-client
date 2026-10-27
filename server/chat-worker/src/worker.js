@@ -21,16 +21,25 @@ const PRESENCE_TICKET_MS = 12 * 60 * 60_000;
  * Cosmetics and emotes the client ships. Only these ids are passed between players: the worker
  * never forwards anything a modified client makes up.
  */
-const CAPES = ['snowball', 'aurora', 'northern_lights', 'frost', 'ember', 'sakura', 'midnight', 'void'];
-const EMOTES = ['wave', 'clap', 'cheer', 'dab', 'salute', 'facepalm', 'bow', 'tpose', 'dance', 'spin', 'think', 'point', 'zombie', 'star_jump', 'shrug', 'headbang'];
+const CAPES = ['snowball', 'aurora', 'northern_lights', 'frost', 'ember', 'sakura', 'midnight', 'void', 'glacier', 'comet', 'prism'];
+/** The capes only Snowball+ may wear; every client ships them so everyone sees them. */
+const PLUS_CAPES = ['glacier', 'comet', 'prism'];
+/** Snowball+ name colours: ids must match the client's Looks.COLOURS and the launcher's chat. */
+const COLOURS = ['ice', 'snow', 'mint', 'gold', 'ember', 'rose', 'violet'];
+const EMOTES = ['wave', 'clap', 'cheer', 'dab', 'salute', 'facepalm', 'bow', 'tpose', 'dance', 'spin', 'think', 'point', 'zombie', 'star_jump', 'shrug', 'headbang', 'throw', 'flex', 'victory', 'float'];
+/** The emotes only Snowball+ may do; every client ships them so everyone sees them. */
+const PLUS_EMOTES = ['throw', 'flex', 'victory', 'float'];
 /** An emote at most this often, and this many a minute. */
 const EMOTE_GAP_MS = 700;
 const EMOTES_PER_MINUTE = 24;
 /** How many players one game may watch for emotes. */
 const WATCH_MAX = 200;
 
-/** A custom cape's outer face: 10x16 colours as RRGGBB, 960 hex digits. */
-const CUSTOM_CAPE = /^[0-9a-f]{960}$/;
+/**
+ * A custom cape's outer face: 10x16 colours as RRGGBB, 960 hex digits, once for a still cape or up
+ * to four times one after another for an animated one.
+ */
+const CUSTOM_CAPE = /^(?:[0-9a-f]{960}){1,4}$/;
 /** A Snowball+ player may send a new design this often. */
 const CAPE_SUBMIT_GAP_MS = 60_000;
 
@@ -81,11 +90,18 @@ function plusAccount(reference) {
  * The looks a game asked for, kept to what the client ships. "custom" only stands for a design
  * staff approved, and carries its version so games fetch the new one when it changes.
  */
-function looksOf(raw, approved) {
+function looksOf(raw, approved, plus) {
   if (!raw || typeof raw !== 'object') return null;
+  const looks = {};
   const cape = String(raw.cape ?? '');
-  if (cape === 'custom') return approved ? { cape: 'custom', v: approved.version } : null;
-  return CAPES.includes(cape) ? { cape } : null;
+  if (cape === 'custom') {
+    if (approved) Object.assign(looks, { cape: 'custom', v: approved.version });
+  } else if (CAPES.includes(cape) && (plus || !PLUS_CAPES.includes(cape))) {
+    looks.cape = cape;
+  }
+  const colour = String(raw.colour ?? '');
+  if (plus && COLOURS.includes(colour)) looks.colour = colour;
+  return Object.keys(looks).length ? looks : null;
 }
 
 const HISTORY = 60;
@@ -196,6 +212,8 @@ export class ChatRoom {
     // Snowball+ subscriptions from the store: Stripe subscription id -> { uuid, name, paid, at }, at
     // being when Stripe created the latest event about it, in seconds.
     this.subs = new Map();
+    // Snowball+ name colours, account id -> colour id, kept for the launcher's chat.
+    this.colours = new Map();
     this.ready = state.blockConcurrencyWhile(async () => {
       this.history = (await state.storage.get('history')) ?? [];
       this.announcement = (await state.storage.get('announcement')) ?? null;
@@ -206,6 +224,7 @@ export class ChatRoom {
       this.bugs = (await state.storage.get('bugs')) ?? [];
       this.flags = (await state.storage.get('flags')) ?? {};
       this.capes = new Map((await state.storage.get('capes')) ?? []);
+      this.colours = new Map((await state.storage.get('colours')) ?? []);
       this.subs = new Map((await state.storage.get('subs')) ?? []);
     });
   }
@@ -241,6 +260,7 @@ export class ChatRoom {
         if (!held) return Response.json({ error: 'that ticket is not valid any more' }, { status: 403 });
         const was = this.playingNow(held.uuid);
         this.inClient.set(held.uuid, now);
+        this.seePlayer(held.uuid, held.name);
         if (!was) this.liveSend(held.uuid, { type: 'rank', uuid: held.uuid, rank: this.rankOf(held.uuid) });
         this.setLooks(held.uuid, body.looks);
         return Response.json({ ok: true, ticket: String(body.ticket), every: PRESENCE_EVERY_S });
@@ -253,6 +273,7 @@ export class ChatRoom {
       this.presenceTickets.set(ticket, { uuid, name, until: now + PRESENCE_TICKET_MS });
       const was = this.playingNow(uuid);
       this.inClient.set(uuid, now);
+      this.seePlayer(uuid, name);
       // Games that can see this player hear at once that they play Snowball.
       if (!was) this.liveSend(uuid, { type: 'rank', uuid, rank: this.rankOf(uuid) });
       this.setLooks(uuid, body.looks);
@@ -491,7 +512,9 @@ export class ChatRoom {
     }
     // Players who can see them in game get the new badge now.
     if (this.playingNow(uuid)) this.liveSend(uuid, { type: 'rank', uuid, rank });
-    if (this.looks.get(uuid)?.cape === 'custom') this.setLooks(uuid, { cape: 'custom' });
+    // Custom and + capes and name colours come with Snowball+: look again at what they wear.
+    const worn = this.looks.get(uuid);
+    if (worn) this.setLooks(uuid, worn);
   }
 
   /** The designs waiting for staff, oldest first. */
@@ -518,12 +541,19 @@ export class ChatRoom {
 
   /** Stores what a player wears and tells the games watching them straight away when it changes. */
   setLooks(uuid, raw) {
-    // A custom cape is a Snowball+ feature, so it comes off when Snowball+ ends; the design is kept.
-    const approved = can({ rank: this.rankOf(uuid) }, 'plus.features') ? this.capes.get(uuid)?.approved : null;
-    const looks = looksOf(raw, approved);
+    // Custom and + capes are Snowball+ features, so they come off when Snowball+ ends; a custom
+    // design is kept for when it comes back.
+    const plus = can({ rank: this.rankOf(uuid) }, 'plus.features');
+    const looks = looksOf(raw, plus ? this.capes.get(uuid)?.approved : null, plus);
     const before = JSON.stringify(this.looks.get(uuid) ?? null);
     if (looks) this.looks.set(uuid, looks);
     else this.looks.delete(uuid);
+    // The launcher's chat shows the colour too, also when the game is closed, so it is kept.
+    if ((looks?.colour ?? null) !== (this.colours.get(uuid) ?? null)) {
+      if (looks?.colour) this.colours.set(uuid, looks.colour);
+      else this.colours.delete(uuid);
+      void this.state.storage.put('colours', [...this.colours]);
+    }
     if (before !== JSON.stringify(looks)) this.liveSend(uuid, { type: 'looks', uuid, looks });
   }
 
@@ -552,6 +582,7 @@ export class ChatRoom {
     if (payload.type === 'emote') {
       const id = String(payload.id ?? '');
       if (!EMOTES.includes(id)) return;
+      if (PLUS_EMOTES.includes(id) && !can({ rank: this.rankOf(member.uuid) }, 'plus.features')) return;
       const now = Date.now();
       member.times = member.times.filter((t) => now - t < 60_000);
       if (member.times.length >= EMOTES_PER_MINUTE || (member.times.length && now - member.times[member.times.length - 1] < EMOTE_GAP_MS)) return;
@@ -623,6 +654,9 @@ export class ChatRoom {
     if (!check.ok) return socket.send(JSON.stringify({ type: 'error', message: check.reason }));
 
     const message = { type: 'msg', id: crypto.randomUUID(), name: member.name, uuid: member.uuid, text: check.text, at: new Date().toISOString(), staff: member.owner, rank: member.rank };
+    // A Snowball+ name colour, while they still have Snowball+.
+    const colour = this.colours.get(member.uuid);
+    if (colour && can(member, 'plus.features')) message.colour = colour;
     this.history.push(message);
     if (this.history.length > HISTORY) this.history.splice(0, this.history.length - HISTORY);
     await this.state.storage.put('history', this.history);
@@ -643,6 +677,21 @@ export class ChatRoom {
     void this.state.storage.put('people', [...this.people]);
   }
 
+  /**
+   * The same record for someone playing with Snowball Client, who may never open the launcher's
+   * chat. Heartbeats come every two minutes, so storage is only written when the day's and week's
+   * counts could change.
+   */
+  seePlayer(uuid, name) {
+    const known = this.people.get(uuid) ?? { first: Date.now() };
+    const stale = !known.last || Date.now() - known.last > 30 * 60_000;
+    if (name) known.name = name;
+    known.last = Date.now();
+    known.rank = this.rankOf(uuid);
+    this.people.set(uuid, known);
+    if (stale) void this.state.storage.put('people', [...this.people]);
+  }
+
   stats() {
     const now = Date.now();
     const day = 24 * 60 * 60_000;
@@ -652,7 +701,10 @@ export class ChatRoom {
       if (now - person.last < day) today++;
       if (now - person.last < 7 * day) week++;
     }
-    return { online: this.sockets.size, today, week, total: this.people.size };
+    // Right now: everyone in game with Snowball Client or in the launcher's chat, each account once.
+    const online = new Set([...this.sockets.values()].map((member) => member.uuid));
+    for (const uuid of [...this.inClient.keys()]) if (this.playingNow(uuid)) online.add(uuid);
+    return { online: online.size, today, week, total: this.people.size };
   }
 
   /** A bug report from a player. The account is taken from the connection, never from the message. */

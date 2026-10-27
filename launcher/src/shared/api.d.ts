@@ -294,6 +294,7 @@ declare namespace Snowball {
     staff?: boolean;
     system?: boolean;
     rank?: string;
+    colour?: string;
   }
 
   interface RankLookup {

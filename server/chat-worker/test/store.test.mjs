@@ -156,3 +156,59 @@ test('checkouts and subscriptions that are not Snowball+ are ignored', async () 
   assert.equal(r.ranks.size, 0);
   assert.equal(r.subs.size, 0);
 });
+
+test('a + cape shows only on a Snowball+ player, and comes off when it ends', async () => {
+  const r = await store();
+  r.inClient.set(BUYER, Date.now());
+  r.setLooks(BUYER, { cape: 'comet' });
+  assert.equal(r.looks.get(BUYER), undefined);
+  await send(r, checkout());
+  r.setLooks(BUYER, { cape: 'comet' });
+  assert.deepEqual(r.looks.get(BUYER), { cape: 'comet' });
+  await send(r, subscription('customer.subscription.deleted', { status: 'canceled' }));
+  assert.equal(r.looks.get(BUYER), undefined);
+  // The free capes stay free.
+  r.setLooks(BUYER, { cape: 'aurora' });
+  assert.deepEqual(r.looks.get(BUYER), { cape: 'aurora' });
+});
+
+test('a name colour shows only for Snowball+, in game and in the launcher chat', async () => {
+  const r = await store();
+  r.inClient.set(BUYER, Date.now());
+  r.setLooks(BUYER, { cape: 'aurora', colour: 'gold' });
+  assert.deepEqual(r.looks.get(BUYER), { cape: 'aurora' });
+  await send(r, checkout());
+  r.setLooks(BUYER, { colour: 'gold' });
+  assert.deepEqual(r.looks.get(BUYER), { colour: 'gold' });
+  r.setLooks(BUYER, { colour: 'made_up' });
+  assert.equal(r.looks.get(BUYER), undefined);
+  r.setLooks(BUYER, { colour: 'gold' });
+
+  const socket = { got: [], send(data) { this.got.push(JSON.parse(data)); } };
+  const member = { name: 'Buyer', uuid: BUYER, owner: false, rank: 'plus', times: [] };
+  r.sockets.set(socket, member);
+  await r.onChat(socket, member, { text: 'hello' });
+  assert.equal(r.history.at(-1).colour, 'gold');
+
+  // When Snowball+ ends the colour goes from game and chat alike.
+  await send(r, subscription('customer.subscription.deleted', { status: 'canceled' }));
+  assert.equal(r.looks.get(BUYER), undefined);
+  member.times = [];
+  await new Promise((done) => setTimeout(done, 1300));
+  await r.onChat(socket, member, { text: 'still here' });
+  assert.equal(r.history.at(-1).colour, undefined);
+});
+
+test('a + emote reaches others only from a Snowball+ player', async () => {
+  const r = await store();
+  const watcher = { got: [], send(data) { this.got.push(JSON.parse(data)); } };
+  const doer = { send() {} };
+  r.live.set(watcher, { uuid: FRIEND, watching: new Set([BUYER]), times: [] });
+  r.live.set(doer, { uuid: BUYER, watching: new Set(), times: [] });
+  r.onLive(doer, JSON.stringify({ type: 'emote', id: 'throw' }));
+  assert.equal(watcher.got.length, 0);
+  await send(r, checkout());
+  r.live.get(doer).times = [];
+  r.onLive(doer, JSON.stringify({ type: 'emote', id: 'throw' }));
+  assert.equal(watcher.got.at(-1).id, 'throw');
+});

@@ -15,6 +15,10 @@ export interface ChatMessage {
   staff?: boolean;
   /** Set on the launcher's own notes, e.g. "you are muted". */
   system?: boolean;
+  /** The sender's rank, for the tag before their name. */
+  rank?: string;
+  /** A Snowball+ name colour id (see NAME_COLOURS in the renderer). */
+  colour?: string;
 }
 
 /** The ranks the backend can hand out, from least to most. */
@@ -422,6 +426,9 @@ export class ChatClient extends EventEmitter {
           text: String(payload.text ?? ''),
           at: String(payload.at ?? new Date().toISOString()),
           staff: Boolean(payload.staff),
+          // Without these a live message lost its rank tag until the next history load.
+          rank: typeof payload.rank === 'string' ? payload.rank : undefined,
+          colour: typeof payload.colour === 'string' ? payload.colour : undefined,
         };
         this.emit('message', message);
         break;

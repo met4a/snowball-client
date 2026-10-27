@@ -56,3 +56,23 @@ test('a proof for another account, or with a forged key, is refused', async () =
   assert.equal(reused.status, 403);
   assert.deepEqual(await ranks(r, [OWNER, 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb']), {});
 });
+
+test('the counts include players in game, each account once, and remember them for all time', async () => {
+  const r = await room();
+  const player = 'a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1';
+  const chatter = 'b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2';
+  const res = await call(r, '/presence', await proof(r, player, 'Player'));
+  assert.equal(res.status, 200);
+  // Someone in chat on two launchers, and the player also in chat, still count once each.
+  for (const uuid of [chatter, chatter, player]) r.sockets.set({ send() {} }, { name: 'x', uuid, owner: false, rank: 'snowball', times: [] });
+  const stats = r.stats();
+  assert.equal(stats.online, 2);
+  assert.equal(stats.total, 1);
+  assert.equal(stats.today, 1);
+  assert.equal(r.people.get(player).name, 'Player');
+
+  // Gone from the game and from chat: no longer online, still counted all time.
+  r.inClient.clear();
+  r.sockets.clear();
+  assert.deepEqual(r.stats(), { online: 0, today: 1, week: 1, total: 1 });
+});

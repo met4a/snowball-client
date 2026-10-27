@@ -11,12 +11,16 @@ import dev.snowballclient.client.social.SnowballPlayers;
 import dev.snowballclient.client.ui.Canvas;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.List;
 
 /**
  * The cape studio (Snowball+): draw the outside of your cape a pixel at a time, then send it to
  * staff. It is what other players see on your back; the inside, the edges and the elytra are made
  * from it. Nothing shows on anybody until staff approve it in the launcher.
+ *
+ * <p>A cape can have up to four frames, which loop on your back a quarter of a second each.
  *
  * <p>Left click paints with the current tool, right click picks up a colour from the cape.
  */
@@ -29,9 +33,20 @@ public final class CapeStudioView extends PanelView {
 	private static final int SWATCH_GAP = 3;
 	private static final int UNDO_DEPTH = 60;
 
-	private final int[] face;
+	/** What undo goes back to: every frame, and which one was being drawn. */
+	private record Snapshot(int[][] frames, int current) {
+	}
+
+	private static final int FRAME_BUTTON = 18;
+
+	private final List<int[]> frames = new ArrayList<>();
+	/** The frame being drawn; the grid paints into it. */
+	private int[] face;
+	private int current;
+	/** Showing the frames in turn, as others see the cape, rather than drawing. */
+	private boolean playing;
 	private final int[] palette = CustomCapes.palette();
-	private final Deque<int[]> undo = new ArrayDeque<>();
+	private final Deque<Snapshot> undo = new ArrayDeque<>();
 	private final ColorSetting brush = new ColorSetting("brush", "Brush colour", "The colour you paint with", 0xFF7FCBFF).presets(withAlpha(CustomCapes.palette()));
 	private Tool tool = Tool.PENCIL;
 	private int cell = 10;
@@ -40,7 +55,18 @@ public final class CapeStudioView extends PanelView {
 
 	public CapeStudioView(SnowballClient client) {
 		super("CAPE STUDIO", client, 336);
-		this.face = CustomCapes.draft();
+		for (int[] frame : CustomCapes.draftFrames()) frames.add(frame);
+		this.face = frames.get(0);
+	}
+
+	private int[][] allFrames() {
+		return frames.toArray(new int[0][]);
+	}
+
+	private void select(int frame) {
+		current = Math.max(0, Math.min(frames.size() - 1, frame));
+		face = frames.get(current);
+		playing = false;
 	}
 
 	private static int[] withAlpha(int[] rgb) {
@@ -84,7 +110,7 @@ public final class CapeStudioView extends PanelView {
 	protected void renderContent(Canvas c, int mouseX, int mouseY) {
 		if (!SnowballPlayers.can(Permission.PLUS_FEATURES)) {
 			UiText.draw(c, "The cape studio comes with Snowball+.", UiText.UI, panelX + 14, panelY + HEADER_H + 14, theme.text());
-			UiText.draw(c, "Ask staff about Snowball+ in the launcher's chat.", UiText.DETAIL, panelX + 14, panelY + HEADER_H + 28, theme.mutedText());
+			UiText.draw(c, "Get it at snowball.krakensmp.xyz/store.html", UiText.DETAIL, panelX + 14, panelY + HEADER_H + 28, theme.mutedText());
 			return;
 		}
 		drawGrid(c, mouseX, mouseY);
@@ -121,6 +147,8 @@ public final class CapeStudioView extends PanelView {
 		int half = (right - x - 4) / 2;
 		button(c, x, y, half, 16, "UNDO", false, mouseX, mouseY);
 		button(c, x + half + 4, y, half, 16, "CLEAR", false, mouseX, mouseY);
+		y += 22;
+		drawFrames(c, x, y, right, mouseX, mouseY);
 
 		// What happened to the last design sent, and sending this one.
 		int bottom = panelY + panelH - 24;
@@ -129,16 +157,32 @@ public final class CapeStudioView extends PanelView {
 		button(c, x + half + 4, bottom, half, 16, "SEND", true, mouseX, mouseY);
 	}
 
+	/** The frame buttons, + to add one (a copy of this frame), - to remove this one, and play. */
+	private void drawFrames(Canvas c, int x, int y, int right, int mouseX, int mouseY) {
+		for (int i = 0; i < frames.size(); i++) {
+			button(c, x + i * (FRAME_BUTTON + 3), y, FRAME_BUTTON, 16, String.valueOf(i + 1), !playing && i == current, mouseX, mouseY);
+		}
+		int bx = x + frames.size() * (FRAME_BUTTON + 3);
+		if (frames.size() < CapeLayout.MAX_FRAMES) {
+			button(c, bx, y, FRAME_BUTTON, 16, "+", false, mouseX, mouseY);
+			bx += FRAME_BUTTON + 3;
+		}
+		if (frames.size() > 1) {
+			button(c, bx, y, FRAME_BUTTON, 16, "-", false, mouseX, mouseY);
+			button(c, right - 44, y, 44, 16, playing ? "STOP" : "PLAY", playing, mouseX, mouseY);
+		}
+	}
+
 	private void drawGrid(Canvas c, int mouseX, int mouseY) {
 		int gx = gridX();
 		int gy = gridY();
 		GuiDraw.roundedRect(c, gx - 3, gy - 3, W * cell + 6, H * cell + 6, 3, Theme.withAlpha(0xFF000000, 0.35f));
-		CosmeticsView.drawFace(c, face, gx, gy, cell);
+		CosmeticsView.drawFace(c, playing ? frames.get(CapeLayout.frameNow(frames.size())) : face, gx, gy, cell);
 		// Faint lines between pixels, so it is clear where each one ends.
 		int line = Theme.withAlpha(0xFF000000, 0.18f);
 		for (int i = 1; i < W; i++) c.fill(gx + i * cell, gy, gx + i * cell + 1, gy + H * cell, line);
 		for (int i = 1; i < H; i++) c.fill(gx, gy + i * cell, gx + W * cell, gy + i * cell + 1, line);
-		int[] at = cellAt(mouseX, mouseY);
+		int[] at = playing ? null : cellAt(mouseX, mouseY);
 		if (at != null) GuiDraw.roundedOutline(c, gx + at[0] * cell - 1, gy + at[1] * cell - 1, cell + 2, cell + 2, 1, 0xFFFFFFFF);
 	}
 
@@ -168,8 +212,16 @@ public final class CapeStudioView extends PanelView {
 	}
 
 	private void remember() {
-		undo.push(face.clone());
+		int[][] copy = new int[frames.size()][];
+		for (int i = 0; i < copy.length; i++) copy[i] = frames.get(i).clone();
+		undo.push(new Snapshot(copy, current));
 		while (undo.size() > UNDO_DEPTH) undo.removeLast();
+	}
+
+	private void restore(Snapshot snapshot) {
+		frames.clear();
+		for (int[] frame : snapshot.frames()) frames.add(frame);
+		select(snapshot.current());
 	}
 
 	private void paint(int fx, int fy) {
@@ -205,7 +257,7 @@ public final class CapeStudioView extends PanelView {
 	@Override
 	public boolean mouseClicked(double mx, double my, int button) {
 		if (!SnowballPlayers.can(Permission.PLUS_FEATURES)) return false;
-		int[] at = cellAt(mx, my);
+		int[] at = playing ? null : cellAt(mx, my);
 		if (at != null) {
 			if (button == 1) {
 				brush.set(0xFF000000 | face[at[1] * W + at[0]]);
@@ -246,7 +298,7 @@ public final class CapeStudioView extends PanelView {
 		int half = (right - x - 4) / 2;
 		if (inside(x, y, half, 16, mx, my)) {
 			if (!undo.isEmpty()) {
-				System.arraycopy(undo.pop(), 0, face, 0, face.length);
+				restore(undo.pop());
 				dirty = true;
 			}
 			return true;
@@ -257,14 +309,43 @@ public final class CapeStudioView extends PanelView {
 			dirty = true;
 			return true;
 		}
+		y += 22;
+		for (int i = 0; i < frames.size(); i++) {
+			if (inside(x + i * (FRAME_BUTTON + 3), y, FRAME_BUTTON, 16, mx, my)) {
+				select(i);
+				return true;
+			}
+		}
+		int bx = x + frames.size() * (FRAME_BUTTON + 3);
+		if (frames.size() < CapeLayout.MAX_FRAMES) {
+			if (inside(bx, y, FRAME_BUTTON, 16, mx, my)) {
+				remember();
+				frames.add(current + 1, face.clone());
+				select(current + 1);
+				dirty = true;
+				return true;
+			}
+			bx += FRAME_BUTTON + 3;
+		}
+		if (frames.size() > 1 && inside(bx, y, FRAME_BUTTON, 16, mx, my)) {
+			remember();
+			frames.remove(current);
+			select(Math.min(current, frames.size() - 1));
+			dirty = true;
+			return true;
+		}
+		if (frames.size() > 1 && inside(right - 44, y, 44, 16, mx, my)) {
+			playing = !playing;
+			return true;
+		}
 		int bottom = panelY + panelH - 24;
 		if (inside(x, bottom, half, 16, mx, my)) {
-			CustomCapes.saveDraft(face);
+			CustomCapes.saveDraft(allFrames());
 			dirty = false;
 			return true;
 		}
 		if (inside(x + half + 4, bottom, half, 16, mx, my)) {
-			CustomCapes.submit(face);
+			CustomCapes.submit(allFrames());
 			dirty = false;
 			return true;
 		}
@@ -288,7 +369,7 @@ public final class CapeStudioView extends PanelView {
 	@Override
 	public void removed() {
 		// Whatever was drawn is kept for next time, sent or not.
-		if (dirty) CustomCapes.saveDraft(face);
+		if (dirty) CustomCapes.saveDraft(allFrames());
 		super.removed();
 	}
 }

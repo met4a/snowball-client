@@ -98,3 +98,13 @@ test('only ranks that review capes can see or decide them', async () => {
   await r.onAdmin({ type: 'admin', action: 'capes' }, owner, r.sockets.get(owner));
   assert.equal(owner.got.at(-1).capes.length, 1);
 });
+
+test('an animated design of up to four frames is accepted, and more is not', async () => {
+  const r = await room();
+  r.ranks.set(PLUS, { rank: 'plus' });
+  const plus = await ticketFor(r, PLUS, 'Plus');
+  assert.equal((await call(r, '/capes/submit', { ticket: plus, pixels: DESIGN.repeat(5) })).status, 400);
+  assert.equal((await call(r, '/capes/submit', { ticket: plus, pixels: DESIGN + DESIGN.slice(1) })).status, 400);
+  assert.equal((await call(r, '/capes/submit', { ticket: plus, pixels: DESIGN.repeat(4) })).status, 200);
+  assert.equal(r.pendingCapes()[0].pixels.length, 960 * 4);
+});

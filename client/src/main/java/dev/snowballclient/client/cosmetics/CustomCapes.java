@@ -34,8 +34,8 @@ public final class CustomCapes {
 
 	public enum Status { NONE, PENDING, APPROVED, DENIED }
 
-	/** An approved cape's face, or null while it is still coming. */
-	private record Fetched(int version, int[] face) {
+	/** An approved cape's frames (one for a still cape), or null while they are still coming. */
+	private record Fetched(int version, int[][] frames) {
 	}
 
 	private static final Map<UUID, Fetched> FACES = new ConcurrentHashMap<>();
@@ -46,7 +46,7 @@ public final class CustomCapes {
 	});
 	private static HttpClient http;
 	private static JsonConfigFile draftFile;
-	private static int[] draft = blank();
+	private static int[][] draft = {blank()};
 	private static volatile Status status = Status.NONE;
 	private static volatile String reason = "";
 	/** The version of your approved cape, 0 when you have none. */
@@ -69,9 +69,15 @@ public final class CustomCapes {
 	public static synchronized void load(Path configDir) {
 		draftFile = new JsonConfigFile(configDir.resolve("cape-draft.json"), 1);
 		JsonObject saved = draftFile.load().data();
+		// "frames" since animated capes; a draft saved before then has only "face".
+		JsonElement frames = saved.get("frames");
 		JsonElement face = saved.get("face");
-		int[] decoded = face != null && face.isJsonPrimitive() ? CapeLayout.decode(face.getAsString()) : null;
-		draft = decoded != null ? decoded : blank();
+		int[][] decoded = frames != null && frames.isJsonPrimitive() ? CapeLayout.decodeFrames(frames.getAsString()) : null;
+		if (decoded == null && face != null && face.isJsonPrimitive()) {
+			int[] one = CapeLayout.decode(face.getAsString());
+			if (one != null) decoded = new int[][]{one};
+		}
+		draft = decoded != null ? decoded : new int[][]{blank()};
 	}
 
 	/** A plain cape to start from: Snowball's ice blue. */
@@ -81,15 +87,25 @@ public final class CustomCapes {
 		return face;
 	}
 
+	/** The first frame of the draft, for the picker's tile. */
 	public static synchronized int[] draft() {
-		return draft.clone();
+		return draft[0].clone();
 	}
 
-	public static synchronized void saveDraft(int[] face) {
-		draft = face.clone();
+	/** Every frame of the draft. */
+	public static synchronized int[][] draftFrames() {
+		int[][] out = new int[draft.length][];
+		for (int i = 0; i < draft.length; i++) out[i] = draft[i].clone();
+		return out;
+	}
+
+	public static synchronized void saveDraft(int[][] frames) {
+		draft = new int[frames.length][];
+		for (int i = 0; i < frames.length; i++) draft[i] = frames[i].clone();
 		if (draftFile == null) return;
 		JsonObject data = new JsonObject();
-		data.addProperty("face", CapeLayout.encode(draft));
+		data.addProperty("face", CapeLayout.encode(draft[0]));
+		data.addProperty("frames", CapeLayout.encodeFrames(draft));
 		try {
 			draftFile.save(data);
 		} catch (java.io.IOException e) {
@@ -114,8 +130,8 @@ public final class CustomCapes {
 	}
 
 	/** Sends the draft to staff. The answer comes back through {@link #status()}. */
-	public static void submit(int[] face) {
-		saveDraft(face);
+	public static void submit(int[][] frames) {
+		saveDraft(frames);
 		String ticket = SnowballPresence.currentTicket();
 		if (!available()) {
 			message = "This build has no Snowball server";
@@ -126,7 +142,7 @@ public final class CustomCapes {
 			return;
 		}
 		message = "Sending...";
-		String body = "{\"ticket\":\"" + ticket + "\",\"pixels\":\"" + CapeLayout.encode(face) + "\"}";
+		String body = "{\"ticket\":\"" + ticket + "\",\"pixels\":\"" + CapeLayout.encodeFrames(frames) + "\"}";
 		WORKER.execute(() -> {
 			try {
 				HttpResponse<String> answer = send(HttpRequest.newBuilder(URI.create(baseUrl() + "/capes/submit"))
@@ -174,13 +190,13 @@ public final class CustomCapes {
 	}
 
 	/**
-	 * The approved face of a player's custom cape at this version, or null while it is fetched (or
-	 * when there is none). Render thread; the fetch runs in the background.
+	 * The approved frames of a player's custom cape at this version (one for a still cape), or null
+	 * while they are fetched (or when there are none). Render thread; the fetch runs in the background.
 	 */
-	public static int[] face(UUID player, int version) {
+	public static int[][] frames(UUID player, int version) {
 		if (player == null || version <= 0 || !available()) return null;
 		Fetched held = FACES.get(player);
-		if (held != null && held.version == version) return held.face;
+		if (held != null && held.version == version) return held.frames;
 		FACES.put(player, new Fetched(version, null));
 		String id = player.toString().replace("-", "");
 		WORKER.execute(() -> {
@@ -188,9 +204,9 @@ public final class CustomCapes {
 				HttpResponse<String> answer = send(HttpRequest.newBuilder(URI.create(baseUrl() + "/capes/" + id)).GET());
 				if (answer.statusCode() != 200) return;
 				JsonObject o = new JsonParser().parse(answer.body()).getAsJsonObject();
-				int[] face = CapeLayout.decode(o.has("pixels") ? o.get("pixels").getAsString() : null);
+				int[][] frames = CapeLayout.decodeFrames(o.has("pixels") ? o.get("pixels").getAsString() : null);
 				int v = o.has("version") ? o.get("version").getAsInt() : 0;
-				if (face != null && v == version) FACES.put(player, new Fetched(v, face));
+				if (frames != null && v == version) FACES.put(player, new Fetched(v, frames));
 			} catch (Exception e) {
 				LOGGER.debug("Cape fetch: {}", e.toString());
 			}

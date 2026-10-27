@@ -299,6 +299,7 @@ public final class SnowballClient implements ClientModInitializer {
 				SnowballPlayers.setSelf(mc.getUser().getProfileId());
 				// What you wear and the emotes you do are yours at once, before the backend hears of them.
 				Looks.setSelf(mc.getUser().getProfileId(), () -> ModuleRegistry.COSMETICS == null ? "" : ModuleRegistry.COSMETICS.wearing());
+				Looks.setSelfColour(() -> ModuleRegistry.COSMETICS == null ? "" : ModuleRegistry.COSMETICS.nameColourPicked());
 				Emotes.setSelf(mc.getUser().getProfileId());
 				SelfSkin.prefetch(mc.getUser().getProfileId(), MinecraftTextures.INSTANCE);
 			}

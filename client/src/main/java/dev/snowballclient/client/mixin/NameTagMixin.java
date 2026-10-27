@@ -2,6 +2,7 @@ package dev.snowballclient.client.mixin;
 
 import dev.snowballclient.client.SnowballClient;
 import dev.snowballclient.client.module.ModuleRegistry;
+import dev.snowballclient.client.social.Looks;
 import dev.snowballclient.client.social.Rank;
 import dev.snowballclient.client.social.RankText;
 import dev.snowballclient.client.social.SnowballPlayers;
@@ -35,6 +36,9 @@ public class NameTagMixin {
 		Component shown = original;
 		if (entity == Minecraft.getInstance().player && ModuleRegistry.NICK_HIDER != null) shown = ModuleRegistry.NICK_HIDER.nameTag(shown);
 		Rank rank = SnowballClient.nameTagBadges() ? SnowballPlayers.rank(entity.getUUID()) : null;
+		// A Snowball+ name colour; the backend only passes one on for Snowball+ players.
+		int colour = rank == null ? -1 : Looks.colour(entity.getUUID());
+		if (colour >= 0) shown = shown.copy().withColor(colour);
 		if (rank != null) shown = Component.empty().append(RankText.prefix(rank, true, false)).append(shown);
 		if (shown != original) name.setReturnValue(shown);
 	}

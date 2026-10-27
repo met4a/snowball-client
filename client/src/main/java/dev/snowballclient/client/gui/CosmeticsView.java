@@ -23,11 +23,17 @@ public final class CosmeticsView extends PanelView {
 	private static final int TILE_W = 46;
 	private static final int TILE_H = 74;
 	private static final int GAP = 6;
-	private static final int PER_ROW = 5;
+	// Seven a row keeps all the capes (free, Snowball+ and your own) in two rows, so the picker fits
+	// short screens: the panel is never taller than the window.
+	private static final int PER_ROW = 7;
 
 	private final Cosmetics cosmetics;
 	private final List<String> tiles = new ArrayList<>();
+	/** Name colour swatches, "none" first, beside the others' capes button so the panel is no taller. */
+	private static final int SWATCH = 14;
 	private final UiTexture[] previews;
+	/** Someone clicked a + cape without Snowball+: the line under the capes says where it comes from. */
+	private boolean lockedHint;
 
 	public CosmeticsView(SnowballClient client, Cosmetics cosmetics) {
 		super("COSMETICS", client, PER_ROW * (TILE_W + GAP) + 26);
@@ -67,6 +73,11 @@ public final class CosmeticsView extends PanelView {
 		return new int[]{x, y};
 	}
 
+	/** A Snowball+ cape you cannot wear yet: it shows dimmed, marked +, and says where to get it. */
+	private static boolean locked(String id) {
+		return Looks.PLUS_CAPES.contains(id) && !plus();
+	}
+
 	private static String label(String id) {
 		if (Cosmetics.NONE.equals(id)) return "None";
 		if (Looks.CUSTOM.equals(id)) return "Yours";
@@ -86,7 +97,8 @@ public final class CosmeticsView extends PanelView {
 			int px = p[0] + (TILE_W - 30) / 2;
 			int py = p[1] + 6;
 			if (previews[i] != null) {
-				c.drawTexture(previews[i], px, py, 30, 48, 0xFFFFFFFF);
+				c.drawTexture(previews[i], px, py, 30, 48, locked(id) ? 0x80FFFFFF : 0xFFFFFFFF);
+				if (Looks.PLUS_CAPES.contains(id)) UiText.draw(c, "+", UiText.UI, px + 24, py + 1, theme.accent());
 			} else if (Looks.CUSTOM.equals(id)) {
 				drawFace(c, CustomCapes.draft(), px, py, 3);
 			} else {
@@ -98,11 +110,13 @@ public final class CosmeticsView extends PanelView {
 		}
 
 		int y = panelY + panelH - 44;
+		drawColours(c, y + 21, mouseX, mouseY);
 		if (plus()) {
 			button(c, panelX + 12, y, 96, 16, "CAPE STUDIO", false, mouseX, mouseY);
 			drawWrapped(c, customLine(), panelX + 116, y, panelW - 130, theme.mutedText());
 		} else {
-			UiText.draw(c, "Draw your own cape with Snowball+", UiText.DETAIL, panelX + 12, y + 5, theme.mutedText());
+			String hint = lockedHint ? "Things marked + come with Snowball+: snowball.krakensmp.xyz/store.html" : "Your own cape, the + capes and name colours come with Snowball+";
+			UiText.draw(c, UiText.fit(c, hint, UiText.DETAIL, panelW - 24), UiText.DETAIL, panelX + 12, y + 5, lockedHint ? theme.text() : theme.mutedText());
 		}
 		boolean others = cosmetics.showOthers.isOn();
 		button(c, panelX + 12, y + 20, 150, 16, others ? "OTHERS' CAPES: SHOWN" : "OTHERS' CAPES: HIDDEN", false, mouseX, mouseY);
@@ -165,6 +179,35 @@ public final class CosmeticsView extends PanelView {
 		};
 	}
 
+	private int swatchX(int i) {
+		return panelX + 214 + i * (SWATCH + 3);
+	}
+
+	/** The name colour a Snowball+ player shows on their nametag and in the launcher's chat. */
+	private void drawColours(Canvas c, int y, int mouseX, int mouseY) {
+		UiText.draw(c, "NAME +", UiText.DETAIL, panelX + 172, y + 3, plus() ? theme.text() : theme.mutedText());
+		String picked = cosmetics.nameColour.get();
+		List<String> ids = colourIds();
+		for (int i = 0; i < ids.size(); i++) {
+			String id = ids.get(i);
+			int x = swatchX(i);
+			Integer rgb = Looks.COLOURS.get(id);
+			int fill = rgb == null ? theme.surface(1f) : 0xFF000000 | rgb;
+			if (!plus()) fill = (fill & 0x00FFFFFF) | 0x66000000;
+			c.fill(x, y, x + SWATCH, y + SWATCH, fill);
+			if (rgb == null) c.fill(x + 3, y + SWATCH / 2, x + SWATCH - 3, y + SWATCH / 2 + 1, theme.mutedText());
+			boolean on = id.equals(picked) || (rgb == null && Cosmetics.NONE.equals(picked));
+			if (on || inside(x, y, SWATCH, SWATCH, mouseX, mouseY)) GuiDraw.roundedOutline(c, x - 1, y - 1, SWATCH + 2, SWATCH + 2, 2, on ? theme.accent() : theme.border());
+		}
+	}
+
+	private static List<String> colourIds() {
+		List<String> ids = new ArrayList<>();
+		ids.add(Cosmetics.NONE);
+		ids.addAll(Looks.COLOURS.keySet());
+		return ids;
+	}
+
 	/** A cape face from its 10x16 colours, each drawn as a small square. */
 	static void drawFace(Canvas c, int[] face, int x, int y, int size) {
 		for (int fy = 0; fy < 16; fy++) {
@@ -181,6 +224,10 @@ public final class CosmeticsView extends PanelView {
 			int[] p = tile(i);
 			if (!inside(p[0], p[1], TILE_W, TILE_H, mx, my)) continue;
 			String id = tiles.get(i);
+			if (locked(id)) {
+				lockedHint = true;
+				return true;
+			}
 			if (Looks.CUSTOM.equals(id) && CustomCapes.approvedVersion() <= 0) {
 				// Nothing approved yet: the studio is where it starts.
 				host.open(new CapeStudioView(client));
@@ -191,6 +238,17 @@ public final class CosmeticsView extends PanelView {
 			return true;
 		}
 		int y = panelY + panelH - 44;
+		List<String> ids = colourIds();
+		for (int i = 0; i < ids.size(); i++) {
+			if (!inside(swatchX(i), y + 21, SWATCH, SWATCH, mx, my)) continue;
+			if (!plus()) {
+				lockedHint = true;
+				return true;
+			}
+			cosmetics.nameColour.set(ids.get(i));
+			client.saveIfDirty();
+			return true;
+		}
 		if (plus() && inside(panelX + 12, y, 96, 16, mx, my)) {
 			host.open(new CapeStudioView(client));
 			return true;
