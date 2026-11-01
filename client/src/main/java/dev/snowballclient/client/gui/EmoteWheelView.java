@@ -168,8 +168,8 @@ public final class EmoteWheelView extends View {
 		if (ringTexture == null) return;
 
 		open.setTarget(1f);
-		float a = open.update(dt, theme.animationSpeed * 12f);
-		float fade = pageFade.update(dt, theme.animationSpeed * 10f);
+		float a = open.update(dt, theme.motion() * 12f);
+		float fade = pageFade.update(dt, theme.motion() * 10f);
 		UiText.setDensity(c.guiScale());
 		updateHover(mouseX, mouseY);
 		int cx = width / 2;
@@ -191,9 +191,9 @@ public final class EmoteWheelView extends View {
 		float shine = 0f;
 		for (int i = 0; i < PER_PAGE; i++) {
 			lift[i].setTarget(i == hovered ? 1f : 0f);
-			shine = Math.max(shine, lift[i].update(dt, theme.animationSpeed * 16f));
+			shine = Math.max(shine, lift[i].update(dt, theme.motion() * 16f));
 		}
-		float angle = pointer.update(dt, theme.animationSpeed * 18f);
+		float angle = pointer.update(dt, theme.motion() * 18f);
 		if (shine > 0.01f) {
 			c.push();
 			c.rotate((float) Math.toRadians(angle));
@@ -238,7 +238,7 @@ public final class EmoteWheelView extends View {
 		int hub = hubRadius();
 		boolean playing = Emotes.playingSelf();
 		hubHover.setTarget(overHub && playing ? 1f : 0f);
-		float h = hubHover.update(frameTime, theme.animationSpeed * 16f);
+		float h = hubHover.update(frameTime, theme.motion() * 16f);
 		if (h > 0.01f) GuiDraw.circle(c, 0, 0, hub - 2, scaleAlpha(Theme.withAlpha(theme.accent(), 0.22f * h), a));
 		int size = Math.round(hub * 0.92f);
 		int logoY = -Math.round(hub * 0.30f);

@@ -7,6 +7,7 @@ import dev.snowballclient.client.gui.RadialMenuView;
 import dev.snowballclient.client.gui.radial.RadialLayout;
 import dev.snowballclient.client.gui.radial.RadialMetrics;
 import dev.snowballclient.client.gui.radial.WheelTextures;
+import dev.snowballclient.client.gui.snowglass.GlassLabView;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.hud.HudRenderer;
 import dev.snowballclient.client.keybind.KeybindTracker;
@@ -87,6 +88,8 @@ public final class SnowballClient implements ClientModInitializer {
 	private KeyMapping spotifyNext;
 	private KeyMapping spotifyPrevious;
 	private KeyMapping emoteWheelKey;
+	/** Development runs only: opens the Snowglass Lab. */
+	private KeyMapping glassLabKey;
 	private boolean wasEmoting;
 	private double emoteX;
 	private double emoteZ;
@@ -200,6 +203,10 @@ public final class SnowballClient implements ClientModInitializer {
 		spotifyPrevious = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.snowballclient.spotify_previous", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), category));
 		NowPlaying.start();
 		emoteWheelKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.snowballclient.emote_wheel", InputConstants.Type.KEYSYM, 66, category));
+		// F7 opens the Snowglass Lab, a bench for tuning the menu material; players never see it.
+		if (loader.isDevelopmentEnvironment()) {
+			glassLabKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.snowballclient.glass_lab", InputConstants.Type.KEYSYM, 296, category));
+		}
 		CustomCapes.load(configDir);
 		Looks.setShowOthers(ModuleRegistry.COSMETICS.showOthers.isOn());
 		Emotes.setShowOthers(ModuleRegistry.EMOTES.isEnabled() && ModuleRegistry.EMOTES.showOthers.isOn());
@@ -266,6 +273,9 @@ public final class SnowballClient implements ClientModInitializer {
 		}
 		while (emoteWheelKey.consumeClick()) {
 			if (mc.gui.screen() == null && mc.player != null && ModuleRegistry.EMOTES.isEnabled()) ViewScreen.show(new EmoteWheelView(this));
+		}
+		while (glassLabKey != null && glassLabKey.consumeClick()) {
+			if (mc.gui.screen() == null) ViewScreen.showOnScreen(new GlassLabView(theme));
 		}
 		while (spotifyPlayPause.consumeClick()) NowPlaying.get().control(NowPlaying.Action.PLAY_PAUSE);
 		while (spotifyNext.consumeClick()) NowPlaying.get().control(NowPlaying.Action.NEXT);

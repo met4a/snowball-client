@@ -1,6 +1,6 @@
 # Snowglass: in-game UI revamp plan (Phase 0)
 
-Status: **draft for approval**. No code has been changed. Branch: `ui/snowglass`.
+Status: **approved 2026-11-01**, with the recommended answers to all eight questions in §15. Branch: `ui/snowglass`. Progress is tracked in PROGRESS.md.
 Everything marked *verified* was checked this session against the repo, the Minecraft jars in the Gradle cache
 (`javap` on the 26.2 deobf jar and the Mojang-mapped 1.21.11 jar; there are no decompiled sources in the cache),
 or the extracted vanilla shaders. Everything marked *to verify* has not been checked yet and is scheduled.
@@ -105,7 +105,7 @@ Not present (do not invent): a module-favourites system, a vanilla pause-screen 
 |---|---|---|
 | Real-time blurred, refracted glass | Fill-drawn imitation; vanilla blur behind the whole screen | New shader material sampling a per-frame blur pyramid (section 6) |
 | Legibility first | Fixed panel opacity; no backdrop awareness | Adaptive tint from backdrop luminance, so primary text always reaches ≥ 4.5:1 |
-| Transparency slider (5 stops) | "Panel opacity" 0.2–1 | `transparency` 0–100 with named stops, migrated from panel opacity |
+| Transparency slider (5 stops) | "Panel opacity" 0.2–1 | `glassLevel` 0–100 with named stops, migrated from panel opacity |
 | Glass Quality Off/Lite/Full | Look: Liquid/Frosted/Classic | `glassQuality`, migrated from look |
 | Crisp type | SmoothText (Nunito), optional in menus | Inter in SmoothText; tabular digits |
 | Line icons | Own set | Keep, add colour per category, add the missing glyphs |
@@ -169,7 +169,7 @@ The six existing palettes (Snowball, Aurora, Northern Lights, Sakura, Ember, Mid
 
 Starting values, to be tuned in the Glass Lab.
 
-**Legibility rule (Golden Gate):** the effective tint α is `max(baseTint(level), αNeeded(L))`, where L is the linear luminance of the backdrop under the panel, read from the ⅛ level. αNeeded makes the composited backdrop dark enough for `#F2F6FA` text to reach 4.5:1. Worked example: over blurred snow (L ≈ 0.9), text needs a backdrop luminance ≤ 0.166, so α ≥ ≈ 0.82, even at Ultra Clear. The slider sets the floor; legibility sets the ceiling. A unit test sweeps L over [0, 1] at every stop and asserts ≥ 4.5:1 for primary text and ≥ 3:1 for secondary text.
+**Legibility rule (Golden Gate):** the effective tint α is `max(baseTint(level), αNeeded(L))`, where L is the linear luminance of the backdrop under the panel, read from the ⅛ level. αNeeded makes the composited backdrop dark enough for `#F2F6FA` text to reach 4.5:1 and for secondary text to reach 3:1, with the backdrop darker than the text. Worked example: over blurred snow (L ≈ 0.9), primary text needs a backdrop luminance ≤ 0.166. Blending happens on gamma-encoded values, as in the game's colour target, and the clear-glass secondary grey (`#A9B8CC`) needs ≤ 0.12. So α ≈ 0.63, even at Ultra Clear (the base tint there is 0.18). This is checked in `SnowglassTest`; an earlier draft of this plan said 0.82 because it blended in linear light. The slider sets the floor; legibility sets the ceiling. A unit test sweeps L over [0, 1] at every stop and asserts ≥ 4.5:1 for primary text and ≥ 3:1 for secondary text.
 
 ---
 
@@ -408,7 +408,7 @@ Size: 70% of the scaled screen, clamped to 360×240 … 640×400 logical px, tim
 | New key | Values (default) | Migrated from |
 |---|---|---|
 | `glassQuality` | `off` / `lite` / `full` (`full`) | `style`: liquid → full, frosted → lite, classic → off |
-| `transparency` | 0–100 (`50`) | `panelOpacity`: 0.82 (old default) → 50; below that linear 0.2–0.82 → 0–50; above it linear 0.82–1 → 50–100 |
+| `glassLevel` (the Transparency slider) | 0–100 (`50`) | `panelOpacity`: 0.82 (old default) → 50; below that linear 0.2–0.82 → 0–50; above it linear 0.82–1 → 50–100 |
 | `hudGlass` | `auto` / `off` / `lite` / `full` (`auto`) | new |
 | `reduceMotion` | bool (`false`) | `animationSpeed == 0` → true (animationSpeed is kept) |
 | `font` | `inter` / `minecraft` (`inter`) | `smooth_font`: see Q3 |
@@ -514,7 +514,7 @@ One commit per milestone on `ui/snowglass`; no pushes unless asked.
 
 ## 15. Questions (also asked in chat)
 
-Each has a recommended default; I proceed with these unless you say otherwise.
+**Answered 2026-11-01: approved as recommended, all eight.**
 
 1. **Mod menu:** replace the radial wheel with the sidebar window? *Recommended: yes, replace.* (Keeping both doubles M4.)
 2. **1.8.9:** it shares the UI code. *Recommended:* it gets the new layout and components automatically with the Off material and no shader work. The alternative, freezing 1.8.9 on today's UI, means forking ~55 files.

@@ -10,22 +10,35 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class GlassLookTest {
 	@Test
-	void liquidGlassIsTheDefaultLook() {
+	void fullGlassIsTheDefaultLook() {
 		Theme theme = new Theme();
-		assertEquals(Theme.LIQUID, theme.style);
+		assertEquals(Theme.GLASS_FULL, theme.glassQuality);
 		assertTrue(theme.glass());
 		assertTrue(theme.liquid());
 		assertTrue(theme.blurBehind);
+		assertEquals(50, theme.glassLevel(), "Regular is the default");
+		assertEquals(0.82f, theme.panelOpacity, 0.001f, "flat panels keep their old default opacity");
+		assertEquals(Theme.FONT_INTER, theme.font);
+		assertEquals(Theme.HUD_GLASS_AUTO, theme.hudGlass);
+		assertFalse(theme.reduceMotion);
 	}
 
 	@Test
 	void theLookIsSavedAndReadBack() {
 		Theme theme = new Theme();
-		theme.style = Theme.FROSTED;
+		theme.glassQuality = Theme.GLASS_LITE;
+		theme.setGlassLevel(75);
+		theme.hudGlass = Theme.GLASS_OFF;
+		theme.reduceMotion = true;
+		theme.font = Theme.FONT_MINECRAFT;
 		theme.blurBehind = false;
 		Theme loaded = new Theme();
 		loaded.fromJson(theme.toJson());
-		assertEquals(Theme.FROSTED, loaded.style);
+		assertEquals(Theme.GLASS_LITE, loaded.glassQuality);
+		assertEquals(75, loaded.glassLevel());
+		assertEquals(Theme.GLASS_OFF, loaded.hudGlass);
+		assertTrue(loaded.reduceMotion);
+		assertEquals(Theme.FONT_MINECRAFT, loaded.font);
 		assertFalse(loaded.blurBehind);
 		assertTrue(loaded.glass());
 		assertFalse(loaded.liquid());
@@ -34,19 +47,23 @@ class GlassLookTest {
 	@Test
 	void anOlderOrBrokenGuiFileKeepsTheDefaults() {
 		JsonObject old = new Theme().toJson();
-		old.remove("style");
+		old.remove("glassQuality");
 		old.remove("blurBehind");
 		Theme loaded = new Theme();
 		loaded.fromJson(old);
-		assertEquals(Theme.LIQUID, loaded.style);
+		assertEquals(Theme.GLASS_FULL, loaded.glassQuality);
 
 		JsonObject broken = new Theme().toJson();
-		broken.addProperty("style", "rainbow");
+		broken.addProperty("glassQuality", "rainbow");
 		broken.addProperty("blurBehind", "yes");
+		broken.addProperty("font", 3);
+		broken.addProperty("glassLevel", 900);
 		loaded = new Theme();
 		loaded.fromJson(broken);
-		assertEquals(Theme.LIQUID, loaded.style);
+		assertEquals(Theme.GLASS_FULL, loaded.glassQuality);
 		assertTrue(loaded.blurBehind);
+		assertEquals(Theme.FONT_INTER, loaded.font);
+		assertEquals(100, loaded.glassLevel());
 	}
 
 	@Test
@@ -55,6 +72,27 @@ class GlassLookTest {
 		theme.highContrast = true;
 		assertFalse(theme.glass());
 		assertFalse(theme.liquid());
+	}
+
+	@Test
+	void reduceMotionStopsMovementWhateverTheSpeed() {
+		Theme theme = new Theme();
+		theme.animationSpeed = 2f;
+		assertEquals(2f, theme.motion());
+		theme.reduceMotion = true;
+		assertEquals(0f, theme.motion());
+		assertEquals(2f, theme.animationSpeed, "the chosen speed is kept for when Reduce Motion goes off");
+	}
+
+	@Test
+	void hudGlassAutoFollowsQualityButStaysLiteWithFpsBoost() {
+		Theme theme = new Theme();
+		assertEquals(Theme.GLASS_FULL, theme.hudGlassQuality(false));
+		assertEquals(Theme.GLASS_LITE, theme.hudGlassQuality(true));
+		theme.glassQuality = Theme.GLASS_OFF;
+		assertEquals(Theme.GLASS_OFF, theme.hudGlassQuality(true), "Auto never turns glass on");
+		theme.hudGlass = Theme.GLASS_FULL;
+		assertEquals(Theme.GLASS_FULL, theme.hudGlassQuality(true), "a quality picked by hand is kept");
 	}
 
 	@Test
@@ -76,14 +114,33 @@ class GlassLookTest {
 	}
 
 	@Test
-	void theLookSettingDrivesTheTheme() {
+	void theSettingsDriveTheTheme() {
 		Theme theme = new Theme();
 		InterfaceSettings settings = new InterfaceSettings(theme, new ClientSettings());
-		settings.look.set(Theme.CLASSIC);
+		settings.glassQuality.set(Theme.GLASS_OFF);
 		assertFalse(theme.glass());
+		settings.glassLevel.set(100.0);
+		assertEquals(100, theme.glassLevel());
+		assertEquals(1f, theme.panelOpacity, 0.001f);
+		settings.font.set(Theme.FONT_MINECRAFT);
+		assertEquals(Theme.FONT_MINECRAFT, theme.font);
+		settings.reduceMotion.set(true);
+		assertEquals(0f, theme.motion());
+		settings.hudGlass.set(Theme.GLASS_LITE);
+		assertEquals(Theme.GLASS_LITE, theme.hudGlass);
 		settings.blurBehind.set(false);
 		assertFalse(theme.blurBehind);
 		assertTrue(settings.consumeThemeDirty());
+	}
+
+	@Test
+	void menuScaleStaysWithinSeventyFiveToOneHundredAndTwentyFivePercent() {
+		Theme theme = new Theme();
+		InterfaceSettings settings = new InterfaceSettings(theme, new ClientSettings());
+		settings.scale.set(2.0);
+		assertEquals(Theme.MAX_SCALE, theme.scale);
+		settings.scale.set(0.5);
+		assertEquals(Theme.MIN_SCALE, theme.scale);
 	}
 
 	@Test

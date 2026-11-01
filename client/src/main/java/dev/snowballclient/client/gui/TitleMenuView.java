@@ -231,8 +231,8 @@ public final class TitleMenuView extends View {
 		}
 		float dt = clock.tick();
 		time += dt;
-		age = theme.animationSpeed <= 0f ? 10f : age + dt * theme.animationSpeed;
-		float alpha = fade.update(dt, theme.animationSpeed * 10f);
+		age = theme.motion() <= 0f ? 10f : age + dt * theme.motion();
+		float alpha = fade.update(dt, theme.motion() * 10f);
 		UiText.setDensity(c.guiScale());
 
 		// Your account sits just left of the square buttons and grows with your name.
@@ -250,7 +250,7 @@ public final class TitleMenuView extends View {
 		for (int i = 0; i < items.size(); i++) {
 			Item item = items.get(i);
 			item.hover.setTarget(i == hovered || i == focused ? 1f : 0f);
-			item.hover.update(dt, theme.animationSpeed * 16f);
+			item.hover.update(dt, theme.motion() * 16f);
 			float t = appear(i + 1);
 			if (t <= 0f) continue;
 			float k = 1f - t;

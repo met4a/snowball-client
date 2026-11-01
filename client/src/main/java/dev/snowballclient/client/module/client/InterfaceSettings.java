@@ -17,8 +17,8 @@ public final class InterfaceSettings extends Module {
 	public final NumberSetting scale;
 	public final BooleanSetting highContrast;
 	public final NumberSetting backgroundOpacity;
-	public final NumberSetting panelOpacity;
 	public final NumberSetting animationSpeed;
+	public final BooleanSetting reduceMotion;
 	public final BooleanSetting pauseGame;
 	public final BooleanSetting customMainMenu;
 	public final BooleanSetting customLoadingScreen;
@@ -28,12 +28,14 @@ public final class InterfaceSettings extends Module {
 	public final ColorSetting menuColor;
 	public final ColorSetting panelColor;
 	public final ChoiceSetting palette;
-	public final ChoiceSetting look;
+	public final ChoiceSetting glassQuality;
+	public final NumberSetting glassLevel;
+	public final ChoiceSetting hudGlass;
 	public final BooleanSetting blurBehind;
-	public final BooleanSetting smoothText;
+	public final ChoiceSetting font;
 
 	/** Dark tints for panels: anything lighter would wash out the text drawn on them. */
-	private static final int[] PANEL_PRESETS = {0xFF07090C, 0xFF0B1020, 0xFF0A1512, 0xFF160B1A, 0xFF1A0D0D, 0xFF14110A,
+	private static final int[] PANEL_PRESETS = {0xFF0B0F14, 0xFF0B1020, 0xFF0A1512, 0xFF160B1A, 0xFF1A0D0D, 0xFF14110A,
 			0xFF101418, 0xFF000000};
 
 	/** Ready-made colour pairs: a menu colour and the panel tint that suits it. */
@@ -42,7 +44,7 @@ public final class InterfaceSettings extends Module {
 
 	private static java.util.Map<String, int[]> palettes() {
 		java.util.Map<String, int[]> p = new java.util.LinkedHashMap<>();
-		p.put("snowball", new int[]{0xFF7FCBFF, 0xFF07090C});
+		p.put("snowball", new int[]{0xFF7FCBFF, 0xFF0B0F14});
 		p.put("aurora", new int[]{0xFFB794FF, 0xFF120A22});
 		p.put("northern_lights", new int[]{0xFF6FF2C8, 0xFF061614});
 		p.put("sakura", new int[]{0xFFFF9CC8, 0xFF1A0B14});
@@ -63,15 +65,17 @@ public final class InterfaceSettings extends Module {
 		java.util.List<String> paletteNames = new java.util.ArrayList<>(PALETTES.keySet());
 		paletteNames.add(CUSTOM);
 		palette = setting(new ChoiceSetting("palette", "Colours", "A matching menu and panel colour; Aurora is violet", "snowball", paletteNames));
-		look = setting(new ChoiceSetting("look", "Look", "Liquid glass catches the light on its edges; frosted is calmer; classic is flat", Theme.LIQUID, Theme.STYLES));
+		glassQuality = setting(new ChoiceSetting("glass_quality", "Glass quality", "Full refracts, Lite blurs, Off is solid", factory.glassQuality, Theme.GLASS_QUALITIES));
+		glassLevel = setting(new NumberSetting("glass_level", "Transparency", "Clear (0) to tinted (100), always readable", factory.glassLevel(), 0, 100, 5));
+		hudGlass = setting(new ChoiceSetting("hud_glass", "HUD glass", "Auto matches menus; Lite with FPS Boost", factory.hudGlass, Theme.HUD_GLASS));
 		blurBehind = setting(new BooleanSetting("blur_behind", "Blur behind menus", "Blur the world behind Snowball's menus", true));
-		smoothText = setting(new BooleanSetting("smooth_font", "Smooth text", "Snowball's menus in a smooth, rounded font instead of Minecraft's own (the main menu always has it)", false));
+		font = setting(new ChoiceSetting("font", "Font", "Menu text: Inter or Minecraft's font", factory.font, Theme.FONTS));
 		menuColor = setting(new ColorSetting("menu_color", "Menu colour", "Highlights, sliders and switches in every Snowball menu", factory.accentColor));
 		panelColor = setting(new ColorSetting("panel_color", "Panel colour", "The tint behind Snowball's menus", factory.surfaceColor).presets(PANEL_PRESETS));
-		scale = setting(new NumberSetting("scale", "Menu scale", "", theme.scale, 0.5, 2.0, 0.05));
+		scale = setting(new NumberSetting("scale", "Menu scale", "", theme.scale, Theme.MIN_SCALE, Theme.MAX_SCALE, 0.05));
 		highContrast = setting(new BooleanSetting("high_contrast", "High contrast", "Stronger borders and a yellow focus accent", theme.highContrast));
 		backgroundOpacity = setting(new NumberSetting("background_opacity", "Background dim", "", theme.backgroundOpacity, 0, 1, 0.05));
-		panelOpacity = setting(new NumberSetting("panel_opacity", "Panel opacity", "", theme.panelOpacity, 0.2, 1, 0.05));
+		reduceMotion = setting(new BooleanSetting("reduce_motion", "Reduce motion", "Things appear and fade instead of moving", factory.reduceMotion));
 		animationSpeed = setting(new NumberSetting("animation_speed", "Animation speed", "0 turns animations off", theme.animationSpeed, 0, 3, 0.25));
 		pauseGame = setting(new BooleanSetting("pause_game", "Pause singleplayer in menu", "", clientSettings.pauseGameInMenu));
 		customMainMenu = setting(new BooleanSetting("custom_main_menu", "Snowball main menu", "Use Snowball's main menu instead of Minecraft's title screen", true));
@@ -100,15 +104,21 @@ public final class InterfaceSettings extends Module {
 				applyingPalette = false;
 			}
 		});
-		look.onChange(v -> apply(() -> theme.style = v));
+		glassQuality.onChange(v -> apply(() -> theme.glassQuality = v));
+		glassLevel.onChange(v -> apply(() -> theme.setGlassLevel(v.intValue())));
+		hudGlass.onChange(v -> apply(() -> theme.hudGlass = v));
 		blurBehind.onChange(v -> apply(() -> theme.blurBehind = v));
+		font.onChange(v -> apply(() -> theme.font = v));
 		scale.onChange(v -> apply(() -> theme.scale = v.floatValue()));
 		highContrast.onChange(v -> apply(() -> theme.highContrast = v));
 		backgroundOpacity.onChange(v -> apply(() -> theme.backgroundOpacity = v.floatValue()));
-		panelOpacity.onChange(v -> apply(() -> theme.panelOpacity = v.floatValue()));
+		reduceMotion.onChange(v -> apply(() -> {
+			theme.reduceMotion = v;
+			dev.snowballclient.client.ui.Depth.setAnimationSpeed(theme.motion());
+		}));
 		animationSpeed.onChange(v -> apply(() -> {
 			theme.animationSpeed = v.floatValue();
-			dev.snowballclient.client.ui.Depth.setAnimationSpeed(theme.animationSpeed);
+			dev.snowballclient.client.ui.Depth.setAnimationSpeed(theme.motion());
 		}));
 		pauseGame.onChange(v -> clientSettings.pauseGameInMenu = v);
 	}
@@ -124,8 +134,8 @@ public final class InterfaceSettings extends Module {
 		scale.set((double) theme.scale);
 		highContrast.set(theme.highContrast);
 		backgroundOpacity.set((double) theme.backgroundOpacity);
-		panelOpacity.set((double) theme.panelOpacity);
 		animationSpeed.set((double) theme.animationSpeed);
+		reduceMotion.set(theme.reduceMotion);
 		applyingPalette = true;
 		try {
 			menuColor.set(theme.accentColor);
@@ -134,10 +144,13 @@ public final class InterfaceSettings extends Module {
 		} finally {
 			applyingPalette = false;
 		}
-		look.set(theme.style);
+		glassQuality.set(theme.glassQuality);
+		glassLevel.set((double) theme.glassLevel());
+		hudGlass.set(theme.hudGlass);
+		font.set(theme.font);
 		blurBehind.set(theme.blurBehind);
 		pauseGame.set(clientSettings.pauseGameInMenu);
-		dev.snowballclient.client.ui.Depth.setAnimationSpeed(theme.animationSpeed);
+		dev.snowballclient.client.ui.Depth.setAnimationSpeed(theme.motion());
 		themeDirty = false;
 	}
 

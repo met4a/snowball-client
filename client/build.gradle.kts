@@ -6,6 +6,7 @@ plugins {
 // Read once at project level; inside task blocks property() would look on the task instead.
 val modVersion = project.property("mod.version").toString()
 val minecraftRange = project.property("mod.mc_compat").toString()
+val minecraftVersion = sc.current.version
 
 version = "$modVersion+${sc.current.version}"
 base.archivesName = "snowball-client"
@@ -97,5 +98,7 @@ tasks {
         if (project.hasProperty("flickerReport")) (this as JavaExec).systemProperty("snowball.flicker.report", "true")
         // Runs only some of the tests, by name: -Ponly=menu,flicker,render
         if (project.hasProperty("only")) (this as JavaExec).systemProperty("snowball.only", project.property("only").toString())
+        // Snowglass screenshots are copied next to the design docs, per Minecraft version and graphics backend.
+        (this as JavaExec).systemProperty("snowball.screenshots", rootProject.file("../docs/ui-revamp/screenshots/$minecraftVersion/opengl").absolutePath)
     }
 }

@@ -61,7 +61,7 @@ public abstract class PanelView extends View {
 
 	@Override
 	public void render(Canvas c, int mouseX, int mouseY, float partialTick) {
-		float a = open.update(clock.tick(), theme.animationSpeed * 14f);
+		float a = open.update(clock.tick(), theme.motion() * 14f);
 		UiText.setDensity(c.guiScale());
 		// The panel rises a little and settles as it opens.
 		c.push();

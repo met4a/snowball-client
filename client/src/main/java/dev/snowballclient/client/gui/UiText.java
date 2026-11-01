@@ -1,13 +1,14 @@
 package dev.snowballclient.client.gui;
 
 import dev.snowballclient.client.gui.smooth.SmoothText;
+import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.module.ModuleRegistry;
 import dev.snowballclient.client.ui.Canvas;
 
 /**
- * Menu text. Normally smooth: Nunito, drawn at the exact number of screen pixels it covers
- * ({@link SmoothText}), sized to stand where Minecraft's font would. With smooth text off (Menu &amp;
- * Accessibility), or where it cannot be drawn, Minecraft's own font: the menu is drawn at fractional
+ * Menu text. Normally smooth: Inter, drawn at the exact number of screen pixels it covers
+ * ({@link SmoothText}), sized to stand where Minecraft's font would. With the Minecraft font chosen
+ * (Menu &amp; Accessibility), or where smooth text cannot be drawn, Minecraft's own font: the menu is drawn at fractional
  * scales (it grows with the screen), which would make the pixel font blurry or uneven, so text is
  * rescaled so that one font pixel covers a whole number of screen pixels. Titles get one extra
  * screen pixel per font pixel. Line heights are the same either way, so layouts do not move.
@@ -143,12 +144,12 @@ public final class UiText {
 
 	/** Whether text on this canvas is smooth right now. */
 	public static boolean smooth(Canvas c) {
-		return (alwaysSmooth || ModuleRegistry.INTERFACE == null || ModuleRegistry.INTERFACE.smoothText.isOn()) && SmoothText.usable(c);
+		return (alwaysSmooth || ModuleRegistry.INTERFACE == null || Theme.FONT_INTER.equals(ModuleRegistry.INTERFACE.font.get())) && SmoothText.usable(c);
 	}
 
 	private static boolean alwaysSmooth;
 
-	/** Smooth text whatever Smooth text says, until set back: the main menu always has it. Render thread only. */
+	/** Smooth text whatever the Font setting says, until set back: the main menu always has it. Render thread only. */
 	public static void setAlwaysSmooth(boolean on) {
 		alwaysSmooth = on;
 	}
@@ -156,9 +157,9 @@ public final class UiText {
 	/** The weight of the smooth font used for this kind of text. */
 	public static SmoothText.Weight weight(Kind kind) {
 		return switch (kind) {
-			case TITLE, TITLE_SMALL -> SmoothText.Weight.EXTRABOLD;
-			case UI -> SmoothText.Weight.BOLD;
-			case UI_SMALL, DETAIL -> SmoothText.Weight.SEMIBOLD;
+			case TITLE, TITLE_SMALL -> SmoothText.Weight.SEMIBOLD;
+			case UI -> SmoothText.Weight.MEDIUM;
+			case UI_SMALL, DETAIL -> SmoothText.Weight.REGULAR;
 		};
 	}
 

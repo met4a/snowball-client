@@ -100,8 +100,8 @@ public final class ModuleSettingsView extends View {
 	@Override
 	public void render(Canvas c, int mouseX, int mouseY, float partialTick) {
 		float dt = clock.tick();
-		float a = open.update(dt, theme.animationSpeed * 14f);
-		age = theme.animationSpeed <= 0f ? 10f : age + dt * theme.animationSpeed;
+		float a = open.update(dt, theme.motion() * 14f);
+		age = theme.motion() <= 0f ? 10f : age + dt * theme.motion();
 		UiText.setDensity(c.guiScale());
 		hovered = rowAt(mouseX, mouseY);
 
@@ -124,8 +124,8 @@ public final class ModuleSettingsView extends View {
 			glideY.setTarget(target);
 		}
 		glideAlpha.setTarget(onRow ? 1f : 0f);
-		float glide = glideAlpha.update(dt, theme.animationSpeed * 20f);
-		float gy = glideY.update(dt, theme.animationSpeed * 24f);
+		float glide = glideAlpha.update(dt, theme.motion() * 20f);
+		float gy = glideY.update(dt, theme.motion() * 24f);
 		for (int row = scroll; row < end; row++) {
 			float t = arrive(row - scroll);
 			if (t <= 0f || row == rowCount() - 1) continue;

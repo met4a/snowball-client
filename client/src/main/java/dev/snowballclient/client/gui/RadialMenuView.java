@@ -255,11 +255,11 @@ public final class RadialMenuView extends View {
 		float dt = clock.tick();
 		lastDt = dt;
 		time += dt;
-		float speed = theme.animationSpeed * ANIM_SPEED;
+		float speed = theme.motion() * ANIM_SPEED;
 		// Reduced motion: everything is where it ends up at once.
-		boolean still = theme.animationSpeed <= 0f;
-		age = still ? 10f : age + dt * theme.animationSpeed;
-		panelAge = still ? 10f : panelAge + dt * theme.animationSpeed;
+		boolean still = theme.motion() <= 0f;
+		age = still ? 10f : age + dt * theme.motion();
+		panelAge = still ? 10f : panelAge + dt * theme.motion();
 		float o = open.update(dt, speed);
 		// The wheel turns into place as it opens, and back out as it closes.
 		float settle = 1f - o;
@@ -447,8 +447,8 @@ public final class RadialMenuView extends View {
 			glideY.setTarget(target);
 		}
 		glideAlpha.setTarget(onRow ? 1f : 0f);
-		float glide = glideAlpha.update(lastDt, theme.animationSpeed * 20f);
-		float gy = glideY.update(lastDt, theme.animationSpeed * 24f);
+		float glide = glideAlpha.update(lastDt, theme.motion() * 20f);
+		float gy = glideY.update(lastDt, theme.motion() * 24f);
 		for (int i = scroll; i < end; i++) {
 			// Rows slide in one after another when the panel changes.
 			float t = clamp01((panelAge - 0.03f - (i - scroll) * 0.035f) / 0.2f);
@@ -573,7 +573,7 @@ public final class RadialMenuView extends View {
 			cursor -= ToggleWidget.WIDTH;
 			Smoothed anim = toggleAnim.computeIfAbsent(m, k -> new Smoothed(k.isEnabled() ? 1f : 0f));
 			anim.setTarget(m.isEnabled() ? 1f : 0f);
-			float t = anim.update(lastDt, theme.animationSpeed * 18f);
+			float t = anim.update(lastDt, theme.motion() * 18f);
 			ToggleWidget.draw(c, cursor, cy - ToggleWidget.HEIGHT / 2, t, theme, alpha * (m.canToggle() ? 1f : 0.35f));
 			cursor -= 7;
 		} else if (m.hasSettings()) {

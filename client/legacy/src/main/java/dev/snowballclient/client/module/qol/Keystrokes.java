@@ -71,7 +71,7 @@ public final class Keystrokes extends HudModule {
 		long now = System.nanoTime();
 		float dt = lastFrameNanos == 0 ? 0f : Math.min(0.1f, (now - lastFrameNanos) / 1e9f);
 		lastFrameNanos = now;
-		float fadeSpeed = Math.max(0.001f, theme.animationSpeed) * 18f;
+		float fadeSpeed = Math.max(0.001f, theme.motion()) * 18f;
 
 		var options = MinecraftClient.getInstance().options;
 		key(c, theme, 0, UNIT + GAP, 0, UNIT, UNIT, labels[0], options.forwardKey.isPressed(), dt, fadeSpeed);
