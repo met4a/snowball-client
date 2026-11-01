@@ -1,5 +1,7 @@
 package dev.snowballclient.client.module.client;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import dev.snowballclient.client.config.ClientSettings;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.module.Module;
@@ -69,7 +71,7 @@ public final class InterfaceSettings extends Module {
 		glassLevel = setting(new NumberSetting("glass_level", "Transparency", "Clear (0) to tinted (100), always readable", factory.glassLevel(), 0, 100, 5));
 		hudGlass = setting(new ChoiceSetting("hud_glass", "HUD glass", "Auto matches menus; Lite with FPS Boost", factory.hudGlass, Theme.HUD_GLASS));
 		blurBehind = setting(new BooleanSetting("blur_behind", "Blur behind menus", "Blur the world behind Snowball's menus", true));
-		font = setting(new ChoiceSetting("font", "Font", "Menu text: Inter or Minecraft's font", factory.font, Theme.FONTS));
+		font = setting(new ChoiceSetting("font", "Font", "Menu text: Minecraft's font or Inter", factory.font, Theme.FONTS));
 		menuColor = setting(new ColorSetting("menu_color", "Menu colour", "Highlights, sliders and switches in every Snowball menu", factory.accentColor));
 		panelColor = setting(new ColorSetting("panel_color", "Panel colour", "The tint behind Snowball's menus", factory.surfaceColor).presets(PANEL_PRESETS));
 		scale = setting(new NumberSetting("scale", "Menu scale", "", theme.scale, Theme.MIN_SCALE, Theme.MAX_SCALE, 0.05));
@@ -165,6 +167,15 @@ public final class InterfaceSettings extends Module {
 	@Override
 	public boolean isToggleable() {
 		return false;
+	}
+
+	/** Smooth text (1.10.0) became the Font setting: a player who had it on keeps the smooth font. */
+	@Override
+	protected void migrateSettings(JsonObject saved) {
+		JsonElement smooth = saved.get("smooth_font");
+		if (!saved.has("font") && smooth != null && smooth.isJsonPrimitive() && smooth.getAsJsonPrimitive().isBoolean() && smooth.getAsBoolean()) {
+			saved.addProperty("font", Theme.FONT_INTER);
+		}
 	}
 
 	public boolean consumeThemeDirty() {

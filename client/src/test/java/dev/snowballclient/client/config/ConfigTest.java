@@ -178,7 +178,7 @@ class ConfigTest {
 		assertEquals(Theme.MAX_SCALE, theme.scale, "menu scale is clamped to 75-125%");
 		assertEquals(0xFFB794FF, theme.accentColor);
 		assertFalse(theme.blurBehind);
-		assertEquals(Theme.FONT_INTER, theme.font, "Inter is on for everyone");
+		assertEquals(Theme.FONT_MINECRAFT, theme.font, "Minecraft's font stays the default");
 		assertEquals(Theme.HUD_GLASS_AUTO, theme.hudGlass);
 
 		// Saved again, the file is schema 2 with no trace of the old keys.

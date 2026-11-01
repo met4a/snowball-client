@@ -18,7 +18,7 @@ class GlassLookTest {
 		assertTrue(theme.blurBehind);
 		assertEquals(50, theme.glassLevel(), "Regular is the default");
 		assertEquals(0.82f, theme.panelOpacity, 0.001f, "flat panels keep their old default opacity");
-		assertEquals(Theme.FONT_INTER, theme.font);
+		assertEquals(Theme.FONT_MINECRAFT, theme.font, "Minecraft's font is the default, as before Snowglass");
 		assertEquals(Theme.HUD_GLASS_AUTO, theme.hudGlass);
 		assertFalse(theme.reduceMotion);
 	}
@@ -30,7 +30,7 @@ class GlassLookTest {
 		theme.setGlassLevel(75);
 		theme.hudGlass = Theme.GLASS_OFF;
 		theme.reduceMotion = true;
-		theme.font = Theme.FONT_MINECRAFT;
+		theme.font = Theme.FONT_INTER;
 		theme.blurBehind = false;
 		Theme loaded = new Theme();
 		loaded.fromJson(theme.toJson());
@@ -38,7 +38,7 @@ class GlassLookTest {
 		assertEquals(75, loaded.glassLevel());
 		assertEquals(Theme.GLASS_OFF, loaded.hudGlass);
 		assertTrue(loaded.reduceMotion);
-		assertEquals(Theme.FONT_MINECRAFT, loaded.font);
+		assertEquals(Theme.FONT_INTER, loaded.font);
 		assertFalse(loaded.blurBehind);
 		assertTrue(loaded.glass());
 		assertFalse(loaded.liquid());
@@ -62,7 +62,7 @@ class GlassLookTest {
 		loaded.fromJson(broken);
 		assertEquals(Theme.GLASS_FULL, loaded.glassQuality);
 		assertTrue(loaded.blurBehind);
-		assertEquals(Theme.FONT_INTER, loaded.font);
+		assertEquals(Theme.FONT_MINECRAFT, loaded.font);
 		assertEquals(100, loaded.glassLevel());
 	}
 
@@ -122,8 +122,8 @@ class GlassLookTest {
 		settings.glassLevel.set(100.0);
 		assertEquals(100, theme.glassLevel());
 		assertEquals(1f, theme.panelOpacity, 0.001f);
-		settings.font.set(Theme.FONT_MINECRAFT);
-		assertEquals(Theme.FONT_MINECRAFT, theme.font);
+		settings.font.set(Theme.FONT_INTER);
+		assertEquals(Theme.FONT_INTER, theme.font);
 		settings.reduceMotion.set(true);
 		assertEquals(0f, theme.motion());
 		settings.hudGlass.set(Theme.GLASS_LITE);
@@ -141,6 +141,22 @@ class GlassLookTest {
 		assertEquals(Theme.MAX_SCALE, theme.scale);
 		settings.scale.set(0.5);
 		assertEquals(Theme.MIN_SCALE, theme.scale);
+	}
+
+	@Test
+	void smoothTextFromBeforeSnowglassBecomesTheSmoothFont() {
+		Theme theme = new Theme();
+		dev.snowballclient.client.module.ModuleManager modules = new dev.snowballclient.client.module.ModuleManager();
+		InterfaceSettings settings = modules.register(new InterfaceSettings(theme, new ClientSettings()));
+		modules.loadState(com.google.gson.JsonParser.parseString("{\"interface\":{\"settings\":{\"smooth_font\":true}}}").getAsJsonObject());
+		assertEquals(Theme.FONT_INTER, settings.font.get(), "a player who turned Smooth text on keeps it");
+		assertEquals(Theme.FONT_INTER, theme.font);
+
+		Theme other = new Theme();
+		dev.snowballclient.client.module.ModuleManager modules2 = new dev.snowballclient.client.module.ModuleManager();
+		InterfaceSettings settings2 = modules2.register(new InterfaceSettings(other, new ClientSettings()));
+		modules2.loadState(com.google.gson.JsonParser.parseString("{\"interface\":{\"settings\":{\"smooth_font\":false}}}").getAsJsonObject());
+		assertEquals(Theme.FONT_MINECRAFT, settings2.font.get(), "everyone else keeps Minecraft's font");
 	}
 
 	@Test

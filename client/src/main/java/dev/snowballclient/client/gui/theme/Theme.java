@@ -22,7 +22,7 @@ public final class Theme {
 	public static final List<String> HUD_GLASS = List.of(HUD_GLASS_AUTO, GLASS_FULL, GLASS_LITE, GLASS_OFF);
 	public static final String FONT_INTER = "inter";
 	public static final String FONT_MINECRAFT = "minecraft";
-	public static final List<String> FONTS = List.of(FONT_INTER, FONT_MINECRAFT);
+	public static final List<String> FONTS = List.of(FONT_MINECRAFT, FONT_INTER);
 	public static final float MIN_SCALE = 0.75f;
 	public static final float MAX_SCALE = 1.25f;
 	/** The panel colour before Snowglass, migrated to the brand surface colour when it was never changed. */
@@ -54,8 +54,8 @@ public final class Theme {
 	public String hudGlass = HUD_GLASS_AUTO;
 	/** Short fades instead of movement. */
 	public boolean reduceMotion = false;
-	/** {@link #FONT_INTER} or {@link #FONT_MINECRAFT} in Snowball's menus. */
-	public String font = FONT_INTER;
+	/** {@link #FONT_MINECRAFT} (the default) or {@link #FONT_INTER} in Snowball's menus. */
+	public String font = FONT_MINECRAFT;
 	/** Blur the world behind Snowball's menus, on versions that can. */
 	public boolean blurBehind = true;
 
@@ -250,7 +250,8 @@ public final class Theme {
 	 * Upgrades a gui.json written before Snowglass (schema 1): the look becomes a glass quality, panel
 	 * opacity becomes a glass level, animation speed 0 becomes Reduce Motion, and the old default panel
 	 * colour becomes the brand's. Values a player chose themselves are kept as close as the new settings
-	 * allow. Smooth text was off by default and Inter is now on for everyone, so it is not carried over.
+	 * allow. The font was never in gui.json (Smooth text lived in modules.json; InterfaceSettings carries
+	 * it over), so Minecraft's font stays the default, as it was.
 	 */
 	public static JsonObject migrateFromV1(JsonObject o) {
 		JsonElement style = o.remove("style");

@@ -1,6 +1,6 @@
 # Snowglass: in-game UI revamp plan (Phase 0)
 
-Status: **approved 2026-11-01**, with the recommended answers to all eight questions in §15, **except Q1: the radial wheel stays** (decided later the same day). Branch: `ui/snowglass`. Progress is tracked in PROGRESS.md.
+Status: **approved 2026-11-01**, with the recommended answers to all eight questions in §15, **except Q1: the radial wheel stays, and Q3: Minecraft's font is the default** (both decided later the same day). Branch: `ui/snowglass`. Progress is tracked in PROGRESS.md.
 Everything marked *verified* was checked this session against the repo, the Minecraft jars in the Gradle cache
 (`javap` on the 26.2 deobf jar and the Mojang-mapped 1.21.11 jar; there are no decompiled sources in the cache),
 or the extracted vanilla shaders. Everything marked *to verify* has not been checked yet and is scheduled.
@@ -522,7 +522,7 @@ One commit per milestone on `ui/snowglass`; no pushes unless asked.
 
 1. **Mod menu:** replace the radial wheel with the sidebar window? *Recommended: yes, replace.* (Keeping both doubles M4.) **Final answer: keep the wheel** and restyle it in place.
 2. **1.8.9:** it shares the UI code. *Recommended:* it gets the new layout and components automatically with the Off material and no shader work. The alternative, freezing 1.8.9 on today's UI, means forking ~55 files.
-3. **Typeface:** Inter, as in the brief, replacing Nunito everywhere, the main menu included, and **on by default for everyone**, with "Minecraft font" as the option? *Recommended: yes.* The alternatives are keeping Nunito, or Monocraft to match the launcher.
+3. **Typeface:** Inter, as in the brief, replacing Nunito everywhere, the main menu included, and **on by default for everyone**, with "Minecraft font" as the option? *Recommended: yes.* The alternatives are keeping Nunito, or Monocraft to match the launcher. **Final answer: Minecraft's font is the default everywhere, the main menu included; Inter stays as the smooth-font option** (it replaced Nunito), and anyone who had 1.10.0's Smooth text on keeps the smooth font.
 4. **Icons:** keep and extend Snowball's own line icons instead of adopting Lucide or Phosphor? *Recommended: keep* (original, already pixel-exact, "recognisably Snowball").
 5. **Main menu and loading screen:** restyle `TitleMenuView` with Snowglass, keeping its layout, in M6; leave the loading screen and the vanilla pause screen alone? *Recommended: yes.*
 6. **Favourites:** add per-module favourites to support the Favourites chip? *Recommended: yes.*

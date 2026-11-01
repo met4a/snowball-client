@@ -5,6 +5,12 @@ The plan was approved on 2026-11-01 with the recommended answers to Q1–Q8 (PLA
 
 ## Current state: M3 (controls) done, in the wheel menu's settings pages
 
+**Font, decided 2026-11-01 (user):** Minecraft's font is back as the default, the main menu included.
+- Inter stays as the option under Menu & Accessibility → Font. It replaced Nunito as the smooth font.
+- The main menu no longer forces the smooth font (`UiText.setAlwaysSmooth` is gone).
+- 1.10.0's `smooth_font` (modules.json) carries over: anyone who had it on gets Inter (`InterfaceSettings.migrateSettings`).
+- The "Inter replaces Nunito" notes under M1 still describe the smooth font; it is just not the default any more.
+
 ### M3: what changed
 
 - **`gui/snowglass/Controls`** (shared; draws on any canvas):
