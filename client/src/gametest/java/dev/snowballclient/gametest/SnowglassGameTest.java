@@ -92,6 +92,7 @@ public final class SnowglassGameTest implements FabricClientGameTest {
 		context.getInput().resizeWindow(1920, 1080);
 		try (TestSingleplayerContext world = context.worldBuilder().create()) {
 			context.waitTicks(40);
+			shaderPack(context);
 			int before = onClient(context, mc -> mc.options.guiScale().get());
 			onClient(context, mc -> {
 				// The defaults, whatever earlier runs saved: HUD elements where they start, and the default look.
@@ -134,6 +135,35 @@ public final class SnowglassGameTest implements FabricClientGameTest {
 		context.waitTicks(60);
 		save(context, "title_gui2");
 		endOnTitle(context);
+	}
+
+	/**
+	 * Compatibility runs only (-PcompatShaderpack=zip, with Iris among -PcompatMods): turns that shader
+	 * pack on through Iris's own config before anything is photographed. The run folder's shaderpacks
+	 * are cleared at launch, so the pack is copied in here.
+	 */
+	private static void shaderPack(ClientGameTestContext context) {
+		String pack = System.getProperty("snowball.compat.shaderpack", "");
+		if (pack.isBlank()) return;
+		String on = onClient(context, mc -> {
+			try {
+				Class<?> iris = Class.forName("net.irisshaders.iris.Iris");
+				Path source = Path.of(pack);
+				Path folder = (Path) iris.getMethod("getShaderpacksDirectory").invoke(null);
+				Files.createDirectories(folder);
+				Files.copy(source, folder.resolve(source.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+				Object config = iris.getMethod("getIrisConfig").invoke(null);
+				config.getClass().getMethod("setShaderPackName", String.class).invoke(config, source.getFileName().toString());
+				config.getClass().getMethod("setShadersEnabled", boolean.class).invoke(config, true);
+				config.getClass().getMethod("save").invoke(config);
+				iris.getMethod("reload").invoke(null);
+				return String.valueOf(iris.getMethod("getCurrentPackName").invoke(null));
+			} catch (ReflectiveOperationException | IOException e) {
+				throw new IllegalStateException("Could not turn on the shader pack " + pack, e);
+			}
+		});
+		LOG.info("Iris shader pack in use: {}", on);
+		context.waitTicks(60);
 	}
 
 	/** The same menu in another palette, leaning with 3D Menus, and the page where both are chosen. */

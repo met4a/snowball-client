@@ -9,6 +9,48 @@ installer once.
 
 ---
 
+## 2.0.0
+
+### What's new
+- **Snowglass: a new look for Snowball's menus and HUD.** Real glass you can
+  see the world through, blurred and gently bent at the edges, that darkens
+  itself just enough to keep text readable over snow, sky, caves or the Nether.
+  - **The Right Shift menu** keeps its wheel and list. Each module is now its
+    own pane of glass, with smoother switches, a search box that lights up
+    while you type, small status tags (like RESTART), and a selection that
+    glides between the FPS Boost presets.
+  - **Your HUD** sits on compact dark glass tiles a little in from the screen's
+    edges. Keystrokes keys are glass and light up while held. The armour HUD
+    shows a green, amber or red bar under each item's durability. Potion
+    effects list the time on the right.
+  - **The HUD editor** snaps elements to each other with guide lines, resizes
+    with the scroll wheel, nudges by 8 with Shift + arrows, and has a toolbar
+    (Grid, Snap, Reset all, Done). Undo puts back a whole Reset all at once.
+  - **Module settings** have new switches, sliders that show their value while
+    you drag, side-by-side choices, dropdowns, and full descriptions when you
+    rest the mouse on a setting. They also say when a keybind is already used
+    by something else. Tab and the arrow keys work everywhere.
+  - **The main menu** buttons are glass too, and notifications are glass cards
+    that sit below your clock instead of covering it.
+- **New options under Menu & Accessibility:**
+  - **Glass quality.** Full; Lite, which only blurs and is lighter on older
+    PCs; or Off for solid panels.
+  - **Transparency**, from clear to fully tinted. The default is Thick: dark
+    and easy to read.
+  - **HUD glass.** Auto uses Lite while FPS Boost is on.
+  - **Reduce motion.**
+  - **Font:** Minecraft's font, or the smooth font.
+
+  Your colours, menu size, 3D Menus and high contrast all carry over. High
+  contrast always draws solid panels.
+
+### Fixed
+- **Dark text on bright buttons was smudged** by its shadow.
+- **Rounded outlines had small gaps** where the corners met the edges.
+- **Notifications covered the clock** in the top-right corner.
+
+---
+
 ## 1.12.0
 
 ### What's new

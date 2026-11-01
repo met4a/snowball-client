@@ -85,6 +85,17 @@ The plan was approved on 2026-11-01 with the recommended answers to Q1–Q8 (PLA
 - **Every game test passes on 26.2 and 1.21.11:** menu, flicker, render, skins, spatial, anticrash, mapart and snowglass.
 - 1.21.11's first run crashed in the render test with the known "Network synchronizer in invalid state" flake, while the server was 14 s behind with another Minecraft open. The re-run passed.
 
+### Compatibility with the launcher's optimisation mods (2026-11-02, before releasing 2.0.0)
+
+The launcher's FPS Boost profiles install Sodium, Lithium, FerriteCore, ImmediatelyFast and Entity Culling, and Visual Quality adds Iris. The newest Modrinth builds of each (SHA-1 checked), for each version, were run with `-Ponly=menu,snowglass`:
+- **26.2, FPS Boost stack** (Sodium 0.9.2, ImmediatelyFast 1.16.5, Lithium 0.25.3, FerriteCore 9.0.0, Entity Culling 1.11.3): passes. The glass is real (looked at).
+- **26.2, Iris 1.11.4 with Complementary Reimagined r5.9.3 active:** passes. Glass draws as Lite while a pack is on, as designed.
+- **1.21.11, FPS Boost stack** (Sodium 0.8.15-beta.1, ImmediatelyFast 1.14.3, Lithium 0.21.4, FerriteCore 8.2.0, Entity Culling 1.11.3): passes.
+- **1.21.11, Iris 1.10.8 with the same pack:** passes. The pack's own "Unknown variable: BIOME_SULFUR_CAVES" error (a 26.x biome) was caught by Anti-Crash and is unrelated.
+- **How:** `-PcompatMods.<version>=<folder of jars>` adds them to that version's dev run only (`modLocalRuntime`, never in the jar; PLAN.md Q8). `-PcompatShaderpack=<zip>` has the Snowglass test switch the pack on through Iris's config, because the run folder's `mods` and `shaderpacks` are cleared at each launch.
+- **1.21.11 needs the mods' bundled libraries** (from `META-INF/jars`) beside them: Loom does not unpack them for local files.
+- **Screenshots:** `screenshots/26.2/opengl-boost-mods/`, `screenshots/26.2/opengl-iris-complementary/` and `screenshots/1.21.11/opengl-iris-complementary/`.
+
 **Not changed, with reasons:**
 - **Nether Travel tabs:** they are still square.
 - **Settings tooltip:** it can still run past the panel edge, since `Controls.tooltip` keeps it on the screen, not inside the panel.
