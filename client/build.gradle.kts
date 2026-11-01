@@ -98,7 +98,14 @@ tasks {
         if (project.hasProperty("flickerReport")) (this as JavaExec).systemProperty("snowball.flicker.report", "true")
         // Runs only some of the tests, by name: -Ponly=menu,flicker,render
         if (project.hasProperty("only")) (this as JavaExec).systemProperty("snowball.only", project.property("only").toString())
+        // Another graphics backend (26.2 can run on Vulkan): -Pbackend=vulkan
+        val backend = project.findProperty("backend")?.toString() ?: "opengl"
+        if (backend != "opengl") (this as JavaExec).args("--graphicsBackend", backend)
+        // Pretends the glass shaders failed, to check menus fall back to solid panels: -PglassFail
+        val glassFail = project.hasProperty("glassFail")
+        if (glassFail) (this as JavaExec).systemProperty("snowball.glass.failForTest", "true")
         // Snowglass screenshots are copied next to the design docs, per Minecraft version and graphics backend.
-        (this as JavaExec).systemProperty("snowball.screenshots", rootProject.file("../docs/ui-revamp/screenshots/$minecraftVersion/opengl").absolutePath)
+        val shots = if (glassFail) "$backend-fallback" else backend
+        (this as JavaExec).systemProperty("snowball.screenshots", rootProject.file("../docs/ui-revamp/screenshots/$minecraftVersion/$shots").absolutePath)
     }
 }

@@ -22,7 +22,22 @@ public final class GlassTuning {
 	/** Strength of the soft shadow below glass. */
 	public static float shadow = 1f;
 
+	/**
+	 * Lens, dispersion, grain and shadow are compiled into the glass shader (GUI draws carry no
+	 * uniforms), so the shader is rebuilt when they change: this counts the changes.
+	 */
+	private static int shaderRevision;
+
 	private GlassTuning() {
+	}
+
+	public static int shaderRevision() {
+		return shaderRevision;
+	}
+
+	/** Asks for the glass shader to be rebuilt with the current values; the lab calls it when a slider is let go. */
+	public static void shaderChanged() {
+		shaderRevision++;
 	}
 
 	/** The material at this level with the lab's scales applied. */
@@ -43,6 +58,7 @@ public final class GlassTuning {
 		dispersion = 1f;
 		grain = 0.015f;
 		shadow = 1f;
+		shaderChanged();
 	}
 
 	private static float clamp01(float v) {

@@ -1,5 +1,6 @@
 package dev.snowballclient.client.platform;
 
+import dev.snowballclient.client.gui.snowglass.GlassPanel;
 import dev.snowballclient.client.ui.Canvas;
 import dev.snowballclient.client.ui.UiTexture;
 import net.minecraft.client.Minecraft;
@@ -97,5 +98,16 @@ public final class GuiCanvas implements Canvas {
 	@Override
 	public void drawTextureRegion(UiTexture texture, int x, int y, int u, int v, int width, int height, int argb) {
 		graphics.blit(RenderPipelines.GUI_TEXTURED, MinecraftTextures.id(texture), x, y, u, v, width, height, texture.width(), texture.height(), argb);
+	}
+
+	@Override
+	public boolean drawsGlass(String quality) {
+		return SnowglassRenderer.accepts(quality);
+	}
+
+	@Override
+	public void glass(GlassPanel panel) {
+		if (SnowglassRenderer.accepts(panel.quality())) SnowglassRenderer.submit(graphics, panel);
+		else Canvas.super.glass(panel);
 	}
 }

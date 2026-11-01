@@ -22,6 +22,7 @@ import dev.snowballclient.client.perf.ModScanner;
 import dev.snowballclient.client.module.client.Menu3D;
 import dev.snowballclient.client.platform.MinecraftSkinPlatform;
 import dev.snowballclient.client.platform.MinecraftTextures;
+import dev.snowballclient.client.platform.SnowglassRenderer;
 import dev.snowballclient.client.platform.SpatialGame;
 import dev.snowballclient.client.platform.ViewScreen;
 import dev.snowballclient.client.social.Rank;
@@ -211,6 +212,7 @@ public final class SnowballClient implements ClientModInitializer {
 		Looks.setShowOthers(ModuleRegistry.COSMETICS.showOthers.isOn());
 		Emotes.setShowOthers(ModuleRegistry.EMOTES.isEnabled() && ModuleRegistry.EMOTES.showOthers.isOn());
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> NowPlaying.get().stop());
+		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> SnowglassRenderer.close());
 		modules.onKeybindChanged(m -> config.saveKeybinds(modules));
 		modules.onStateChanged(m -> {
 			// Only keybind toggles (no screen open) produce notifications; menu clicks are already visible.

@@ -3,6 +3,8 @@ package dev.snowballclient.client.hud;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.module.Module;
 import dev.snowballclient.client.module.ModuleCategory;
+import dev.snowballclient.client.module.ModuleRegistry;
+import dev.snowballclient.client.platform.GuiCanvas;
 import dev.snowballclient.client.module.setting.BooleanSetting;
 import dev.snowballclient.client.module.setting.NumberSetting;
 import net.minecraft.client.Minecraft;
@@ -13,6 +15,9 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * space, so the element stays fully visible at every resolution and GUI scale.
  */
 public abstract class HudModule extends Module {
+	/** Draws backgrounds as glass; HUD elements are drawn one at a time on the render thread, so one is shared. */
+	private static final GuiCanvas CANVAS = new GuiCanvas();
+
 	public final NumberSetting posX;
 	public final NumberSetting posY;
 	public final NumberSetting scale;
@@ -82,7 +87,10 @@ public abstract class HudModule extends Module {
 		if (angle != 0f) g.pose().rotate(angle);
 		g.pose().scale(s, s);
 		g.pose().translate(-w / 2f, -h / 2f);
-		if (background.isOn()) dev.snowballclient.client.gui.Glass.hud(g::fill, theme, w, h, backgroundOpacity.floatValue());
+		if (background.isOn()) {
+			boolean fpsBoost = ModuleRegistry.FPS_BOOST != null && ModuleRegistry.FPS_BOOST.isEnabled();
+			dev.snowballclient.client.gui.Glass.hud(CANVAS.wrap(g), theme, w, h, backgroundOpacity.floatValue(), theme.hudGlassQuality(fpsBoost));
+		}
 		renderContent(g, mc, theme, w, h);
 		g.pose().popMatrix();
 	}

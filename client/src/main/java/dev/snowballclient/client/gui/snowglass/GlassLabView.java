@@ -28,13 +28,17 @@ public final class GlassLabView extends View {
 	private static final int PANEL_W = 156;
 	/** The space the lab is laid out in; smaller screens draw it scaled down to fit. */
 	private static final float LAYOUT_W = 640f;
-	private static final float LAYOUT_H = 310f;
+	private static final float LAYOUT_H = 336f;
 	private static final int ROW_H = 20;
 	/** A bright, slightly blue white: what a snowfield at noon looks like once blurred. */
 	private static final int SNOW = 0xFFF1F5FA;
 	private static final float SWING_SECONDS = 1.2f;
 
-	private record Slider(String label, double min, double max, DoubleSupplier value, Consumer<Double> set, String format) {
+	/** A lab slider; {@code compiled} ones are baked into the glass shader, which is rebuilt when let go. */
+	private record Slider(String label, double min, double max, DoubleSupplier value, Consumer<Double> set, String format, boolean compiled) {
+		Slider(String label, double min, double max, DoubleSupplier value, Consumer<Double> set, String format) {
+			this(label, min, max, value, set, format, false);
+		}
 	}
 
 	private final Theme theme;
@@ -59,11 +63,11 @@ public final class GlassLabView extends View {
 				new Slider("Tint x", 0, 2, () -> GlassTuning.tintScale, v -> GlassTuning.tintScale = v.floatValue(), "%.2f"),
 				new Slider("Saturation x", 0, 2, () -> GlassTuning.saturationScale, v -> GlassTuning.saturationScale = v.floatValue(), "%.2f"),
 				new Slider("Rim x", 0, 2, () -> GlassTuning.rimScale, v -> GlassTuning.rimScale = v.floatValue(), "%.2f"),
-				new Slider("Lens bezel", 0, 24, () -> GlassTuning.lensBezel, v -> GlassTuning.lensBezel = v.floatValue(), "%.0f"),
-				new Slider("Lens strength", 0, 16, () -> GlassTuning.lensStrength, v -> GlassTuning.lensStrength = v.floatValue(), "%.1f"),
-				new Slider("Dispersion", 0, 2, () -> GlassTuning.dispersion, v -> GlassTuning.dispersion = v.floatValue(), "%.2f"),
-				new Slider("Grain", 0, 0.05, () -> GlassTuning.grain, v -> GlassTuning.grain = v.floatValue(), "%.3f"),
-				new Slider("Shadow", 0, 2, () -> GlassTuning.shadow, v -> GlassTuning.shadow = v.floatValue(), "%.2f"));
+				new Slider("Lens bezel", 0, 24, () -> GlassTuning.lensBezel, v -> GlassTuning.lensBezel = v.floatValue(), "%.0f", true),
+				new Slider("Lens strength", 0, 16, () -> GlassTuning.lensStrength, v -> GlassTuning.lensStrength = v.floatValue(), "%.1f", true),
+				new Slider("Dispersion", 0, 2, () -> GlassTuning.dispersion, v -> GlassTuning.dispersion = v.floatValue(), "%.2f", true),
+				new Slider("Grain", 0, 0.05, () -> GlassTuning.grain, v -> GlassTuning.grain = v.floatValue(), "%.3f", true),
+				new Slider("Shadow", 0, 2, () -> GlassTuning.shadow, v -> GlassTuning.shadow = v.floatValue(), "%.2f", true));
 	}
 
 	@Override
@@ -81,6 +85,12 @@ public final class GlassLabView extends View {
 
 	@Override
 	public boolean pausesGame() {
+		return false;
+	}
+
+	/** The world stays sharp around the lab, so what the glass does to it can be judged. */
+	@Override
+	public boolean blursBackground() {
 		return false;
 	}
 
@@ -104,7 +114,7 @@ public final class GlassLabView extends View {
 
 		text(c, "Snowglass Lab", SmoothText.Weight.SEMIBOLD, SnowglassTokens.TYPE_DISPLAY, left, y, SnowglassTokens.TEXT_PRIMARY, false);
 		y += SnowglassTokens.TYPE_DISPLAY + 2;
-		text(c, "Development only. Off material until the glass shader lands (M2).", SmoothText.Weight.REGULAR,
+		text(c, "Development only. Compiled-in sliders (lens to shadow) rebuild the shader when let go.", SmoothText.Weight.REGULAR,
 				SnowglassTokens.TYPE_CAPTION, left, y, SnowglassTokens.TEXT_SECONDARY, false);
 		y += SnowglassTokens.TYPE_CAPTION + SnowglassTokens.SPACE_3;
 
@@ -132,41 +142,48 @@ public final class GlassLabView extends View {
 		}
 	}
 
-	/** The five stops over the world, then over the snow stand-in with the tint legibility asks for. */
+	/**
+	 * The five stops as Full and as Lite glass over the world (solid where the shader cannot run), then
+	 * the Off material over the snow stand-in, with the tint legibility asks for there.
+	 */
 	private int drawStops(Canvas c, int x, int y, int w) {
-		label(c, "MATERIAL LEVELS  (top: over the world, ratio for a night sky; bottom: over snow)", x, y);
+		label(c, "MATERIAL LEVELS  (rows: Full glass, Lite glass, Off over a snow stand-in)", x, y);
 		y += SnowglassTokens.TYPE_CAPTION + SnowglassTokens.SPACE_1;
 		int gap = 6;
 		int sw = (w - gap * 4) / 5;
-		int sh = 40;
+		int sh = 32;
 		int tint = theme.surface(1f);
 		double snow = Legibility.luminance(SNOW);
-		for (int row = 0; row < 2; row++) {
+		String[] qualities = {Theme.GLASS_FULL, Theme.GLASS_LITE};
+		for (int row = 0; row < 3; row++) {
 			int ry = y + row * (sh + gap);
 			for (int i = 0; i < MaterialLevel.STOPS.size(); i++) {
 				MaterialLevel.Stop stop = MaterialLevel.STOPS.get(i);
 				MaterialLevel m = GlassTuning.material(stop.level());
 				int sx = x + i * (sw + gap);
-				float alpha = m.tint();
-				if (row == 1) {
-					GuiDraw.roundedRect(c, sx - 3, ry - 3, sw + 6, sh + 6, SnowglassTokens.CONTROL_RADIUS + 3, SNOW);
-					alpha = Math.max(alpha, Legibility.tintAlpha(stop.level(), snow, tint));
-				}
-				OffMaterial.panel(c, sx, ry, sw, sh, SnowglassTokens.CARD_RADIUS, tint, alpha, m.rim(), 1f);
-				text(c, stop.name(), SmoothText.Weight.MEDIUM, SnowglassTokens.TYPE_BODY, sx + 6, ry + 6, SnowglassTokens.TEXT_PRIMARY, false);
 				int secondary = SnowglassTokens.secondaryText(stop.level());
-				double backdrop = row == 1 ? Legibility.composite(snow, tint, alpha) : Legibility.composite(0.02, tint, alpha);
-				String ratio = String.format(Locale.ROOT, "%.1f:1  a %.2f", Legibility.contrast(Legibility.luminance(SnowglassTokens.TEXT_PRIMARY), backdrop), alpha);
-				text(c, ratio, SmoothText.Weight.REGULAR, SnowglassTokens.TYPE_CAPTION, sx + 6, ry + 6 + SnowglassTokens.TYPE_BODY + 4, secondary, true);
+				String detail;
+				if (row < 2) {
+					c.glass(new GlassPanel(sx, ry, sw, sh, SnowglassTokens.CARD_RADIUS, tint, stop.level(), qualities[row], 1f, true, false));
+					detail = String.format(Locale.ROOT, "%s  a %.2f+", qualities[row], m.tint());
+				} else {
+					GuiDraw.roundedRect(c, sx - 3, ry - 3, sw + 6, sh + 6, SnowglassTokens.CONTROL_RADIUS + 3, SNOW);
+					float alpha = Math.max(m.tint(), Legibility.tintAlpha(stop.level(), snow, tint));
+					OffMaterial.panel(c, sx, ry, sw, sh, SnowglassTokens.CARD_RADIUS, tint, alpha, m.rim(), 1f);
+					double backdrop = Legibility.composite(snow, tint, alpha);
+					detail = String.format(Locale.ROOT, "%.1f:1  a %.2f", Legibility.contrast(Legibility.luminance(SnowglassTokens.TEXT_PRIMARY), backdrop), alpha);
+				}
+				text(c, stop.name(), SmoothText.Weight.MEDIUM, SnowglassTokens.TYPE_BODY, sx + 6, ry + 5, SnowglassTokens.TEXT_PRIMARY, false);
+				text(c, detail, SmoothText.Weight.REGULAR, SnowglassTokens.TYPE_CAPTION, sx + 6, ry + 5 + SnowglassTokens.TYPE_BODY + 3, secondary, true);
 			}
 		}
-		return y + 2 * sh + gap;
+		return y + 3 * sh + 2 * gap;
 	}
 
 	private int drawType(Canvas c, int x, int y, int w) {
 		label(c, "TYPE", x, y);
 		y += SnowglassTokens.TYPE_CAPTION + SnowglassTokens.SPACE_1;
-		OffMaterial.panel(c, x, y, w, 62, SnowglassTokens.CARD_RADIUS, theme.surface(1f), GlassTuning.material(previewLevel).tint(), GlassTuning.material(previewLevel).rim(), 1f);
+		c.glass(new GlassPanel(x, y, w, 62, SnowglassTokens.CARD_RADIUS, theme.surface(1f), previewLevel, theme.menuGlassQuality(), 1f, true, false));
 		int tx = x + 8;
 		int ty = y + 6;
 		text(c, "Display 14 SemiBold", SmoothText.Weight.SEMIBOLD, SnowglassTokens.TYPE_DISPLAY, tx, ty, SnowglassTokens.TEXT_PRIMARY, false);
@@ -220,7 +237,7 @@ public final class GlassLabView extends View {
 	private void drawSliders(Canvas c) {
 		int y = MARGIN;
 		int h = Math.min(layoutHeight - 2 * MARGIN, 30 + sliders.size() * ROW_H + 24);
-		OffMaterial.panel(c, panelX, y, PANEL_W, h, SnowglassTokens.CARD_RADIUS, theme.surface(1f), 0.86f, 0.6f, 1f);
+		c.glass(new GlassPanel(panelX, y, PANEL_W, h, SnowglassTokens.WINDOW_RADIUS, theme.surface(1f), MaterialLevel.THICK, theme.menuGlassQuality(), 1f, true, true));
 		text(c, "Material", SmoothText.Weight.SEMIBOLD, SnowglassTokens.TYPE_TITLE, panelX + 10, y + 8, SnowglassTokens.TEXT_PRIMARY, false);
 		text(c, MaterialLevel.nameOf(previewLevel), SmoothText.Weight.REGULAR, SnowglassTokens.TYPE_CAPTION, panelX + 70, y + 10, SnowglassTokens.TEXT_SECONDARY, false);
 		for (int i = 0; i < sliders.size(); i++) {
@@ -280,6 +297,7 @@ public final class GlassLabView extends View {
 	@Override
 	public boolean mouseReleased(double mouseX, double mouseY, int button) {
 		boolean was = dragging >= 0;
+		if (was && sliders.get(dragging).compiled()) GlassTuning.shaderChanged();
 		dragging = -1;
 		return was;
 	}
@@ -300,17 +318,22 @@ public final class GlassLabView extends View {
 		s.set.accept(s.min + (s.max - s.min) * k);
 	}
 
+	/** A section label, straight on the world: given a dark shadow so it reads over a bright sky. */
 	private void label(Canvas c, String text, int x, int y) {
-		text(c, text, SmoothText.Weight.SEMIBOLD, SnowglassTokens.TYPE_CAPTION, x, y, SnowglassTokens.TEXT_SECONDARY, false);
+		text(c, text, SmoothText.Weight.SEMIBOLD, SnowglassTokens.TYPE_CAPTION, x, y, SnowglassTokens.TEXT_PRIMARY, false, true);
+	}
+
+	private void text(Canvas c, String text, SmoothText.Weight weight, int size, int x, int y, int argb, boolean tabular) {
+		text(c, text, weight, size, x, y, argb, tabular, false);
 	}
 
 	/**
 	 * Text at a Snowglass size, its cap height starting at {@code y}: Inter at the exact pixel size where
 	 * smooth text can be drawn, Minecraft's font otherwise.
 	 */
-	private void text(Canvas c, String text, SmoothText.Weight weight, int size, int x, int y, int argb, boolean tabular) {
+	private void text(Canvas c, String text, SmoothText.Weight weight, int size, int x, int y, int argb, boolean tabular, boolean shadow) {
 		if (!SmoothText.usable(c)) {
-			c.drawText(text, x, y, argb, false);
+			c.drawText(text, x, y, argb, shadow);
 			return;
 		}
 		double density = c.guiScale() * zoom;
@@ -318,6 +341,10 @@ public final class GlassLabView extends View {
 		int baseline = (int) Math.round(y * density + SmoothText.capHeight(weight, pixels));
 		c.push();
 		c.scale((float) (1.0 / density), (float) (1.0 / density));
+		if (shadow) {
+			int drop = Math.max(1, (int) Math.round(density * 0.5));
+			SmoothText.draw(c, text, weight, pixels, (float) (x * density) + drop, baseline + drop, 0xB0000000, tabular);
+		}
 		SmoothText.draw(c, text, weight, pixels, (float) (x * density), baseline, argb, tabular);
 		c.pop();
 	}

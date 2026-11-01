@@ -3,7 +3,63 @@
 Read this first in any new session, then `PLAN.md`. Branch: `ui/snowglass` (not pushed).
 The plan was approved on 2026-11-01 with the recommended answers to Q1–Q8 (PLAN.md §15).
 
-## Current state: M1 (design system) done; next is M2 (glass renderer)
+## Current state: M2 (real glass) done, and it is in the real Snowball menu
+
+**Direction from the user (2026-11-01, after seeing the Glass Lab):** they want *the normal Snowball
+menu*, one menu that works with colour switching, 3D Menus and everything else, not a separate
+design. So real glass now goes into the existing menus through `Glass.panel` (the radial menu's side
+panel, module settings, Menu & Accessibility, every `PanelView` page, the colour picker, waypoints,
+notifications) and the HUD backgrounds. **Open question for the user:** keep the radial wheel and drop
+the sidebar-window redesign planned for M4 (Q1 was answered "replace" before this)? Ask before starting M4.
+
+### M2: what changed
+
+- **Shaders** (`assets/snowballclient/shaders/core/`):
+  - `snowglass.vsh/.fsh`: one quad per panel. It does:
+    - a rounded-rect SDF with derivative anti-aliasing
+    - lensing in a rim band, and dispersion at the rim (Full only)
+    - frost: small controls stay clear, big panels frost, and the rim looks through clearer glass so the bending shows
+    - the adaptive legibility tint, sampled from the 1/8 level (same sums as `Legibility.java`)
+    - a rim lit from the top left, a bottom shade, grain, and a soft shadow
+  - `snowglass_down.fsh` / `snowglass_up.fsh`: dual-Kawase pyramid passes, drawn with vanilla's `core/screenquad`.
+  - Written in vanilla's own GLSL subset: no `gl_FragCoord.xy` for sampling (the backdrop UV comes from clip space, as vanilla's full-screen passes do), and no names that clash with GLSL built-ins.
+- **`platform/SnowglassRenderer`** (modern only):
+  - pyramid textures at 1/2, 1/4, 1/8, plus a 1/4 up-sample for Full
+  - glass and blur pipelines, written with `//? if` for 1.21.11 vs 26.2
+  - pooled `GlassElement`s (`GuiElementRenderState`) using vanilla's entity vertex layout to carry per-panel data
+  - fallback to Off for the session if the pipelines don't validate (`precompilePipeline(...).isValid()`), logged once with one notification
+  - Full drops to Lite while an Iris shader pack is in use (by reflection; untested)
+  - textures recreated on resize and closed on shutdown
+- **Mixins:**
+  - `GuiRendererMixin`: builds the pyramid at the start of `GuiRenderer.draw`, or right after vanilla's `processBlurEffect` when a menu asked for the background blur, so the glass matches the blurred world around it. It also resets the pool when `draw` returns.
+  - `GuiStateAccessor`: an `@Accessor` for `guiRenderState`.
+- **Canvas.** `Canvas.drawsGlass(quality)` and `Canvas.glass(GlassPanel)`: `GuiCanvas` draws real glass. The defaults draw nothing new, so 1.8.9 and 3D Menus' in-world windows look exactly as before.
+- **`Glass.panel`.** When real glass is available it draws it, keeping the 3D Menus thickness, the menu-colour glow and the lean's light. Otherwise it draws exactly the old look.
+- **`Glass.hud`.** HUD backgrounds are glass. The element's own opacity slider becomes its transparency level, and quality follows HUD glass (Auto is Lite while FPS Boost is on).
+- **Glass Lab** (dev-only, F7): moved onto real glass (Full and Lite rows). Compiled-in sliders rebuild the shader when let go.
+- **`SnowglassGameTest`** now photographs the **real menu**:
+  - over six backdrops built with commands (snow, desert, village, night, cave, Nether), at GUI 2, and over snow at GUI Auto
+  - the HUD alone over snow and the village
+  - over the village, also in the Aurora palette, with 3D Menus leaning, and with Menu & Accessibility open
+  - Switches: `-Pbackend=vulkan`, and `-PglassFail` (forces the fallback).
+
+### M2: verified
+
+- Builds on all three targets; unit tests pass.
+- Screenshots looked at, in `screenshots/26.2/opengl/` and `screenshots/1.21.11/opengl/` (both versions render the same):
+  - glass shows the world behind, frosted and tinted
+  - over snow the panel darkens on its own and text stays readable
+  - the palette switch recolours the glass; the 3D lean bends the glass with the panel
+  - the HUD pills read over the bright village
+- The forced shader failure falls back to the old look with no crash: `screenshots/26.2/opengl-fallback/`.
+- The full game-test suite (menu, flicker, render, skins, spatial, snowglass) passes on 26.2 (5m 46s) and on 1.21.11 (5m 48s), with the glass renderer in.
+
+### M2: not verified
+
+- **Vulkan.** The 26.2 Vulkan backend loses the device (`VK_ERROR_DEVICE_LOST` in vanilla's "GUI after blur" pass) while Fabric's test is still on Minecraft's Create World screen, before any world or glass exists. The M1 commit, which has no glass renderer, crashes the same way, so it isn't Snowglass. It may be the experimental backend, the game-test harness, or the OBS graphics hook loaded into the process. Glass on Vulkan is untested.
+- **GPU cost.** Not measured. The game-test harness renders one frame per tick, so frame times there mean nothing, and scoped GPU timer queries aren't wired up yet. Planned for M7.
+- **Iris, Sodium, ImmediatelyFast.** Not tested.
+- **1.8.9.** Not run in game.
 
 ### M1: what changed
 
@@ -81,16 +137,11 @@ The plan was approved on 2026-11-01 with the recommended answers to Q1–Q8 (PLA
 - The Apple HIG "Materials" and Liquid Glass overview pages could not be read (they render with JavaScript); the WWDC25 transcript was used instead.
 - Only the first halves of the 26.2, 26.1 and 1.21.11 primers were read.
 
-## Next: M2 (glass renderer)
+## Next
 
-1. Read the second halves of the 26.2 and 1.21.11 primers (shaders, samplers, blur).
-2. Confirm in the jars:
-   - the `--graphicsBackend` values (26.2 `Main`)
-   - `RenderSystem.getSamplerCache()` on 1.21.11
-   - how custom `RenderPipeline`s are registered and precompiled on each version
-   - the Iris API class used for detection
-3. Build the backdrop pyramid, the `snowball:glass` pipeline, the glass render state, the `GuiRenderer.draw` HEAD inject and the `guiRenderState` accessor (PLAN.md §6).
-4. Extend `SnowglassGameTest` with the six backdrops, and add `-Pbackend=vulkan` for 26.2.
+1. **Ask the user:** keep the radial wheel menu (and redo M4 as "restyle the existing menus") instead of the sidebar-window redesign?
+2. M3 components (switch, slider and so on), built so they slot into the existing menus.
+3. In M7: measure GPU cost, try Vulkan outside the game-test harness, and run Iris, Sodium and ImmediatelyFast.
 
 ## Reproducing the reference captures
 

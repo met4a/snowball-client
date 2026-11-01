@@ -1,5 +1,6 @@
 package dev.snowballclient.client.gui;
 
+import dev.snowballclient.client.gui.snowglass.GlassPanel;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.hud.GuiDraw;
 import dev.snowballclient.client.ui.Canvas;
@@ -37,6 +38,15 @@ public final class Glass {
 	/** A main surface whose body is {@code bodyOpacity} solid, for panels that sit over something worth seeing. */
 	public static void panel(Canvas c, Theme t, int x, int y, int w, int h, int radius, float alpha, float bodyOpacity) {
 		if (w <= 0 || h <= 0 || alpha <= 0.01f) return;
+		if (t.glass() && c.drawsGlass(t.menuGlassQuality())) {
+			// Real Snowglass: the world behind, blurred, bent at the rim and tinted in the panel colour.
+			// The 3D Menus thickness, the menu colour's glow and the lean's light stay as they were.
+			slab(c, t, x, y, w, h, radius, alpha);
+			c.glass(new GlassPanel(x, y, w, h, radius, t.surface(1f), t.glassLevel(), t.menuGlassQuality(), alpha, Depth.shadows(), false));
+			if (t.liquid()) accentGlow(c, t, x, y, w, h, radius, alpha);
+			shade(c, x, y, w, h, radius, alpha);
+			return;
+		}
 		if (!t.glass()) {
 			if (Depth.active()) shadow(c, x, y, w, h, radius, alpha, 0.44f);
 			else GuiDraw.roundedRect(c, x + 2, y + 4, w, h, radius + 1, scaleAlpha(0x70000000, alpha));
@@ -56,15 +66,7 @@ public final class Glass {
 		gradientBody(c, x, y, w, h, radius, scaleAlpha(top, alpha), scaleAlpha(bottom, alpha));
 
 		if (liquid) {
-			// A wash of the menu colour rising from the bottom, and a bright line of it along the edge.
-			int wash = Math.max(8, h / 3);
-			GuiDraw.verticalGradient(c, x + radius, y + h - wash - 1, w - 2 * radius, wash,
-					scaleAlpha(Theme.withAlpha(t.accent(), 0f), alpha), scaleAlpha(Theme.withAlpha(t.accent(), 0.07f), alpha), 12);
-			int glowW = (w - 2 * radius) / 2;
-			GuiDraw.horizontalGradient(c, x + radius, y + h - 2, glowW, 1,
-					scaleAlpha(Theme.withAlpha(t.accent(), 0f), alpha), scaleAlpha(Theme.withAlpha(t.accent(), 0.55f), alpha), 16);
-			GuiDraw.horizontalGradient(c, x + radius + glowW, y + h - 2, w - 2 * radius - glowW, 1,
-					scaleAlpha(Theme.withAlpha(t.accent(), 0.55f), alpha), scaleAlpha(Theme.withAlpha(t.accent(), 0f), alpha), 16);
+			accentGlow(c, t, x, y, w, h, radius, alpha);
 			sheen(c, x, y, w, h, radius, alpha);
 		}
 		shade(c, x, y, w, h, radius, alpha);
@@ -102,6 +104,19 @@ public final class Glass {
 		c.fill(x + radius, y + h - 1, x + w - radius, y + h, scaleAlpha(0x1A000000, alpha));
 	}
 
+	/**
+	 * Background of a HUD element at (0, 0): real glass where the canvas can draw it in this quality,
+	 * the element's own opacity setting standing in for the Transparency slider; fills otherwise.
+	 */
+	public static void hud(Canvas c, Theme t, int w, int h, float opacity, String quality) {
+		if (t.glass() && !t.highContrast && c.drawsGlass(quality)) {
+			int level = Math.round(Math.max(0f, Math.min(1f, opacity)) * 100f);
+			c.glass(new GlassPanel(0, 0, w, h, 3, t.surface(1f), level, quality, 1f, false, false));
+			return;
+		}
+		hud((GuiDraw.Fill) c, t, w, h, opacity);
+	}
+
 	/** Background of a HUD element, from fills only. */
 	public static void hud(GuiDraw.Fill g, Theme t, int w, int h, float opacity) {
 		if (!t.glass()) {
@@ -120,6 +135,18 @@ public final class Glass {
 	}
 
 	// ---- pieces ----
+
+	/** A wash of the menu colour rising from the bottom, and a bright line of it along the edge. */
+	private static void accentGlow(Canvas c, Theme t, int x, int y, int w, int h, int radius, float alpha) {
+		int wash = Math.max(8, h / 3);
+		GuiDraw.verticalGradient(c, x + radius, y + h - wash - 1, w - 2 * radius, wash,
+				scaleAlpha(Theme.withAlpha(t.accent(), 0f), alpha), scaleAlpha(Theme.withAlpha(t.accent(), 0.07f), alpha), 12);
+		int glowW = (w - 2 * radius) / 2;
+		GuiDraw.horizontalGradient(c, x + radius, y + h - 2, glowW, 1,
+				scaleAlpha(Theme.withAlpha(t.accent(), 0f), alpha), scaleAlpha(Theme.withAlpha(t.accent(), 0.55f), alpha), 16);
+		GuiDraw.horizontalGradient(c, x + radius + glowW, y + h - 2, w - 2 * radius - glowW, 1,
+				scaleAlpha(Theme.withAlpha(t.accent(), 0.55f), alpha), scaleAlpha(Theme.withAlpha(t.accent(), 0f), alpha), 16);
+	}
 
 	/** A soft shadow under the panel; with 3D Menus it falls away from the light and can be turned off. */
 	private static void shadow(Canvas c, int x, int y, int w, int h, int radius, float alpha, float strength) {

@@ -80,6 +80,11 @@ public final class Theme {
 		return !highContrast && GLASS_FULL.equals(glassQuality);
 	}
 
+	/** The glass quality Snowball's menus draw with: high contrast always draws solid. */
+	public String menuGlassQuality() {
+		return highContrast ? GLASS_OFF : glassQuality;
+	}
+
 	public int glassLevel() {
 		return glassLevel;
 	}
