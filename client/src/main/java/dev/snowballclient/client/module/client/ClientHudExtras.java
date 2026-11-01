@@ -66,6 +66,11 @@ public final class ClientHudExtras {
 			String value = text.get().trim();
 			return value.isEmpty() ? null : value;
 		}
+
+		@Override
+		protected boolean mutesLabels() {
+			return false;
+		}
 	}
 
 	/** Who you are looking at and how much health they have left. */
@@ -83,6 +88,11 @@ public final class ClientHudExtras {
 			int health = (int) Math.ceil(target.getHealth());
 			int max = (int) Math.ceil(target.getMaxHealth());
 			return target.getName().getString() + "  " + health + "/" + max;
+		}
+
+		@Override
+		protected boolean mutesLabels() {
+			return false;
 		}
 	}
 }

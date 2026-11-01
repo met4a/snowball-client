@@ -113,28 +113,42 @@ public final class Glass {
 	 * the element's own opacity setting standing in for the Transparency slider; fills otherwise.
 	 */
 	public static void hud(Canvas c, Theme t, int w, int h, float opacity, String quality) {
-		if (t.glass() && !t.highContrast && c.drawsGlass(quality)) {
-			int level = Math.round(Math.max(0f, Math.min(1f, opacity)) * 100f);
-			c.glass(new GlassPanel(0, 0, w, h, 3, t.surface(1f), level, quality, 1f, false, false));
-			return;
-		}
+		if (hudPane(c, t, 0, 0, w, h, hudRadius(h), opacity, quality)) return;
 		hud((GuiDraw.Fill) c, t, w, h, opacity);
+	}
+
+	/** A one-line element is a pill; a taller one is a card with rounded corners. */
+	public static int hudRadius(int h) {
+		return h <= 18 ? h / 2 : 5;
+	}
+
+	/**
+	 * One pane of HUD glass, such as a key of the keystrokes: drawn and true where the canvas can draw
+	 * glass in this quality, the opacity setting standing in for the Transparency slider; false otherwise,
+	 * for the caller to draw its own fill.
+	 */
+	public static boolean hudPane(Canvas c, Theme t, int x, int y, int w, int h, int radius, float opacity, String quality) {
+		if (!t.glass() || t.highContrast || !c.drawsGlass(quality)) return false;
+		int level = Math.round(Math.max(0f, Math.min(1f, opacity)) * 100f);
+		c.glass(new GlassPanel(x, y, w, h, radius, t.surface(1f), level, quality, 1f, false, false));
+		return true;
 	}
 
 	/** Background of a HUD element, from fills only. */
 	public static void hud(GuiDraw.Fill g, Theme t, int w, int h, float opacity) {
+		int r = hudRadius(h);
 		if (!t.glass()) {
-			GuiDraw.roundedRect(g, 0, 0, w, h, 3, t.surface(opacity));
+			GuiDraw.roundedRect(g, 0, 0, w, h, r, t.surface(opacity));
 			return;
 		}
 		int top = Theme.withAlpha(Theme.lerpColor(t.surface(1f), t.highlight(), t.liquid() ? 0.12f : 0.07f), opacity * 0.9f);
 		int bottom = Theme.withAlpha(t.surface(1f), Math.min(1f, opacity * 0.95f));
-		gradientBody(g, 0, 0, w, h, 3, top, bottom);
-		g.fill(3, 0, w - 3, 1, Theme.withAlpha(WHITE, 0.10f + opacity * 0.14f));
-		if (t.liquid() && w > 10) {
-			int half = (w - 6) / 2;
-			GuiDraw.horizontalGradient(g, 3, h - 1, half, 1, Theme.withAlpha(t.accent(), 0f), Theme.withAlpha(t.accent(), 0.5f * opacity + 0.1f), 8);
-			GuiDraw.horizontalGradient(g, 3 + half, h - 1, w - 6 - half, 1, Theme.withAlpha(t.accent(), 0.5f * opacity + 0.1f), Theme.withAlpha(t.accent(), 0f), 8);
+		gradientBody(g, 0, 0, w, h, r, top, bottom);
+		g.fill(r, 0, w - r, 1, Theme.withAlpha(WHITE, 0.10f + opacity * 0.14f));
+		if (t.liquid() && w > 2 * r + 4) {
+			int half = (w - 2 * r) / 2;
+			GuiDraw.horizontalGradient(g, r, h - 1, half, 1, Theme.withAlpha(t.accent(), 0f), Theme.withAlpha(t.accent(), 0.5f * opacity + 0.1f), 8);
+			GuiDraw.horizontalGradient(g, r + half, h - 1, w - 2 * r - half, 1, Theme.withAlpha(t.accent(), 0.5f * opacity + 0.1f), Theme.withAlpha(t.accent(), 0f), 8);
 		}
 	}
 

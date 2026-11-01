@@ -3,9 +3,47 @@
 Read this first in any new session, then `PLAN.md`. Branch: `ui/snowglass` (not pushed).
 The plan was approved on 2026-11-01 with the recommended answers to Q1–Q8 (PLAN.md §15).
 
-## Current state: M4 (the wheel menu restyled in place) done
+## Current state: M5 (HUD and HUD editor) done
 
 **Asked 2026-11-01 (user):** do M4, M5 and M6, then either pick the best-looking look for people or send screenshots of all of them so they can choose the default.
+
+### M5: what changed
+
+- **Text HUDs** are glass pills on their background (`Glass.hudRadius`: one line is a pill, taller elements are cards with 5-unit corners), with 6 units each side.
+  - In a text that has numbers, the words around them ("FPS", "XYZ", "CPS", "blocks") are drawn quieter, so the numbers stand out.
+  - The quieter colour sits 40% of the way from the menus' secondary text to the main text: plain secondary grey all but vanished on HUD glass over snow.
+  - Only with the background on. Custom Text, Target Info and Pack Display opt out, since their words are the content.
+  - The text is still worked out 20 times a second, not every frame (as before).
+- **Keystrokes:** each key is its own pane of HUD glass (`HudModule.glassPane`). Pressing a key floods it with the menu colour at once; letting go fades it on a spring that settles in about 120 ms. The fills are kept where glass cannot be drawn.
+- **Armour HUD:** a bar under each durability number. It is the menu colour above 50%, warning (`SnowglassTokens.WARNING`) from 20% to 50%, and danger below 20%. The number stays, so colour is never the only signal.
+- **Potion HUD:** the effect's name in the main colour and its time right-aligned and quieter, in the warning colour for its last 10 seconds.
+- **HUD editor:**
+  - **Snapping:** a dragged element snaps to the screen's edges and middle, and to the other elements' edges and middles, with an accent guide line where it snapped.
+  - **Scaling:** scrolling over an element scales it in 5% steps; one turn of the wheel is one undo step.
+  - **Nudging:** Shift (or Ctrl) + arrows nudges by 8.
+  - **Toolbar:** a glass pill at the bottom with Grid, Snap (S), Reset all and Done. Reset all is a single undo step, since undo now holds groups.
+  - The world is dimmed 35% (was 45%).
+- **Not done, on purpose:** 9-way anchors and their migration (PLAN.md §8.4). HUD positions are already stored as a fraction of the free space, so an element against an edge stays against it at every resolution and GUI scale. Anchors would change everyone's saved layout for little visible gain.
+- `SnowglassGameTest`:
+  - Photographs the HUD over all six backdrops, with the armour (worn to about 40% and 20%) and potion HUDs on.
+  - Adds a key held down, the HUD editor with the armour HUD picked up, and F1. F1 is `Hud.toggle()` on 26.2 and `options.hideGui` on 1.21.11.
+
+### M5: verified
+
+- `./gradlew build` passes: 233 unit tests per version, 0 failures. `-p legacy build` passes, and `check-generated.mjs` is clean.
+- `-Ponly=menu,snowglass` passes on 26.2 and 1.21.11. These screenshots were looked at:
+  - the HUD over snow, desert, village and night
+  - the held A key flooding with the accent
+  - the armour bars (39% and 20% in warning, 100% in the accent) and the potion card
+  - the editor with the armour HUD picked up and the toolbar
+  - F1 hiding every Snowball element
+
+### M5: not verified
+
+- **HUD glass GPU cost:** not measured. There is still no GPU timer readout (PLAN.md §10).
+- **GUI scales:** only GUI 2 was photographed for the HUD.
+
+## Earlier: M4 (the wheel menu restyled in place)
 
 ### M4: what changed
 

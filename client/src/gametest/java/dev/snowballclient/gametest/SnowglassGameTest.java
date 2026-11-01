@@ -1,7 +1,9 @@
 package dev.snowballclient.gametest;
 
 import dev.snowballclient.client.SnowballClient;
+import dev.snowballclient.client.gui.HudEditorView;
 import dev.snowballclient.client.gui.ModuleSettingsView;
+import dev.snowballclient.client.hud.HudModule;
 import dev.snowballclient.client.module.ModuleCategory;
 import dev.snowballclient.client.module.ModuleRegistry;
 import dev.snowballclient.client.module.client.Menu3D;
@@ -32,8 +34,17 @@ import static dev.snowballclient.gametest.ClientSteps.*;
 public final class SnowglassGameTest implements FabricClientGameTest {
 	private static final Logger LOG = LoggerFactory.getLogger("SnowglassGameTest");
 	private static final String GROUND = "fill -48 -61 -48 48 -61 48 ";
-	private static final List<String> HUD = List.of("fps_counter", "coordinates", "clock", "keystrokes", "cps_counter");
+	private static final List<String> HUD = List.of("fps_counter", "coordinates", "clock", "keystrokes", "cps_counter", "armor_hud", "potion_hud");
 	private static final int KEY_DOWN = 264;
+	private static final int KEY_A = 65;
+	/** Armour at three levels of wear (full, about 40%, about 20%) and two effects, for the armour and potion HUDs. */
+	private static final List<String> GEAR = List.of(
+			"item replace entity @a armor.head with minecraft:iron_helmet[damage=100]",
+			"item replace entity @a armor.chest with minecraft:diamond_chestplate[damage=420]",
+			"item replace entity @a armor.legs with minecraft:netherite_leggings",
+			"item replace entity @a weapon.mainhand with minecraft:diamond_sword",
+			"effect give @a minecraft:speed 1200 1 true",
+			"effect give @a minecraft:fire_resistance 1200 0 true");
 
 	/**
 	 * A backdrop: commands that build it, ticks for the world to settle, commands for once it has, and
@@ -74,11 +85,12 @@ public final class SnowglassGameTest implements FabricClientGameTest {
 			setGuiScale(context, 2);
 			for (Scene scene : SCENES) {
 				scene.setUp().forEach(world.getServer()::runCommand);
+				if (scene.name().equals("snow")) GEAR.forEach(world.getServer()::runCommand);
 				context.waitTicks(scene.settle());
 				scene.afterSettling().forEach(world.getServer()::runCommand);
 				context.waitTicks(scene.finish());
 				photographMenu(context, "menu_" + scene.name() + "_gui2");
-				if (scene.name().equals("snow") || scene.name().equals("village")) save(context, "hud_" + scene.name() + "_gui2");
+				save(context, "hud_" + scene.name() + "_gui2");
 				if (scene.name().equals("snow")) {
 					setGuiScale(context, 0);
 					photographMenu(context, "menu_snow_guiauto");
@@ -94,6 +106,7 @@ public final class SnowglassGameTest implements FabricClientGameTest {
 	/** The same menu in another palette, leaning with 3D Menus, and the page where both are chosen. */
 	private static void variations(ClientGameTestContext context) {
 		wheel(context);
+		hud(context);
 		onClient(context, mc -> {
 			ModuleRegistry.INTERFACE.palette.set("aurora");
 			return null;
@@ -160,6 +173,42 @@ public final class SnowglassGameTest implements FabricClientGameTest {
 		context.getInput().resizeWindow(1920, 1080);
 		context.waitTicks(10);
 		setGuiScale(context, 2);
+	}
+
+	/** A key of the keystrokes held down, the HUD editor with an element picked up, and F1 hiding it all. */
+	private static void hud(ClientGameTestContext context) {
+		context.getInput().holdKey(KEY_A);
+		context.waitTicks(3);
+		save(context, "hud_village_key_held_gui2");
+		context.getInput().releaseKey(KEY_A);
+		context.waitTicks(10);
+		onClient(context, mc -> {
+			ViewScreen.showOnScreen(new HudEditorView(SnowballClient.get()));
+			return null;
+		});
+		context.waitTicks(20);
+		int[] box = onClient(context, mc -> ((HudModule) SnowballClient.get().modules().get("armor_hud").orElseThrow()).lastBounds());
+		clickGui(context, new double[]{box[0] + box[2] / 2.0, box[1] + box[3] / 2.0});
+		context.waitTicks(5);
+		save(context, "hud_editor_village_gui2");
+		context.getInput().pressKey(KEY_ESCAPE);
+		context.waitForScreen(null);
+		setHudHidden(context, true);
+		save(context, "hud_f1_village_gui2");
+		setHudHidden(context, false);
+	}
+
+	/** What F1 does: hides the HUD, Snowball's elements with it. */
+	private static void setHudHidden(ClientGameTestContext context, boolean hidden) {
+		onClient(context, mc -> {
+			//? if >=26.1 {
+			if (mc.gui.hud.isHidden() != hidden) mc.gui.hud.toggle();
+			//?} else {
+			/*mc.options.hideGui = hidden;
+			*///?}
+			return null;
+		});
+		context.waitTicks(3);
 	}
 
 	private static void pick(ClientGameTestContext context, ModuleCategory category) {

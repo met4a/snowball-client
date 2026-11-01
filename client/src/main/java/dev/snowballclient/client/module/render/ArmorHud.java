@@ -1,5 +1,6 @@
 package dev.snowballclient.client.module.render;
 
+import dev.snowballclient.client.gui.snowglass.SnowglassTokens;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.hud.HudModule;
 import dev.snowballclient.client.module.ModuleCategory;
@@ -54,7 +55,17 @@ public final class ArmorHud extends HudModule {
 			g.item(stack, 2, y);
 			g.itemDecorations(mc.font, stack, 2, y);
 			String text = durabilityText(stack);
-			if (text != null) g.text(mc.font, text, 21, y + 5, durabilityColor(stack, theme), true);
+			if (text != null) {
+				boolean bar = stack.isDamageableItem();
+				g.text(mc.font, text, 21, bar ? y + 3 : y + 5, durabilityColor(stack, theme), true);
+				if (bar) {
+					// How much is left as a bar under the number: the menu colour while healthy, then warning and danger.
+					float f = 1f - (float) stack.getDamageValue() / stack.getMaxDamage();
+					int barW = width - 21 - 3;
+					g.fill(21, y + 13, 21 + barW, y + 15, 0x24FFFFFF);
+					g.fill(21, y + 13, 21 + Math.max(1, Math.round(barW * f)), y + 15, f > 0.5f ? theme.accent() : f > 0.2f ? SnowglassTokens.WARNING : SnowglassTokens.DANGER);
+				}
+			}
 			y += ROW;
 		}
 	}
@@ -70,6 +81,6 @@ public final class ArmorHud extends HudModule {
 		if (!stack.isDamageableItem()) return theme.text();
 		float f = 1f - (float) stack.getDamageValue() / stack.getMaxDamage();
 		// Colour is paired with the numeric value, so the information is never colour-only.
-		return f > 0.5f ? theme.text() : f > 0.2f ? 0xFFFFD166 : 0xFFFF5C5C;
+		return f > 0.5f ? theme.text() : f > 0.2f ? SnowglassTokens.WARNING : SnowglassTokens.DANGER;
 	}
 }

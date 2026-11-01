@@ -88,10 +88,22 @@ public abstract class HudModule extends Module {
 		g.pose().scale(s, s);
 		g.pose().translate(-w / 2f, -h / 2f);
 		if (background.isOn()) {
-			boolean fpsBoost = ModuleRegistry.FPS_BOOST != null && ModuleRegistry.FPS_BOOST.isEnabled();
-			dev.snowballclient.client.gui.Glass.hud(CANVAS.wrap(g), theme, w, h, backgroundOpacity.floatValue(), theme.hudGlassQuality(fpsBoost));
+			dev.snowballclient.client.gui.Glass.hud(CANVAS.wrap(g), theme, w, h, backgroundOpacity.floatValue(), glassQuality(theme));
 		}
 		renderContent(g, mc, theme, w, h);
 		g.pose().popMatrix();
+	}
+
+	/**
+	 * A pane of HUD glass in the element's own units, for elements made of several, such as the keys of
+	 * the keystrokes. False where glass cannot be drawn, for the element to draw its own fill instead.
+	 */
+	protected final boolean glassPane(GuiGraphicsExtractor g, Theme theme, int x, int y, int w, int h, int radius, float opacity) {
+		return dev.snowballclient.client.gui.Glass.hudPane(CANVAS.wrap(g), theme, x, y, w, h, radius, opacity, glassQuality(theme));
+	}
+
+	private static String glassQuality(Theme theme) {
+		boolean fpsBoost = ModuleRegistry.FPS_BOOST != null && ModuleRegistry.FPS_BOOST.isEnabled();
+		return theme.hudGlassQuality(fpsBoost);
 	}
 }
