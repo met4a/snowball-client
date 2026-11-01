@@ -3,7 +3,35 @@
 Read this first in any new session, then `PLAN.md`. Branch: `ui/snowglass` (not pushed).
 The plan was approved on 2026-11-01 with the recommended answers to Q1–Q8 (PLAN.md §15).
 
-## Current state: M3 (controls) done, in the wheel menu's settings pages
+## Current state: M4 (the wheel menu restyled in place) done
+
+**Asked 2026-11-01 (user):** do M4, M5 and M6, then either pick the best-looking look for people or send screenshots of all of them so they can choose the default.
+
+### M4: what changed
+
+All in `RadialMenuView`; the wheel, its layout, the palettes and 3D Menus are as they were.
+- **Module rows:** the M3 switch (`Controls.toggle`) on a liquid spring, so the thumb stretches as it moves. The keyboard focus is the M3 focus ring.
+- **Status pills:** a status (RESTART, MISSING, the FPS preset, "18 HIDDEN", SHOW/HIDE) is a small pill in its colour instead of loose text. RESTART is in the menu colour, as before.
+- **Search:** under the glass looks it is a capsule like the settings pages' text boxes, lit in the menu colour while searching. The classic look keeps its box.
+- **FPS BOOST presets:** the four cards stay; the selection now glides to the card picked on a liquid spring, stretching on the way. A segmented control was tried on paper and dropped: at fractional menu scales "Balanced" would not fit a quarter of the panel.
+- **Scrolling:** the up/down arrows are replaced by the M3 slim scrollbar on the panel's right edge.
+- **Open and close:** the menu and the panel move on standard springs instead of exponential easing. Reduce Motion still snaps.
+- `SnowglassGameTest` also photographs FPS BOOST, a search, the keyboard focus, and the menu at 1280×720 and 2560×1440 (GUI Auto). It now switches Glass GUI off first: the menu test leaves it on, and it swaps the blur behind menus for clear glass.
+
+### M4: verified
+
+- `./gradlew build` passes: 233 unit tests per version, 0 failures. `-p legacy build` (1.8.9) passes, and `check-generated.mjs` is clean.
+- The existing `SnowballMenuGameTest` passes unchanged on 26.2 and 1.21.11: open, every category, toggle by mouse and keyboard, the change saved, Right Shift toggles, Esc closes.
+- `-Ponly=snowglass` passes on both. These screenshots were looked at:
+  - `menu_village_fpsboost_gui2`, `menu_village_search_gui2`, `menu_village_focus_gui2`
+  - the six backdrops, and `menu_village_720p_guiauto` and `menu_village_1440p_guiauto`
+  
+  The pills, capsule, focus ring, glide and scrollbar all show.
+
+### M4: not done or not verified
+
+- **Text at 720p.** At 1280×720 (GUI Auto) the row text is drawn about 20% larger than its layout (UiText snaps the font to whole pixels), so some descriptions are cut short with "..". This is how UiText already worked, not new in M4.
+- The colour picker as a popover and the `PanelView` pages are left to M6, as PLAN.md §13 has them.
 
 **Font, decided 2026-11-01 (user):** Minecraft's font is back as the default, the main menu included.
 - Inter stays as the option under Menu & Accessibility → Font. It replaced Nunito as the smooth font.

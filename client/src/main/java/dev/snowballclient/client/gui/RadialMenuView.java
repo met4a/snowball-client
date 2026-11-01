@@ -3,12 +3,15 @@ package dev.snowballclient.client.gui;
 import dev.snowballclient.client.SnowballClient;
 import dev.snowballclient.client.gui.anim.FrameClock;
 import dev.snowballclient.client.gui.anim.Smoothed;
+import dev.snowballclient.client.gui.anim.Spring;
 import dev.snowballclient.client.gui.icons.Icons;
 import dev.snowballclient.client.gui.icons.LineIcon;
 import dev.snowballclient.client.gui.radial.RadialLayout;
 import dev.snowballclient.client.gui.radial.RadialMetrics;
 import dev.snowballclient.client.gui.radial.WheelGeometry;
 import dev.snowballclient.client.gui.radial.WheelTextures;
+import dev.snowballclient.client.gui.snowglass.Controls;
+import dev.snowballclient.client.gui.snowglass.SnowglassTokens;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.hud.GuiDraw;
 import dev.snowballclient.client.hud.NotificationCenter;
@@ -70,11 +73,15 @@ public final class RadialMenuView extends View {
 	private final RadialLayout layout;
 	private final ModuleCategory[] categories = ModuleCategory.values();
 	private final FrameClock clock = new FrameClock();
-	private final Smoothed open = new Smoothed(0f);
-	private final Smoothed panel = new Smoothed(0f);
+	private final Spring open = Spring.standard(0f);
+	private final Spring panel = Spring.standard(0f);
 	private final Smoothed[] segmentHover = new Smoothed[ModuleCategory.values().length];
 	private final Smoothed[] segmentSelect = new Smoothed[ModuleCategory.values().length];
-	private final Map<Module, Smoothed> toggleAnim = new IdentityHashMap<>();
+	private final Map<Module, Spring> toggleAnim = new IdentityHashMap<>();
+	/** Where the FPS BOOST selection is, in units from the first card: it glides to the card picked. */
+	private final Spring cardX = Spring.liquid(0f);
+	private final Spring cardY = Spring.liquid(0f);
+	private boolean cardPlaced;
 	private final Map<Module, FittedRow> fitted = new IdentityHashMap<>();
 	private final String[] cardBlurbs = new String[CARDS.length];
 	private final Map<Long, Float> labelRooms = new HashMap<>();
@@ -260,7 +267,7 @@ public final class RadialMenuView extends View {
 		boolean still = theme.motion() <= 0f;
 		age = still ? 10f : age + dt * theme.motion();
 		panelAge = still ? 10f : panelAge + dt * theme.motion();
-		float o = open.update(dt, speed);
+		float o = clamp01(step(open, dt));
 		// The wheel turns into place as it opens, and back out as it closes.
 		float settle = 1f - o;
 		spin = -0.55f * settle * settle;
@@ -269,7 +276,7 @@ public final class RadialMenuView extends View {
 			host.back();
 			return;
 		}
-		float p = panel.update(dt, speed);
+		float p = clamp01(step(panel, dt));
 		if (!closing) updateHover(mouseX, mouseY);
 		for (int i = 0; i < segmentHover.length; i++) {
 			segmentHover[i].setTarget(i == hoveredSegment ? 1f : 0f);
@@ -431,6 +438,7 @@ public final class RadialMenuView extends View {
 		drawHeader(c, x, top, rows, alpha);
 		drawSearch(c, x, top + HEADER_H, alpha);
 		if (showCards()) drawCards(c, x, top + HEADER_H + SEARCH_H, alpha);
+		else cardPlaced = false;
 
 		int y0 = top + rowsOffset();
 		if (rows.isEmpty()) {
@@ -468,9 +476,7 @@ public final class RadialMenuView extends View {
 			int shift = Math.round((1f - easeOut(t)) * 12f);
 			drawRow(c, rows.get(i), i, x + ROW_INSET + shift, y0 + (i - scroll) * ROW_H, PANEL_W - ROW_INSET * 2, alpha * t);
 		}
-		int arrow = scaleAlpha(theme.mutedText(), alpha);
-		if (scroll > 0) triangle(c, x + PANEL_W / 2, y0 - 3, true, arrow);
-		if (end < rows.size()) triangle(c, x + PANEL_W / 2, y0 + visible * ROW_H - 2, false, arrow);
+		Controls.scrollbar(c, theme, x + PANEL_W - 5, y0, visible * ROW_H - 3, scroll, visible, rows.size(), false, alpha);
 	}
 
 	private void drawHeader(Canvas c, int x, int top, List<Module> rows, float alpha) {
@@ -505,13 +511,24 @@ public final class RadialMenuView extends View {
 		int bx = x + ROW_INSET;
 		int bw = PANEL_W - ROW_INSET * 2;
 		int by = y + 2;
-		int bh = 15;
 		boolean active = searching();
-		Glass.chip(c, theme, bx, by, bw, bh, 4, active ? 0.45f : 0f, alpha);
-		GuiDraw.roundedOutline(c, bx, by, bw, bh, 4, scaleAlpha(active ? theme.accent() : theme.border(), alpha));
-		magnifier(c, bx + 8, by + 7, scaleAlpha(active ? theme.accent() : theme.mutedText(), alpha));
-		int tx = bx + 16;
-		int ty = by + 4;
+		int bh;
+		int tx;
+		if (theme.glass()) {
+			// A capsule, like the settings pages' text boxes; it lights in the menu colour while searching.
+			bh = Controls.CONTROL_H;
+			GuiDraw.roundedRect(c, bx, by, bw, bh, bh / 2, scaleAlpha(Theme.withAlpha(0xFFFFFFFF, active ? 0.10f : 0.06f), alpha));
+			GuiDraw.roundedOutline(c, bx, by, bw, bh, bh / 2, scaleAlpha(active ? theme.accent() : SnowglassTokens.HAIRLINE_STRONG, alpha));
+			magnifier(c, bx + 10, by + 8, scaleAlpha(active ? theme.accent() : theme.mutedText(), alpha));
+			tx = bx + 18;
+		} else {
+			bh = 15;
+			Glass.chip(c, theme, bx, by, bw, bh, 4, active ? 0.45f : 0f, alpha);
+			GuiDraw.roundedOutline(c, bx, by, bw, bh, 4, scaleAlpha(active ? theme.accent() : theme.border(), alpha));
+			magnifier(c, bx + 8, by + 7, scaleAlpha(active ? theme.accent() : theme.mutedText(), alpha));
+			tx = bx + 16;
+		}
+		int ty = by + (bh - 7) / 2;
 		if (active) {
 			String shown = query;
 			while (shown.length() > 1 && UiText.width(c, shown, UiText.DETAIL) > bw - 26) shown = shown.substring(1);
@@ -533,15 +550,37 @@ public final class RadialMenuView extends View {
 			cardProbe = textProbe;
 			for (int i = 0; i < CARDS.length; i++) cardBlurbs[i] = UiText.fit(c, FpsBoost.blurb(CARDS[i]), UiText.DETAIL, cw - 12);
 		}
+		int picked = 0;
+		for (int i = 0; i < CARDS.length; i++) {
+			if (CARDS[i].equals(chosen)) picked = i;
+			int cx = x + ROW_INSET + (i % 2) * (cw + CARD_GAP);
+			int cy = y + 2 + (i / 2) * (CARD_H + CARD_GAP);
+			boolean hover = i == hoveredCard;
+			Glass.chip(c, theme, cx, cy, cw, CARD_H, 4, hover ? 1f : 0f, alpha);
+			GuiDraw.roundedOutline(c, cx, cy, cw, CARD_H, 4, scaleAlpha(hover ? Theme.withAlpha(theme.highlight(), 0.35f) : theme.border(), alpha));
+		}
+		// The selection glides to the card picked, stretching a little on the way, as the settings pages' choices do.
+		float tx = (picked % 2) * (cw + CARD_GAP);
+		float ty = (picked / 2) * (CARD_H + CARD_GAP);
+		if (!cardPlaced) {
+			cardX.snap(tx);
+			cardY.snap(ty);
+			cardPlaced = true;
+		}
+		cardX.setTarget(tx);
+		cardY.setTarget(ty);
+		float sx = step(cardX, lastDt);
+		float sy = step(cardY, lastDt);
+		int gw = Math.round(cw * cardX.stretch(0.12f, 400f));
+		int gh = Math.round(CARD_H * cardY.stretch(0.12f, 200f));
+		int gx = x + ROW_INSET + Math.round(sx) - (gw - cw) / 2;
+		int gy = y + 2 + Math.round(sy) - (gh - CARD_H) / 2;
+		GuiDraw.roundedRect(c, gx, gy, gw, gh, 4, scaleAlpha(Theme.withAlpha(theme.accent(), picked == hoveredCard ? 0.28f : 0.2f), alpha));
+		GuiDraw.roundedOutline(c, gx, gy, gw, gh, 4, scaleAlpha(theme.accent(), alpha));
 		for (int i = 0; i < CARDS.length; i++) {
 			int cx = x + ROW_INSET + (i % 2) * (cw + CARD_GAP);
 			int cy = y + 2 + (i / 2) * (CARD_H + CARD_GAP);
-			boolean sel = CARDS[i].equals(chosen);
-			boolean hover = i == hoveredCard;
-			int outline = sel ? theme.accent() : hover ? Theme.withAlpha(theme.highlight(), 0.35f) : theme.border();
-			if (sel) GuiDraw.roundedRect(c, cx, cy, cw, CARD_H, 4, scaleAlpha(Theme.withAlpha(theme.accent(), hover ? 0.28f : 0.2f), alpha));
-			else Glass.chip(c, theme, cx, cy, cw, CARD_H, 4, hover ? 1f : 0f, alpha);
-			GuiDraw.roundedOutline(c, cx, cy, cw, CARD_H, 4, scaleAlpha(outline, alpha));
+			boolean sel = i == picked;
 			int titleColor = sel ? theme.text() : Theme.lerpColor(theme.mutedText(), theme.text(), 0.65f);
 			UiText.draw(c, FpsBoost.label(CARDS[i]), UiText.UI, cx + 7, cy + 4, scaleAlpha(titleColor, alpha));
 			UiText.draw(c, cardBlurbs[i], UiText.DETAIL, cx + 7, cy + 17, scaleAlpha(theme.mutedText(), alpha));
@@ -557,7 +596,7 @@ public final class RadialMenuView extends View {
 		int rowH = ROW_H - 3;
 		boolean hover = index == hoveredRow;
 		boolean focus = index == focusedRow;
-		if (focus) GuiDraw.roundedOutline(c, rx, y, rw, rowH, 4, scaleAlpha(theme.accent(), alpha));
+		if (focus) Controls.focusRing(c, theme, rx, y, rw, rowH, 4, alpha);
 
 		AdvancedOptions advanced = m instanceof AdvancedOptions a ? a : null;
 		boolean active = m.isToggleable() && m.isEnabled();
@@ -570,11 +609,11 @@ public final class RadialMenuView extends View {
 			triangle(c, cursor - 3, cy - 1, advanced.expanded(), control);
 			cursor -= 12;
 		} else if (m.isToggleable()) {
-			cursor -= ToggleWidget.WIDTH;
-			Smoothed anim = toggleAnim.computeIfAbsent(m, k -> new Smoothed(k.isEnabled() ? 1f : 0f));
+			cursor -= Controls.SWITCH_W;
+			Spring anim = toggleAnim.computeIfAbsent(m, k -> Spring.liquid(k.isEnabled() ? 1f : 0f));
 			anim.setTarget(m.isEnabled() ? 1f : 0f);
-			float t = anim.update(lastDt, theme.motion() * 18f);
-			ToggleWidget.draw(c, cursor, cy - ToggleWidget.HEIGHT / 2, t, theme, alpha * (m.canToggle() ? 1f : 0.35f));
+			float t = step(anim, lastDt);
+			Controls.toggle(c, theme, cursor, cy - Controls.SWITCH_H / 2, t, anim.stretch(0.35f, 8f), m.canToggle(), alpha);
 			cursor -= 7;
 		} else if (m.hasSettings()) {
 			chevron(c, cursor - 3, cy, control);
@@ -592,10 +631,8 @@ public final class RadialMenuView extends View {
 		int nameRight = textRight;
 		String status = advanced != null ? (advanced.expanded() ? "HIDE" : "SHOW") : m.statusText();
 		if (status != null) {
-			int sw = UiText.width(c, status, UiText.DETAIL);
 			int statusColor = "RESTART".equals(status) ? theme.accent() : theme.mutedText();
-			UiText.draw(c, status, UiText.DETAIL, textRight - sw, y + 4, scaleAlpha(statusColor, alpha));
-			nameRight -= sw + 6;
+			nameRight -= statusPill(c, status, textRight, y + 2, statusColor, alpha) + 6;
 		}
 		FittedRow text = fit(c, m, status, nameRight - (rx + 10) - 4, textRight - (rx + 10) - 4);
 		int nameColor = scaleAlpha(active || !m.isToggleable() ? theme.text() : Theme.lerpColor(theme.mutedText(), theme.text(), 0.55f), alpha);
@@ -624,7 +661,26 @@ public final class RadialMenuView extends View {
 	private int settingsGlyphX(Module m) {
 		int cursor = PANEL_X + ROW_INSET + (PANEL_W - ROW_INSET * 2) - 8;
 		if (!m.isToggleable()) return cursor - 3;
-		return cursor - ToggleWidget.WIDTH - 7 - 1;
+		return cursor - Controls.SWITCH_W - 7 - 1;
+	}
+
+	/** A short status (RESTART, MISSING, the FPS preset) as a pill ending at {@code right}; returns its width. */
+	private static int statusPill(Canvas c, String status, int right, int y, int colour, float alpha) {
+		int h = 11;
+		int w = UiText.width(c, status, UiText.DETAIL) + 8;
+		int x = right - w;
+		GuiDraw.roundedRect(c, x, y, w, h, h / 2, scaleAlpha(Theme.withAlpha(colour, 0.14f), alpha));
+		GuiDraw.roundedOutline(c, x, y, w, h, h / 2, scaleAlpha(Theme.withAlpha(colour, 0.45f), alpha));
+		int ty = y + Math.round((h - UiText.lineHeight(c, UiText.DETAIL)) / 2f) + 1;
+		UiText.draw(c, status, UiText.DETAIL, x + 4, ty, scaleAlpha(colour, alpha));
+		return w;
+	}
+
+	/** Moves a spring on at the menu's animation speed; with Reduce Motion it is already where it is going. */
+	private float step(Spring s, float dt) {
+		if (theme.motion() <= 0f) s.snap(s.target());
+		else s.update(dt * Math.min(2f, theme.motion()));
+		return s.get();
 	}
 
 	private static void chevron(Canvas g, int x, int cy, int argb) {

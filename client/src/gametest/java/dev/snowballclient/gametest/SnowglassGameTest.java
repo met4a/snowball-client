@@ -2,6 +2,7 @@ package dev.snowballclient.gametest;
 
 import dev.snowballclient.client.SnowballClient;
 import dev.snowballclient.client.gui.ModuleSettingsView;
+import dev.snowballclient.client.module.ModuleCategory;
 import dev.snowballclient.client.module.ModuleRegistry;
 import dev.snowballclient.client.module.client.Menu3D;
 import dev.snowballclient.client.platform.ViewScreen;
@@ -32,6 +33,7 @@ public final class SnowglassGameTest implements FabricClientGameTest {
 	private static final Logger LOG = LoggerFactory.getLogger("SnowglassGameTest");
 	private static final String GROUND = "fill -48 -61 -48 48 -61 48 ";
 	private static final List<String> HUD = List.of("fps_counter", "coordinates", "clock", "keystrokes", "cps_counter");
+	private static final int KEY_DOWN = 264;
 
 	/**
 	 * A backdrop: commands that build it, ticks for the world to settle, commands for once it has, and
@@ -65,6 +67,8 @@ public final class SnowglassGameTest implements FabricClientGameTest {
 			int before = onClient(context, mc -> mc.options.guiScale().get());
 			onClient(context, mc -> {
 				for (String id : HUD) SnowballClient.get().modules().get(id).ifPresent(m -> m.setEnabled(true));
+				// The menu test leaves Glass GUI on, which swaps the blur behind menus for clear glass.
+				SnowballClient.get().modules().get("glass_gui").ifPresent(m -> m.setEnabled(false));
 				return null;
 			});
 			setGuiScale(context, 2);
@@ -89,6 +93,7 @@ public final class SnowglassGameTest implements FabricClientGameTest {
 
 	/** The same menu in another palette, leaning with 3D Menus, and the page where both are chosen. */
 	private static void variations(ClientGameTestContext context) {
+		wheel(context);
 		onClient(context, mc -> {
 			ModuleRegistry.INTERFACE.palette.set("aurora");
 			return null;
@@ -126,6 +131,41 @@ public final class SnowglassGameTest implements FabricClientGameTest {
 		save(context, "settings_tooltip_village_gui2");
 		context.getInput().pressKey(KEY_ESCAPE);
 		context.waitForScreen(null);
+	}
+
+	/** The wheel menu's own pieces: FPS BOOST's presets, a search, the keyboard focus, and two more window sizes. */
+	private static void wheel(ClientGameTestContext context) {
+		openMenu(context);
+		ModuleCategory before = onClient(context, mc -> screen(mc).selectedCategory());
+		pick(context, ModuleCategory.FPS_BOOST);
+		save(context, "menu_village_fpsboost_gui2");
+		pick(context, before);
+		context.getInput().typeChars("zoom");
+		context.waitTicks(15);
+		save(context, "menu_village_search_gui2");
+		// Esc clears the search; Down twice moves the keyboard focus to the second row.
+		context.getInput().pressKey(KEY_ESCAPE);
+		context.waitTicks(10);
+		context.getInput().pressKey(KEY_DOWN);
+		context.getInput().pressKey(KEY_DOWN);
+		context.waitTicks(10);
+		save(context, "menu_village_focus_gui2");
+		closeMenu(context);
+		for (int[] size : new int[][]{{1280, 720}, {2560, 1440}}) {
+			context.getInput().resizeWindow(size[0], size[1]);
+			context.waitTicks(10);
+			setGuiScale(context, 0);
+			photographMenu(context, "menu_village_" + size[1] + "p_guiauto");
+		}
+		context.getInput().resizeWindow(1920, 1080);
+		context.waitTicks(10);
+		setGuiScale(context, 2);
+	}
+
+	private static void pick(ClientGameTestContext context, ModuleCategory category) {
+		clickGui(context, onClient(context, mc -> screen(mc).segmentCenter(category.ordinal())));
+		context.waitFor(mc -> screen(mc).selectedCategory() == category, 40);
+		context.waitTicks(20);
 	}
 
 	private static void photographMenu(ClientGameTestContext context, String name) {
