@@ -63,6 +63,11 @@ final class SpatialHost implements Host {
 	}
 
 	@Override
+	public String vanillaKeyUser(int key) {
+		return game.vanillaKeyUser(key);
+	}
+
+	@Override
 	public boolean isMenuKey(int key) {
 		return false;
 	}

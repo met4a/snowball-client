@@ -122,7 +122,7 @@ public final class ColorPickerView extends View {
 
 	@Override
 	public void render(Canvas c, int mouseX, int mouseY, float partialTick) {
-		float a = open.update(clock.tick(), theme.animationSpeed * 14f);
+		float a = open.update(clock.tick(), theme.motion() * 14f);
 		UiText.setDensity(c.guiScale() * fit);
 		double lx = localX(mouseX);
 		double ly = localY(mouseY);
@@ -196,6 +196,15 @@ public final class ColorPickerView extends View {
 		}
 		GuiDraw.roundedOutline(c, x0 - 1, barY - 1, w + 2, BAR_H + 2, 2, scaleAlpha(theme.border(), a));
 		int knobX = x0 + Math.round(sliderValue(index) * w);
+		if (theme.glass()) {
+			// The settings pages' slider thumb: a white pill with a soft shadow, ringed in the accent while in use.
+			int tw = 6;
+			int th = BAR_H + 8;
+			GuiDraw.roundedRect(c, knobX - tw / 2, barY - 4 + 1, tw, th, tw / 2, scaleAlpha(0x40000000, a));
+			GuiDraw.roundedRect(c, knobX - tw / 2, barY - 4, tw, th, tw / 2, scaleAlpha(0xFFFFFFFF, a));
+			if (active) GuiDraw.roundedOutline(c, knobX - tw / 2 - 1, barY - 5, tw + 2, th + 2, tw / 2 + 1, scaleAlpha(theme.accent(), a));
+			return;
+		}
 		GuiDraw.roundedRect(c, knobX - 2, barY - 3, 5, BAR_H + 6, 2, scaleAlpha(0xFFFFFFFF, a));
 		GuiDraw.roundedOutline(c, knobX - 2, barY - 3, 5, BAR_H + 6, 2, scaleAlpha(active ? theme.accent() : 0xFF000000, a));
 	}
@@ -240,6 +249,10 @@ public final class ColorPickerView extends View {
 
 	private void button(Canvas c, String label, int x, int y, boolean primary, float a, double lx, double ly) {
 		boolean over = inside(lx, ly, x, y, BUTTON_W, BUTTON_H);
+		if (theme.glass()) {
+			Glass.capsuleButton(c, theme, x, y, BUTTON_W, BUTTON_H, label, primary, over, a);
+			return;
+		}
 		int fill = primary
 				? Theme.lerpColor(theme.accent(), 0xFFFFFFFF, over ? 0.15f : 0f)
 				: Theme.lerpColor(theme.surface(1f), theme.highlight(), over ? 0.12f : 0.06f);

@@ -25,6 +25,11 @@ public interface Host {
 	/** Readable name of a GLFW key code, e.g. "R" or "Left Alt". */
 	String keyName(int key);
 
+	/** The name of a Minecraft control (or another mod's) already bound to this key, or null when none is. */
+	default String vanillaKeyUser(int key) {
+		return null;
+	}
+
 	/** True when the key press being handled is the key bound to open the Snowball menu. */
 	boolean isMenuKey(int key);
 

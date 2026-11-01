@@ -6,6 +6,7 @@ plugins {
 // Read once at project level; inside task blocks property() would look on the task instead.
 val modVersion = project.property("mod.version").toString()
 val minecraftRange = project.property("mod.mc_compat").toString()
+val minecraftVersion = sc.current.version
 
 version = "$modVersion+${sc.current.version}"
 base.archivesName = "snowball-client"
@@ -22,6 +23,14 @@ dependencies {
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    // Compatibility runs with the optimisation mods the launcher installs (Sodium, ImmediatelyFast,
+    // Iris...): dev runs only, never in the jar. One folder of jars per Minecraft version, since each
+    // version needs its own builds: ./gradlew :26.2:runClientGameTest -PcompatMods.26.2=<folder of jars>
+    project.findProperty("compatMods.$minecraftVersion")?.toString()?.let { dir ->
+        val config = if (configurations.findByName("modLocalRuntime") != null) "modLocalRuntime" else "localRuntime"
+        add(config, fileTree(dir) { include("*.jar") })
+    }
 }
 
 loom {
@@ -97,5 +106,16 @@ tasks {
         if (project.hasProperty("flickerReport")) (this as JavaExec).systemProperty("snowball.flicker.report", "true")
         // Runs only some of the tests, by name: -Ponly=menu,flicker,render
         if (project.hasProperty("only")) (this as JavaExec).systemProperty("snowball.only", project.property("only").toString())
+        // Another graphics backend (26.2 can run on Vulkan): -Pbackend=vulkan
+        val backend = project.findProperty("backend")?.toString() ?: "opengl"
+        if (backend != "opengl") (this as JavaExec).args("--graphicsBackend", backend)
+        // Compatibility runs: an Iris shader pack the Snowglass test turns on (Iris must be in -PcompatMods.<version>)
+        project.findProperty("compatShaderpack")?.let { (this as JavaExec).systemProperty("snowball.compat.shaderpack", it.toString()) }
+        // Pretends the glass shaders failed, to check menus fall back to solid panels: -PglassFail
+        val glassFail = project.hasProperty("glassFail")
+        if (glassFail) (this as JavaExec).systemProperty("snowball.glass.failForTest", "true")
+        // Snowglass screenshots are copied next to the design docs, per Minecraft version and graphics backend.
+        val shots = if (glassFail) "$backend-fallback" else backend
+        (this as JavaExec).systemProperty("snowball.screenshots", rootProject.file("../docs/ui-revamp/screenshots/$minecraftVersion/$shots").absolutePath)
     }
 }

@@ -8,10 +8,12 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
  * Single-line text HUD. Text is recomputed once per client tick (20 Hz) instead of every frame,
- * so high frame rates do not multiply string formatting work.
+ * so high frame rates do not multiply string formatting work. On its background it is a compact
+ * tile, 14 units tall.
  */
 public abstract class TextHudModule extends HudModule {
-	private static final int PADDING = 4;
+	private static final int PADDING_X = 4;
+	private static final int PADDING_Y = 3;
 	public final BooleanSetting shadow;
 	private String text;
 
@@ -40,16 +42,16 @@ public abstract class TextHudModule extends HudModule {
 
 	@Override
 	protected int contentWidth(Minecraft mc) {
-		return text == null ? 0 : mc.font.width(text) + PADDING * 2;
+		return text == null ? 0 : mc.font.width(text) + PADDING_X * 2;
 	}
 
 	@Override
 	protected int contentHeight(Minecraft mc) {
-		return mc.font.lineHeight + PADDING * 2 - 1;
+		return mc.font.lineHeight + PADDING_Y * 2 - 1;
 	}
 
 	@Override
 	protected void renderContent(GuiGraphicsExtractor g, Minecraft mc, Theme theme, int width, int height) {
-		g.text(mc.font, text, PADDING, PADDING, theme.text(), shadow.isOn());
+		g.text(mc.font, text, PADDING_X, PADDING_Y, theme.text(), shadow.isOn());
 	}
 }

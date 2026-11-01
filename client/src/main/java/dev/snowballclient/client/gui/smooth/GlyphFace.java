@@ -53,6 +53,8 @@ final class GlyphFace {
 	private final FontRenderContext context;
 	private final String name;
 	private final float capHeight;
+	/** The widest digit's advance: every digit takes this much room in tabular text. */
+	private float digitAdvance = -1f;
 	private final Map<Integer, Glyph> glyphs = new HashMap<>();
 	private final List<Page> pages = new ArrayList<>();
 
@@ -78,17 +80,42 @@ final class GlyphFace {
 	}
 
 	float width(String text) {
+		return width(text, false);
+	}
+
+	float width(String text, boolean tabular) {
 		float w = 0f;
 		for (int i = 0; i < text.length(); ) {
 			int cp = text.codePointAt(i);
 			Glyph g = glyph(cp);
-			if (g != null) w += g.advance;
+			if (g != null) w += advance(cp, g, tabular);
 			i += Character.charCount(cp);
 		}
 		return w;
 	}
 
+	/**
+	 * How far the pen moves for a glyph. Java's text layout cannot switch on a font's own tabular
+	 * figures, so tabular text gives every digit the widest digit's advance instead.
+	 */
+	private float advance(int cp, Glyph g, boolean tabular) {
+		if (!tabular || cp < '0' || cp > '9') return g.advance;
+		if (digitAdvance < 0f) {
+			float widest = 0f;
+			for (char d = '0'; d <= '9'; d++) {
+				Glyph digit = glyph(d);
+				if (digit != null) widest = Math.max(widest, digit.advance);
+			}
+			digitAdvance = widest;
+		}
+		return digitAdvance;
+	}
+
 	void draw(Canvas c, String text, float x, int baseline, int argb) {
+		draw(c, text, x, baseline, argb, false);
+	}
+
+	void draw(Canvas c, String text, float x, int baseline, int argb, boolean tabular) {
 		// Every glyph this text needs is on a page first, so no page changes while it is being drawn.
 		for (int i = 0; i < text.length(); ) {
 			int cp = text.codePointAt(i);
@@ -107,8 +134,11 @@ final class GlyphFace {
 			Glyph g = glyphs.get(cp);
 			i += Character.charCount(cp);
 			if (g == null) continue;
-			if (g.w > 0 && g.h > 0) c.drawTextureRegion(g.page.texture, Math.round(pen) + g.left, baseline + g.top, g.u, g.v, g.w, g.h, argb);
-			pen += g.advance;
+			float step = advance(cp, g, tabular);
+			// A narrow digit sits in the middle of its tabular cell.
+			float inset = (step - g.advance) / 2f;
+			if (g.w > 0 && g.h > 0) c.drawTextureRegion(g.page.texture, Math.round(pen + inset) + g.left, baseline + g.top, g.u, g.v, g.w, g.h, argb);
+			pen += step;
 		}
 	}
 

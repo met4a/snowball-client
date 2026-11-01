@@ -126,7 +126,7 @@ class ConfigTest {
 		ModuleManager modules = new ModuleManager();
 		Hud hud = modules.register(new Hud());
 		Theme theme = new Theme();
-		theme.scale = 1.5f;
+		theme.scale = 1.2f;
 		config.saveAll(modules, theme, new WaypointStore());
 		Files.writeString(dir.resolve("modules.json"), "#garbage");
 
@@ -135,7 +135,7 @@ class ConfigTest {
 		Theme theme2 = new Theme();
 		assertDoesNotThrow(() -> new ConfigManager(dir).loadAll(modules2, theme2, new WaypointStore()));
 		assertFalse(hud2.isEnabled());
-		assertEquals(1.5f, theme2.scale);
+		assertEquals(1.2f, theme2.scale);
 		assertNotNull(hud);
 	}
 
@@ -144,15 +144,74 @@ class ConfigTest {
 		Theme theme = new Theme();
 		JsonObject o = new JsonObject();
 		o.addProperty("scale", 50);
-		o.addProperty("panelOpacity", -1);
+		o.addProperty("glassLevel", -1);
+		o.addProperty("glassQuality", "shiny");
 		o.addProperty("accentColor", "not a colour");
 		o.addProperty("textColor", "#00FFFFFF");
 		int before = theme.accentColor;
 		theme.fromJson(o);
-		assertEquals(2f, theme.scale);
-		assertEquals(0.2f, theme.panelOpacity);
+		assertEquals(Theme.MAX_SCALE, theme.scale);
+		assertEquals(0, theme.glassLevel());
+		assertEquals(0.2f, theme.panelOpacity, "flat panels follow the glass level");
+		assertEquals(Theme.GLASS_FULL, theme.glassQuality, "an unknown quality keeps the default");
 		assertEquals(before, theme.accentColor);
 		assertEquals(0xFFFFFFFF, theme.textColor, "invisible text colour is made opaque");
+	}
+
+	@Test
+	void aSnowglassUpgradeKeepsWhatThePlayerChose() throws IOException {
+		// gui.json as Snowball 1.10.0 wrote it: frosted look, see-through panels, animations off, a big menu.
+		Files.writeString(dir.resolve("gui.json"), """
+				{"schemaVersion":1,"backgroundOpacity":0.55,"panelOpacity":0.6,"borderOpacity":0.22,
+				 "accentColor":"#FFB794FF","highlightColor":"#FFEDE4FF","textColor":"#FFF2F6FA","mutedTextColor":"#FF8A94A0",
+				 "surfaceColor":"#FF07090C","cornerRadius":4,"animationSpeed":0.0,"scale":1.6,"highContrast":false,
+				 "style":"frosted","blurBehind":false}
+				""");
+		Theme theme = new Theme();
+		new ConfigManager(dir).loadAll(new ModuleManager(), theme, new WaypointStore());
+		assertEquals(Theme.GLASS_LITE, theme.glassQuality, "frosted becomes Lite");
+		assertEquals(Theme.glassLevelFor(0.6f), theme.glassLevel());
+		assertEquals(0.6f, theme.panelOpacity, 0.01f, "flat panels look as they did");
+		assertTrue(theme.reduceMotion, "animation speed 0 becomes Reduce Motion");
+		assertEquals(0f, theme.motion());
+		assertEquals(0xFF0B0F14, theme.surfaceColor, "the old default panel colour becomes the brand surface");
+		assertEquals(Theme.MAX_SCALE, theme.scale, "menu scale is clamped to 75-125%");
+		assertEquals(0xFFB794FF, theme.accentColor);
+		assertFalse(theme.blurBehind);
+		assertEquals(Theme.FONT_MINECRAFT, theme.font, "Minecraft's font stays the default");
+		assertEquals(Theme.HUD_GLASS_AUTO, theme.hudGlass);
+
+		// Saved again, the file is schema 2 with no trace of the old keys.
+		ConfigManager config = new ConfigManager(dir);
+		config.saveTheme(theme);
+		String saved = Files.readString(dir.resolve("gui.json"));
+		assertTrue(saved.contains("\"schemaVersion\": 2") || saved.contains("\"schemaVersion\":2"), saved);
+		assertFalse(saved.contains("\"style\"") || saved.contains("\"panelOpacity\""), saved);
+	}
+
+	@Test
+	void aChosenPanelColourAndClassicLookSurviveTheUpgrade() throws IOException {
+		Files.writeString(dir.resolve("gui.json"), """
+				{"schemaVersion":1,"panelOpacity":0.82,"surfaceColor":"#FF160B1A","animationSpeed":1.5,"style":"classic"}
+				""");
+		Theme theme = new Theme();
+		new ConfigManager(dir).loadAll(new ModuleManager(), theme, new WaypointStore());
+		assertEquals(Theme.GLASS_OFF, theme.glassQuality, "classic becomes Off");
+		assertEquals(Theme.DEFAULT_GLASS_LEVEL, theme.glassLevel(), "an opacity never changed becomes the new default level");
+		assertEquals(0xFF160B1A, theme.surfaceColor, "a colour the player picked is kept");
+		assertFalse(theme.reduceMotion);
+		assertEquals(1.5f, theme.motion());
+	}
+
+	@Test
+	void glassLevelAndOldPanelOpacityMapBothWays() {
+		assertEquals(0, Theme.glassLevelFor(0.2f));
+		assertEquals(50, Theme.glassLevelFor(0.82f));
+		assertEquals(100, Theme.glassLevelFor(1f));
+		for (int i = 0; i <= 16; i++) {
+			float p = 0.2f + i * 0.05f;
+			assertEquals(p, Theme.panelOpacityFor(Theme.glassLevelFor(p)), 0.01f, "panel opacity " + p);
+		}
 	}
 
 	@Test

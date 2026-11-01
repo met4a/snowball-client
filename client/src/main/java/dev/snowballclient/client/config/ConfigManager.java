@@ -38,7 +38,7 @@ public final class ConfigManager {
 		this.clientFile = new JsonConfigFile(directory.resolve("client.json"), ClientSettings.SCHEMA_VERSION);
 		this.modulesFile = new JsonConfigFile(directory.resolve("modules.json"), 1);
 		this.keybindsFile = new JsonConfigFile(directory.resolve("keybinds.json"), 1);
-		this.guiFile = new JsonConfigFile(directory.resolve("gui.json"), Theme.SCHEMA_VERSION);
+		this.guiFile = new JsonConfigFile(directory.resolve("gui.json"), Theme.SCHEMA_VERSION).migration(1, Theme::migrateFromV1);
 		this.waypointsFile = new JsonConfigFile(directory.resolve("waypoints.json"), WaypointStore.SCHEMA_VERSION);
 	}
 

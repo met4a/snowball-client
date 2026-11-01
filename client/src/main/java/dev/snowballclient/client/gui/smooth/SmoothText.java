@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Smooth text for Snowball's menus, in Nunito (SIL Open Font License, shipped with the client).
+ * Smooth text for Snowball's menus, in Inter (SIL Open Font License, shipped with the client).
  * Glyphs are drawn once with Java's own font rasteriser at the exact number of screen pixels they
  * cover and kept on shared textures, so text is anti-aliased and sharp at every GUI scale, on every
  * Minecraft version, in a few texture draws. Render thread only.
@@ -33,7 +33,7 @@ public final class SmoothText {
 
 	/** The weights shipped with the client, lightest first. */
 	public enum Weight {
-		SEMIBOLD("nunito-semibold.ttf"), BOLD("nunito-bold.ttf"), EXTRABOLD("nunito-extrabold.ttf");
+		REGULAR("inter-regular.ttf"), MEDIUM("inter-medium.ttf"), SEMIBOLD("inter-semibold.ttf");
 
 		private final String file;
 
@@ -105,8 +105,16 @@ public final class SmoothText {
 
 	/** Width in pixels of {@code text} at this weight and pixel size. */
 	public static float width(String text, Weight weight, int pixels) {
+		return width(text, weight, pixels, false);
+	}
+
+	/**
+	 * Width in pixels of {@code text}; with {@code tabular} every digit takes the same width, so a
+	 * number that changes (FPS, coordinates, a timer) does not make the text around it jump.
+	 */
+	public static float width(String text, Weight weight, int pixels, boolean tabular) {
 		GlyphFace face = face(weight, pixels);
-		return face == null ? 0f : face.width(text);
+		return face == null ? 0f : face.width(text, tabular);
 	}
 
 	/** How far capital letters reach above the baseline, in pixels. */
@@ -120,9 +128,14 @@ public final class SmoothText {
 	 * the canvas's current units, which must be screen pixels. Tinted by argb.
 	 */
 	public static void draw(Canvas c, String text, Weight weight, int pixels, float x, int baseline, int argb) {
+		draw(c, text, weight, pixels, x, baseline, argb, false);
+	}
+
+	/** As {@link #draw(Canvas, String, Weight, int, float, int, int)}, with tabular digits when asked. */
+	public static void draw(Canvas c, String text, Weight weight, int pixels, float x, int baseline, int argb, boolean tabular) {
 		if ((argb >>> 24) == 0 || text.isEmpty()) return;
 		GlyphFace face = face(weight, pixels);
-		if (face != null) face.draw(c, text, x, baseline, argb);
+		if (face != null) face.draw(c, text, x, baseline, argb, tabular);
 	}
 
 	static void retire(UiTexture texture) {

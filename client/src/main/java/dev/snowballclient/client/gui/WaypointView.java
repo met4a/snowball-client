@@ -161,6 +161,10 @@ public final class WaypointView extends View {
 
 	private void button(Canvas c, int[] r, String label, int mouseX, int mouseY, boolean primary) {
 		boolean hover = inside(r, mouseX, mouseY);
+		if (theme.glass()) {
+			Glass.capsuleButton(c, theme, r[0], r[1], r[2], r[3], label, primary, hover, 1f);
+			return;
+		}
 		int bg = primary ? theme.accent() : theme.surface(Math.min(1f, theme.panelOpacity + 0.15f));
 		GuiDraw.roundedRect(c, r[0], r[1], r[2], r[3], 3, hover ? Theme.lerpColor(bg, 0xFF808080, 0.25f) : bg);
 		GuiDraw.roundedOutline(c, r[0], r[1], r[2], r[3], 3, theme.border());

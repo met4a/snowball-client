@@ -16,6 +16,8 @@
     "EntityRenderDispatcherMixin",
     "FramerateLimitTrackerMixin",
     "GameRendererMixin",
+    "GuiRendererMixin",
+    "GuiStateAccessor",
     "ItemStackMixin",
     "LevelRendererMixin",
     "LightmapRenderStateExtractorMixin",

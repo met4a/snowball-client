@@ -2,6 +2,7 @@ package dev.snowballclient.client.gui;
 
 import dev.snowballclient.client.SnowballClient;
 import dev.snowballclient.client.config.ConfigManager;
+import dev.snowballclient.client.gui.snowglass.Controls;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.hud.GuiDraw;
 import dev.snowballclient.client.hud.NotificationCenter;
@@ -23,7 +24,7 @@ import java.util.Map;
  * runs, so changes are written as launcher requests and take effect on the next launch.
  */
 public final class ModProfilesView extends PanelView {
-	private static final int ROW_H = 20;
+	private static final int ROW_H = 24;
 
 	private record Entry(String id, String name, boolean loaded) {
 	}
@@ -54,7 +55,19 @@ public final class ModProfilesView extends PanelView {
 
 	@Override
 	protected void initContent() {
-		nameBox.setBounds(panelX + 12, panelY + panelH - 26, panelW - 212, 18);
+		placeNameBox();
+	}
+
+	/**
+	 * Where SAVE goes: at the right edge, lined up with the rows, until there are saved profiles, whose
+	 * buttons then take the space to its right.
+	 */
+	private int saveX() {
+		return requests.profiles().isEmpty() ? panelX + panelW - 12 - 60 : panelX + panelW - 196;
+	}
+
+	private void placeNameBox() {
+		nameBox.setBounds(panelX + 12, panelY + panelH - 26, saveX() - 6 - (panelX + 12), 18);
 	}
 
 	private int listTop() {
@@ -62,7 +75,12 @@ public final class ModProfilesView extends PanelView {
 	}
 
 	private int visibleRows() {
-		return Math.max(1, (panelY + panelH - 56 - listTop()) / ROW_H);
+		return Math.max(1, (panelY + panelH - 34 - listTop()) / ROW_H);
+	}
+
+	/** A row's width, less a lane for the scrollbar while the list scrolls. */
+	private int rowW() {
+		return panelW - 16 - (mods.size() > visibleRows() ? 6 : 0);
 	}
 
 	@Override
@@ -72,15 +90,19 @@ public final class ModProfilesView extends PanelView {
 		for (int i = scroll; i < Math.min(mods.size(), scroll + visibleRows()); i++) {
 			Entry e = mods.get(i);
 			int y = listTop() + (i - scroll) * ROW_H;
-			boolean hover = inside(panelX + 8, y, panelW - 16, ROW_H - 3, mouseX, mouseY);
-			Glass.chip(c, theme, panelX + 8, y, panelW - 16, ROW_H - 3, 4, hover ? 1f : 0f, 1f);
+			boolean hover = inside(panelX + 8, y, rowW(), ROW_H - 3, mouseX, mouseY);
+			// Each row is a switch, not something you pick, so it is a plain card under the list.
+			Glass.chip(c, theme, panelX + 8, y, rowW(), ROW_H - 3, 4, hover ? 1f : 0f, 1f);
+			int toggleX = panelX + 8 + rowW() - 34;
 			boolean wanted = !requests.isDisabled(e.id());
-			UiText.draw(c, UiText.fit(c, e.name(), UiText.UI, panelW - 130), UiText.UI, panelX + 16, y + 4, wanted ? theme.text() : theme.mutedText());
-			if (wanted != e.loaded()) UiText.drawRight(c, "RESTART", UiText.UI_SMALL, panelX + panelW - 46, y + 5, theme.accent());
-			ToggleWidget.draw(c, panelX + panelW - 38, y + (ROW_H - 3 - ToggleWidget.HEIGHT) / 2, wanted ? 1f : 0f, theme, 1f);
+			UiText.draw(c, UiText.fit(c, e.name(), UiText.UI, panelW - 130), UiText.UI, panelX + 16, y + 6, wanted ? theme.text() : theme.mutedText());
+			if (wanted != e.loaded()) UiText.drawRight(c, "RESTART", UiText.UI_SMALL, toggleX - 8, y + 7, theme.accent());
+			Controls.toggle(c, theme, toggleX, y + (ROW_H - 3 - Controls.SWITCH_H) / 2, wanted ? 1f : 0f, 1f, true, 1f);
 		}
+		Controls.scrollbar(c, theme, panelX + panelW - 8 - Controls.SCROLLBAR_W, listTop(), visibleRows() * ROW_H - 3, scroll, visibleRows(), mods.size(), false, 1f);
+		placeNameBox();
 		nameBox.render(c, theme, 1f);
-		int bx = panelX + panelW - 196;
+		int bx = saveX();
 		button(c, bx, panelY + panelH - 26, 60, 18, "SAVE", true, mouseX, mouseY);
 		int px = bx + 66;
 		for (String profile : requests.profiles().keySet()) {
@@ -95,14 +117,14 @@ public final class ModProfilesView extends PanelView {
 		if (nameBox.mouseClicked(mx, my)) return true;
 		for (int i = scroll; i < Math.min(mods.size(), scroll + visibleRows()); i++) {
 			int y = listTop() + (i - scroll) * ROW_H;
-			if (inside(panelX + 8, y, panelW - 16, ROW_H - 3, mx, my)) {
+			if (inside(panelX + 8, y, rowW(), ROW_H - 3, mx, my)) {
 				Entry e = mods.get(i);
 				requests.setDisabled(e.id(), !requests.isDisabled(e.id()));
 				requests.save();
 				return true;
 			}
 		}
-		int bx = panelX + panelW - 196;
+		int bx = saveX();
 		if (inside(bx, panelY + panelH - 26, 60, 18, mx, my)) {
 			saveProfile();
 			return true;

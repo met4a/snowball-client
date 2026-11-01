@@ -1,5 +1,7 @@
 package dev.snowballclient.client.ui;
 
+import dev.snowballclient.client.gui.snowglass.GlassPanel;
+import dev.snowballclient.client.gui.snowglass.OffMaterial;
 import dev.snowballclient.client.hud.GuiDraw;
 
 /**
@@ -47,5 +49,18 @@ public interface Canvas extends GuiDraw.Fill {
 	 * at x, y, tinted by argb. Used to draw glyphs and corners out of one shared texture.
 	 */
 	default void drawTextureRegion(UiTexture texture, int x, int y, int u, int v, int width, int height, int argb) {
+	}
+
+	/** Whether {@link #glass} draws real glass of this quality right now (rather than a solid stand-in). */
+	default boolean drawsGlass(String quality) {
+		return false;
+	}
+
+	/**
+	 * A panel of Snowglass. Canvases that can run the glass shader draw real glass; the rest (Minecraft
+	 * 1.8.9, windows standing in the world) draw it solid, as the Off material.
+	 */
+	default void glass(GlassPanel panel) {
+		OffMaterial.panel(this, panel);
 	}
 }

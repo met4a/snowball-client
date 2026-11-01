@@ -1,5 +1,6 @@
 package dev.snowballclient.client.module.render;
 
+import dev.snowballclient.client.gui.snowglass.SnowglassTokens;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.hud.HudModule;
 import dev.snowballclient.client.module.ModuleCategory;
@@ -36,7 +37,7 @@ public final class ArmorHud extends HudModule {
 
 	@Override
 	protected int contentWidth(Minecraft mc) {
-		return visibleRows(mc) == 0 ? 0 : ("none".equals(durability.get()) ? 20 : 20 + mc.font.width("100%") + 4);
+		return visibleRows(mc) == 0 ? 0 : ("none".equals(durability.get()) ? 20 : 20 + mc.font.width("100%") + 6);
 	}
 
 	@Override
@@ -51,10 +52,20 @@ public final class ArmorHud extends HudModule {
 			if (i == 4 && !showHeld.isOn()) continue;
 			ItemStack stack = mc.player.getItemBySlot(SLOTS[i]);
 			if (stack.isEmpty()) continue;
+			// No item decorations: the durability is the number and the bar beside it, not a second bar under the icon.
 			g.item(stack, 2, y);
-			g.itemDecorations(mc.font, stack, 2, y);
 			String text = durabilityText(stack);
-			if (text != null) g.text(mc.font, text, 21, y + 5, durabilityColor(stack, theme), true);
+			if (text != null) {
+				boolean bar = stack.isDamageableItem();
+				g.text(mc.font, text, 21, bar ? y + 3 : y + 5, durabilityColor(stack, theme), true);
+				if (bar) {
+					// How much is left as a bar under the number: green while healthy, then amber, then red.
+					float f = 1f - (float) stack.getDamageValue() / stack.getMaxDamage();
+					int barW = width - 21 - 5;
+					g.fill(21, y + 13, 21 + barW, y + 15, 0x24FFFFFF);
+					g.fill(21, y + 13, 21 + Math.max(1, Math.round(barW * f)), y + 15, levelColour(f));
+				}
+			}
 			y += ROW;
 		}
 	}
@@ -70,6 +81,11 @@ public final class ArmorHud extends HudModule {
 		if (!stack.isDamageableItem()) return theme.text();
 		float f = 1f - (float) stack.getDamageValue() / stack.getMaxDamage();
 		// Colour is paired with the numeric value, so the information is never colour-only.
-		return f > 0.5f ? theme.text() : f > 0.2f ? 0xFFFFD166 : 0xFFFF5C5C;
+		return levelColour(f);
+	}
+
+	/** Green above half, amber down to a fifth, red below; always shown with the number, so never colour alone. */
+	private static int levelColour(float f) {
+		return f > 0.5f ? SnowglassTokens.SUCCESS : f > 0.2f ? SnowglassTokens.WARNING : SnowglassTokens.DANGER;
 	}
 }

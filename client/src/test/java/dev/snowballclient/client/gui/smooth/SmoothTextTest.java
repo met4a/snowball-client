@@ -86,19 +86,19 @@ class SmoothTextTest {
 	@Test
 	void theMenuFontLoadsAndMeasuresText() {
 		Regions c = new Regions();
-		assertTrue(SmoothText.usable(c), "the bundled Nunito font loads");
-		float hello = SmoothText.width("Hello", SmoothText.Weight.BOLD, 20);
+		assertTrue(SmoothText.usable(c), "the bundled Inter font loads");
+		float hello = SmoothText.width("Hello", SmoothText.Weight.MEDIUM, 20);
 		assertTrue(hello > 30 && hello < 80, "a five-letter word at 20 px is a sensible width, got " + hello);
-		assertTrue(SmoothText.width("Hello world", SmoothText.Weight.BOLD, 20) > hello);
-		assertTrue(SmoothText.width("Hello", SmoothText.Weight.BOLD, 40) > hello * 1.8f, "twice the size, about twice as wide");
-		float cap = SmoothText.capHeight(SmoothText.Weight.BOLD, 20);
+		assertTrue(SmoothText.width("Hello world", SmoothText.Weight.MEDIUM, 20) > hello);
+		assertTrue(SmoothText.width("Hello", SmoothText.Weight.MEDIUM, 40) > hello * 1.8f, "twice the size, about twice as wide");
+		float cap = SmoothText.capHeight(SmoothText.Weight.MEDIUM, 20);
 		assertTrue(cap > 11 && cap < 17, "capitals reach about 0.7 of the size, got " + cap);
 	}
 
 	@Test
 	void drawingUsesOneRegionPerVisibleGlyphFromAPage() {
 		Regions c = new Regions();
-		SmoothText.draw(c, "Hi there", SmoothText.Weight.SEMIBOLD, 18, 10f, 30, 0xFFFFFFFF);
+		SmoothText.draw(c, "Hi there", SmoothText.Weight.REGULAR, 18, 10f, 30, 0xFFFFFFFF);
 		assertEquals(7, c.drawn.size(), "seven glyphs with ink; the space draws nothing");
 		int pageSize = ((Tex) c.from.get(0)).width();
 		assertTrue(pageSize >= GlyphFace.PAGE);
@@ -119,11 +119,11 @@ class SmoothTextTest {
 	void aNewGlyphNeverChangesAPageAlreadyDrawnThisFrame() {
 		Regions c = new Regions();
 		SmoothText.frameStarted();
-		SmoothText.draw(c, "abc", SmoothText.Weight.BOLD, 22, 0f, 30, 0xFFFFFFFF);
+		SmoothText.draw(c, "abc", SmoothText.Weight.MEDIUM, 22, 0f, 30, 0xFFFFFFFF);
 		UiTexture first = c.from.get(0);
 		int uploads = textures.uploaded.size();
 		// A letter that is not among those drawn up front: the page is uploaded again under a new name.
-		SmoothText.draw(c, "ő", SmoothText.Weight.BOLD, 22, 0f, 30, 0xFFFFFFFF);
+		SmoothText.draw(c, "ő", SmoothText.Weight.MEDIUM, 22, 0f, 30, 0xFFFFFFFF);
 		assertEquals(uploads + 1, textures.uploaded.size());
 		UiTexture second = textures.uploaded.get(textures.uploaded.size() - 1);
 		assertNotEquals(((Tex) first).name(), ((Tex) second).name(), "a new upload has a new name");
@@ -205,13 +205,13 @@ class SmoothTextTest {
 	void largeTextKeepsEveryLetterAndUnknownCharactersDrawAsMeasured() {
 		Regions c = new Regions();
 		// 4K at a high GUI scale: titles well over 100 pixels.
-		SmoothText.draw(c, "Wxyz", SmoothText.Weight.EXTRABOLD, 150, 0f, 200, 0xFFFFFFFF);
+		SmoothText.draw(c, "Wxyz", SmoothText.Weight.SEMIBOLD, 150, 0f, 200, 0xFFFFFFFF);
 		assertEquals(4, c.drawn.size(), "lowercase letters still fit at 150 px");
 		c.drawn.clear();
 		// A character the menu font has no shape for counts as '?' when measured, and is drawn as one.
-		float w = SmoothText.width("a\u4e2d", SmoothText.Weight.BOLD, 20);
-		assertTrue(w > SmoothText.width("a", SmoothText.Weight.BOLD, 20));
-		SmoothText.draw(c, "a\u4e2d", SmoothText.Weight.BOLD, 20, 0f, 30, 0xFFFFFFFF);
+		float w = SmoothText.width("a\u4e2d", SmoothText.Weight.MEDIUM, 20);
+		assertTrue(w > SmoothText.width("a", SmoothText.Weight.MEDIUM, 20));
+		SmoothText.draw(c, "a\u4e2d", SmoothText.Weight.MEDIUM, 20, 0f, 30, 0xFFFFFFFF);
 		assertEquals(2, c.drawn.size());
 	}
 
@@ -224,5 +224,22 @@ class SmoothTextTest {
 		SmoothText.setEnabled(false);
 		assertFalse(SmoothText.usable(new Regions()));
 		SmoothText.setEnabled(true);
+	}
+
+	@Test
+	void tabularDigitsAllTakeTheSameWidth() {
+		float ones = SmoothText.width("1111", SmoothText.Weight.MEDIUM, 20, true);
+		float eights = SmoothText.width("8888", SmoothText.Weight.MEDIUM, 20, true);
+		assertEquals(ones, eights, 0.001f, "an FPS counter going from 1111 to 8888 does not change width");
+		assertTrue(SmoothText.width("1111", SmoothText.Weight.MEDIUM, 20, false) <= ones, "a proportional 1 is never wider than the tabular cell");
+		assertEquals(SmoothText.width("FPS", SmoothText.Weight.MEDIUM, 20, false), SmoothText.width("FPS", SmoothText.Weight.MEDIUM, 20, true), 0.001f,
+				"letters keep their own widths");
+
+		// A narrow digit is drawn in the middle of its cell, so the pen ends where measuring said.
+		Regions c = new Regions();
+		SmoothText.draw(c, "11", SmoothText.Weight.MEDIUM, 20, 0f, 30, 0xFFFFFFFF, true);
+		assertEquals(2, c.drawn.size());
+		int gap = c.drawn.get(1)[0] - c.drawn.get(0)[0];
+		assertEquals(Math.round(ones / 4f), gap, 1, "each digit steps by the tabular advance");
 	}
 }

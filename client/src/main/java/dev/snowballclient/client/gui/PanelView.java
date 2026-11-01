@@ -8,6 +8,8 @@ import dev.snowballclient.client.hud.GuiDraw;
 import dev.snowballclient.client.ui.Canvas;
 import dev.snowballclient.client.ui.View;
 
+import java.util.Locale;
+
 import static dev.snowballclient.client.gui.ToggleWidget.scaleAlpha;
 
 /** Shared frame for secondary Snowball screens: dimmed backdrop, centred themed panel, buttons, back navigation. */
@@ -61,13 +63,13 @@ public abstract class PanelView extends View {
 
 	@Override
 	public void render(Canvas c, int mouseX, int mouseY, float partialTick) {
-		float a = open.update(clock.tick(), theme.animationSpeed * 14f);
+		float a = open.update(clock.tick(), theme.motion() * 14f);
 		UiText.setDensity(c.guiScale());
 		// The panel rises a little and settles as it opens.
 		c.push();
 		c.translate(0f, (1f - a) * 10f);
 		Glass.panel(c, theme, panelX, panelY, panelW, panelH, 6, a);
-		UiText.draw(c, title(), UiText.titleFor(c, 17), panelX + 12, panelY + 10, scaleAlpha(theme.text(), a));
+		UiText.draw(c, title().toUpperCase(Locale.ROOT), UiText.titleFor(c, 17), panelX + 12, panelY + 10, scaleAlpha(theme.text(), a));
 		c.fill(panelX + 10, panelY + HEADER_H - 3, panelX + panelW - 10, panelY + HEADER_H - 2, scaleAlpha(Theme.withAlpha(theme.highlight(), 0.08f), a));
 		c.fill(panelX + 10, panelY + HEADER_H - 3, panelX + 42, panelY + HEADER_H - 2, scaleAlpha(theme.accent(), a));
 		renderContent(c, mouseX, mouseY);
@@ -76,6 +78,10 @@ public abstract class PanelView extends View {
 
 	protected void button(Canvas c, int x, int y, int w, int h, String label, boolean primary, int mouseX, int mouseY) {
 		boolean hover = inside(x, y, w, h, mouseX, mouseY);
+		if (theme.glass()) {
+			Glass.capsuleButton(c, theme, x, y, w, h, label, primary, hover, 1f);
+			return;
+		}
 		int bg = primary ? theme.accent() : Theme.lerpColor(theme.surface(1f), theme.highlight(), hover ? 0.12f : 0.06f);
 		if (primary && hover) bg = Theme.lerpColor(bg, 0xFFFFFFFF, 0.2f);
 		if (primary || !theme.glass()) GuiDraw.roundedRect(c, x, y, w, h, 4, bg);

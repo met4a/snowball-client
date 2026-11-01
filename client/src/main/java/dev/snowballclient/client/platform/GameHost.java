@@ -5,7 +5,10 @@ import dev.snowballclient.client.ui.Host;
 import dev.snowballclient.client.ui.PlayerSpot;
 import dev.snowballclient.client.ui.Textures;
 import dev.snowballclient.client.ui.View;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.util.Util;
 
 import java.nio.file.Path;
@@ -68,6 +71,15 @@ final class GameHost implements Host {
 	@Override
 	public String keyName(int key) {
 		return InputConstants.Type.KEYSYM.getOrCreate(key).getDisplayName().getString();
+	}
+
+	@Override
+	public String vanillaKeyUser(int key) {
+		for (KeyMapping mapping : mc().options.keyMappings) {
+			InputConstants.Key bound = KeyMappingHelper.getBoundKeyOf(mapping);
+			if (bound.getType() == InputConstants.Type.KEYSYM && bound.getValue() == key) return Component.translatable(mapping.getName()).getString();
+		}
+		return null;
 	}
 
 	@Override

@@ -357,7 +357,7 @@ public final class SkinsView extends PanelView {
 		if (row == null) {
 			UiText.drawCenteredFitted(c, loaded ? "Add a skin to see it here" : "", UiText.DETAIL, x + w / 2, y + h / 2 - 4, w - 8, theme.mutedText());
 		} else {
-			if (!dragging && theme.animationSpeed > 0f) spin += dt * TURN_SPEED * theme.animationSpeed;
+			if (!dragging && theme.motion() > 0f) spin += dt * TURN_SPEED * theme.motion();
 			int side = Math.min(w - 8, h - 8);
 			UiTexture figure = figure(row, Math.max(48, Math.min(PREVIEW_MAX_PIXELS, (int) Math.round(side * UiText.density()))));
 			if (figure != null) c.drawTexture(figure, x + (w - side) / 2, y + (h - side) / 2, side, side, 0xFFFFFFFF);

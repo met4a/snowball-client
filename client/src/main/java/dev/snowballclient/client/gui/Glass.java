@@ -1,5 +1,7 @@
 package dev.snowballclient.client.gui;
 
+import dev.snowballclient.client.gui.snowglass.GlassPanel;
+import dev.snowballclient.client.gui.snowglass.SnowglassTokens;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.hud.GuiDraw;
 import dev.snowballclient.client.ui.Canvas;
@@ -56,15 +58,7 @@ public final class Glass {
 		gradientBody(c, x, y, w, h, radius, scaleAlpha(top, alpha), scaleAlpha(bottom, alpha));
 
 		if (liquid) {
-			// A wash of the menu colour rising from the bottom, and a bright line of it along the edge.
-			int wash = Math.max(8, h / 3);
-			GuiDraw.verticalGradient(c, x + radius, y + h - wash - 1, w - 2 * radius, wash,
-					scaleAlpha(Theme.withAlpha(t.accent(), 0f), alpha), scaleAlpha(Theme.withAlpha(t.accent(), 0.07f), alpha), 12);
-			int glowW = (w - 2 * radius) / 2;
-			GuiDraw.horizontalGradient(c, x + radius, y + h - 2, glowW, 1,
-					scaleAlpha(Theme.withAlpha(t.accent(), 0f), alpha), scaleAlpha(Theme.withAlpha(t.accent(), 0.55f), alpha), 16);
-			GuiDraw.horizontalGradient(c, x + radius + glowW, y + h - 2, w - 2 * radius - glowW, 1,
-					scaleAlpha(Theme.withAlpha(t.accent(), 0.55f), alpha), scaleAlpha(Theme.withAlpha(t.accent(), 0f), alpha), 16);
+			accentGlow(c, t, x, y, w, h, radius, alpha);
 			sheen(c, x, y, w, h, radius, alpha);
 		}
 		shade(c, x, y, w, h, radius, alpha);
@@ -102,24 +96,114 @@ public final class Glass {
 		c.fill(x + radius, y + h - 1, x + w - radius, y + h, scaleAlpha(0x1A000000, alpha));
 	}
 
+	/**
+	 * A module's card in a list: real glass where the canvas can draw it, each card its own pane of the
+	 * world behind, blurred and tinted in the panel colour; the flat card {@link #chip} draws otherwise.
+	 */
+	public static void card(Canvas c, Theme t, int x, int y, int w, int h, int radius, float alpha) {
+		card(c, t, x, y, w, h, radius, 0f, alpha);
+	}
+
+	/** A card, lit a little while the mouse is over it ({@code hover} 0 to 1). */
+	public static void card(Canvas c, Theme t, int x, int y, int w, int h, int radius, float hover, float alpha) {
+		if (w <= 0 || h <= 0 || alpha <= 0.01f) return;
+		if (t.glass() && c.drawsGlass(t.menuGlassQuality())) {
+			c.glass(new GlassPanel(x, y, w, h, radius, t.surface(1f), t.glassLevel(), t.menuGlassQuality(), alpha, false, false));
+			if (hover > 0.01f) chip(c, t, x, y, w, h, radius, 1f, alpha * hover);
+			return;
+		}
+		chip(c, t, x, y, w, h, radius, hover, alpha);
+	}
+
+	/**
+	 * A button in the Snowglass style: a capsule, filled with the menu colour when it is the main action
+	 * and see-through otherwise. The classic look keeps the boxes it always had, which callers draw.
+	 */
+	public static void capsuleButton(Canvas c, Theme t, int x, int y, int w, int h, String label, boolean primary, boolean hover, float alpha) {
+		int r = h / 2;
+		if (primary) {
+			GuiDraw.roundedRect(c, x, y, w, h, r, scaleAlpha(hover ? Theme.lerpColor(t.accent(), WHITE, 0.2f) : t.accent(), alpha));
+		} else {
+			GuiDraw.roundedRect(c, x, y, w, h, r, scaleAlpha(Theme.withAlpha(WHITE, hover ? 0.10f : 0.06f), alpha));
+			GuiDraw.roundedOutline(c, x, y, w, h, r, scaleAlpha(hover ? Theme.withAlpha(t.accent(), 0.7f) : SnowglassTokens.HAIRLINE_STRONG, alpha));
+		}
+		int ty = y + Math.round((h - UiText.lineHeight(c, UiText.UI_SMALL)) / 2f) + 1;
+		String text = UiText.fit(c, label, UiText.UI_SMALL, w - 8);
+		UiText.drawCentered(c, text, UiText.UI_SMALL, x + w / 2, ty, scaleAlpha(primary ? t.onAccentText() : t.text(), alpha));
+	}
+
+	/**
+	 * Background of a HUD element at (0, 0): real glass where the canvas can draw it in this quality,
+	 * the element's own opacity setting standing in for the Transparency slider; fills otherwise.
+	 */
+	public static void hud(Canvas c, Theme t, int w, int h, float opacity, String quality) {
+		// A taller card (potions, armour) frosts more of a bright sky into itself, so it is tinted a step further to match the one-line tiles.
+		float tint = h > 18 ? Math.min(1f, opacity + 0.15f) : opacity;
+		if (hudPane(c, t, 0, 0, w, h, hudRadius(h), tint, quality)) return;
+		hud((GuiDraw.Fill) c, t, w, h, opacity);
+	}
+
+	/** Small, even corners: 3 units on a one-line element, 4 on a taller card. */
+	public static int hudRadius(int h) {
+		return h <= 18 ? 3 : 4;
+	}
+
+	/**
+	 * The glass level for a HUD opacity setting. HUD glass is thin and sits on bright sky as often as on
+	 * dark ground, so the scale starts at 35: the default 0.45 gives a dark, see-through 64, and the
+	 * setting still runs to fully tinted.
+	 */
+	static int hudLevel(float opacity) {
+		return Math.round(35f + 65f * Math.max(0f, Math.min(1f, opacity)));
+	}
+
+	/**
+	 * One pane of HUD glass, such as a key of the keystrokes: drawn and true where the canvas can draw
+	 * glass in this quality, the opacity setting standing in for the Transparency slider; false otherwise,
+	 * for the caller to draw its own fill.
+	 */
+	public static boolean hudPane(Canvas c, Theme t, int x, int y, int w, int h, int radius, float opacity, String quality) {
+		return hudPane(c, t, x, y, w, h, radius, opacity, quality, 1f);
+	}
+
+	/** A pane of HUD glass that fades with {@code alpha}, such as a notification coming and going. */
+	public static boolean hudPane(Canvas c, Theme t, int x, int y, int w, int h, int radius, float opacity, String quality, float alpha) {
+		if (!t.glass() || t.highContrast || !c.drawsGlass(quality)) return false;
+		c.glass(new GlassPanel(x, y, w, h, radius, t.surface(1f), hudLevel(opacity), quality, alpha, false, false));
+		return true;
+	}
+
 	/** Background of a HUD element, from fills only. */
 	public static void hud(GuiDraw.Fill g, Theme t, int w, int h, float opacity) {
+		int r = hudRadius(h);
 		if (!t.glass()) {
-			GuiDraw.roundedRect(g, 0, 0, w, h, 3, t.surface(opacity));
+			GuiDraw.roundedRect(g, 0, 0, w, h, r, t.surface(opacity));
 			return;
 		}
 		int top = Theme.withAlpha(Theme.lerpColor(t.surface(1f), t.highlight(), t.liquid() ? 0.12f : 0.07f), opacity * 0.9f);
 		int bottom = Theme.withAlpha(t.surface(1f), Math.min(1f, opacity * 0.95f));
-		gradientBody(g, 0, 0, w, h, 3, top, bottom);
-		g.fill(3, 0, w - 3, 1, Theme.withAlpha(WHITE, 0.10f + opacity * 0.14f));
-		if (t.liquid() && w > 10) {
-			int half = (w - 6) / 2;
-			GuiDraw.horizontalGradient(g, 3, h - 1, half, 1, Theme.withAlpha(t.accent(), 0f), Theme.withAlpha(t.accent(), 0.5f * opacity + 0.1f), 8);
-			GuiDraw.horizontalGradient(g, 3 + half, h - 1, w - 6 - half, 1, Theme.withAlpha(t.accent(), 0.5f * opacity + 0.1f), Theme.withAlpha(t.accent(), 0f), 8);
+		gradientBody(g, 0, 0, w, h, r, top, bottom);
+		g.fill(r, 0, w - r, 1, Theme.withAlpha(WHITE, 0.10f + opacity * 0.14f));
+		if (t.liquid() && w > 2 * r + 4) {
+			int half = (w - 2 * r) / 2;
+			GuiDraw.horizontalGradient(g, r, h - 1, half, 1, Theme.withAlpha(t.accent(), 0f), Theme.withAlpha(t.accent(), 0.5f * opacity + 0.1f), 8);
+			GuiDraw.horizontalGradient(g, r + half, h - 1, w - 2 * r - half, 1, Theme.withAlpha(t.accent(), 0.5f * opacity + 0.1f), Theme.withAlpha(t.accent(), 0f), 8);
 		}
 	}
 
 	// ---- pieces ----
+
+	/** A wash of the menu colour rising from the bottom, and a bright line of it along the edge. */
+	private static void accentGlow(Canvas c, Theme t, int x, int y, int w, int h, int radius, float alpha) {
+		int wash = Math.max(8, h / 3);
+		GuiDraw.verticalGradient(c, x + radius, y + h - wash - 1, w - 2 * radius, wash,
+				scaleAlpha(Theme.withAlpha(t.accent(), 0f), alpha), scaleAlpha(Theme.withAlpha(t.accent(), 0.07f), alpha), 12);
+		int glowW = (w - 2 * radius) / 2;
+		GuiDraw.horizontalGradient(c, x + radius, y + h - 2, glowW, 1,
+				scaleAlpha(Theme.withAlpha(t.accent(), 0f), alpha), scaleAlpha(Theme.withAlpha(t.accent(), 0.55f), alpha), 16);
+		GuiDraw.horizontalGradient(c, x + radius + glowW, y + h - 2, w - 2 * radius - glowW, 1,
+				scaleAlpha(Theme.withAlpha(t.accent(), 0.55f), alpha), scaleAlpha(Theme.withAlpha(t.accent(), 0f), alpha), 16);
+	}
 
 	/** A soft shadow under the panel; with 3D Menus it falls away from the light and can be turned off. */
 	private static void shadow(Canvas c, int x, int y, int w, int h, int radius, float alpha, float strength) {
@@ -187,8 +271,10 @@ public final class Glass {
 		int bottomC = rimColour(base + strength * lightOn(0f, 1f), alpha);
 		int leftC = rimColour(base + strength * lightOn(-1f, 0f), alpha);
 		int rightC = rimColour(base + strength * lightOn(1f, 0f), alpha);
-		c.fill(x + r, y, x + w - r, y + 1, topC);
-		c.fill(x + r, y + h - 1, x + w - r, y + h, bottomC);
+		// Run the straight edges on from the corners' first row, so the outline has no gap where they meet.
+		int edge = r > 0 ? GuiDraw.cornerInset(r, 0) + 1 : 0;
+		c.fill(x + edge, y, x + w - edge, y + 1, topC);
+		c.fill(x + edge, y + h - 1, x + w - edge, y + h, bottomC);
 		// Sides fade from the colour of the edge above them to the one below.
 		GuiDraw.verticalGradient(c, x, y + r, 1, h - 2 * r, Theme.lerpColor(leftC, topC, 0.4f), Theme.lerpColor(leftC, bottomC, 0.4f), 8);
 		GuiDraw.verticalGradient(c, x + w - 1, y + r, 1, h - 2 * r, Theme.lerpColor(rightC, topC, 0.4f), Theme.lerpColor(rightC, bottomC, 0.4f), 8);

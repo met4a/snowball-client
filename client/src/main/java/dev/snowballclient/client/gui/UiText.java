@@ -1,13 +1,14 @@
 package dev.snowballclient.client.gui;
 
 import dev.snowballclient.client.gui.smooth.SmoothText;
+import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.module.ModuleRegistry;
 import dev.snowballclient.client.ui.Canvas;
 
 /**
- * Menu text. Normally smooth: Nunito, drawn at the exact number of screen pixels it covers
- * ({@link SmoothText}), sized to stand where Minecraft's font would. With smooth text off (Menu &amp;
- * Accessibility), or where it cannot be drawn, Minecraft's own font: the menu is drawn at fractional
+ * Menu text. Normally smooth: Inter, drawn at the exact number of screen pixels it covers
+ * ({@link SmoothText}), sized to stand where Minecraft's font would. With the Minecraft font chosen
+ * (Menu &amp; Accessibility), or where smooth text cannot be drawn, Minecraft's own font: the menu is drawn at fractional
  * scales (it grows with the screen), which would make the pixel font blurry or uneven, so text is
  * rescaled so that one font pixel covers a whole number of screen pixels. Titles get one extra
  * screen pixel per font pixel. Line heights are the same either way, so layouts do not move.
@@ -143,22 +144,15 @@ public final class UiText {
 
 	/** Whether text on this canvas is smooth right now. */
 	public static boolean smooth(Canvas c) {
-		return (alwaysSmooth || ModuleRegistry.INTERFACE == null || ModuleRegistry.INTERFACE.smoothText.isOn()) && SmoothText.usable(c);
-	}
-
-	private static boolean alwaysSmooth;
-
-	/** Smooth text whatever Smooth text says, until set back: the main menu always has it. Render thread only. */
-	public static void setAlwaysSmooth(boolean on) {
-		alwaysSmooth = on;
+		return (ModuleRegistry.INTERFACE == null || Theme.FONT_INTER.equals(ModuleRegistry.INTERFACE.font.get())) && SmoothText.usable(c);
 	}
 
 	/** The weight of the smooth font used for this kind of text. */
 	public static SmoothText.Weight weight(Kind kind) {
 		return switch (kind) {
-			case TITLE, TITLE_SMALL -> SmoothText.Weight.EXTRABOLD;
-			case UI -> SmoothText.Weight.BOLD;
-			case UI_SMALL, DETAIL -> SmoothText.Weight.SEMIBOLD;
+			case TITLE, TITLE_SMALL -> SmoothText.Weight.SEMIBOLD;
+			case UI -> SmoothText.Weight.MEDIUM;
+			case UI_SMALL, DETAIL -> SmoothText.Weight.REGULAR;
 		};
 	}
 
@@ -177,9 +171,12 @@ public final class UiText {
 		int baseline = (int) Math.round(y * density) + BASELINE * pixelsFor(kind);
 		c.push();
 		c.scale((float) (1.0 / density), (float) (1.0 / density));
-		// A soft shadow a pixel or two down, as Minecraft's text has, so it reads on any panel.
-		int drop = Math.max(1, Math.round(pixelsFor(kind) * 0.5f));
-		SmoothText.draw(c, text, weight(kind), pixels, xPixels, baseline + drop, (int) ((argb >>> 24) * 0.32f) << 24);
+		// A soft shadow a pixel or two down, as Minecraft's text has, so it reads on any panel; dark text on
+		// a light fill (an accent button) has none, since there it would only smear the letters.
+		if (shadowFor(argb)) {
+			int drop = Math.max(1, Math.round(pixelsFor(kind) * 0.5f));
+			SmoothText.draw(c, text, weight(kind), pixels, xPixels, baseline + drop, (int) ((argb >>> 24) * 0.32f) << 24);
+		}
 		SmoothText.draw(c, text, weight(kind), pixels, xPixels, baseline, argb);
 		c.pop();
 	}
@@ -198,14 +195,27 @@ public final class UiText {
 
 	private static void drawScaled(Canvas c, String text, int x, int y, float scale, int argb) {
 		if ((argb >>> 24) < 4) return;
+		boolean shadow = shadowFor(argb);
 		if (Math.abs(scale - 1f) < 0.01f) {
-			c.drawText(text, x, y, argb, true);
+			c.drawText(text, x, y, argb, shadow);
 			return;
 		}
 		c.push();
 		c.translate(x, y);
 		c.scale(scale, scale);
-		c.drawText(text, 0, 0, argb, true);
+		c.drawText(text, 0, 0, argb, shadow);
 		c.pop();
+	}
+
+	/**
+	 * Whether text in this colour gets a shadow: light text does, as Minecraft's always has; dark text
+	 * (on an accent button or a light segment) does not, because a shadow under dark letters merges
+	 * with them and smears the word.
+	 */
+	static boolean shadowFor(int argb) {
+		int r = (argb >> 16) & 0xFF;
+		int g = (argb >> 8) & 0xFF;
+		int b = argb & 0xFF;
+		return 0.2126f * r + 0.7152f * g + 0.0722f * b >= 96f;
 	}
 }
