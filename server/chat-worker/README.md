@@ -31,6 +31,25 @@ the last 60 messages, the announcement and the mutes. It costs nothing on Cloudf
 4. Put that URL in the launcher's `app-config.json` as `chatUrl`, and your UUID as `adminUuid`, then
    build the launcher. Until a URL is set, the launcher simply hides the chat.
 
+## Snowball+ from the store
+
+The website's store page (`website/store.html`) looks up the Minecraft name the player types and
+sends them to a Stripe Payment Link with `client_reference_id` set to `<account id>_<name>`. Stripe
+then calls `POST /store/stripe`, signed with the endpoint's secret, and the room gives that account
+Snowball+ while the monthly subscription is paid for. It takes back only the Snowball+ the store
+gave; a rank staff handed out stays. The rank history shows these as given by "Store".
+
+1. In Stripe, under **Developers > Webhooks**, add an endpoint for
+   `https://snowball-chat.snowball-mc.workers.dev/store/stripe` with the events
+   `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+   `customer.subscription.updated` and `customer.subscription.deleted`.
+2. `npx wrangler secret put STRIPE_WEBHOOK_SECRET` and paste that endpoint's signing secret
+   (`whsec_...`).
+
+Until the secret is set, `/store/stripe` answers 503 and gives nobody anything. Refunds and disputes
+are not followed on their own: cancel the subscription in Stripe when you refund one, and the
+cancellation takes Snowball+ back.
+
 ## Checking it
 
 `GET /` answers `Snowball chat is up.` and `GET /nonce` returns a fresh id, so you can tell the

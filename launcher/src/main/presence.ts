@@ -28,6 +28,11 @@ export class LauncherPresence {
       this.started.delete(exit.instanceId);
       void this.update();
     });
+    // The game's own Discord module can be switched on or off while it runs. Looking again now and
+    // then lets the launcher step back or in, instead of showing a second presence or none at all.
+    setInterval(() => {
+      if (this.launcher.processes.runningIds().length > 0) void this.update();
+    }, 30_000).unref();
     if (this.launcher.settings.get().discord.enabled) this.rpc.start();
     void this.update();
   }

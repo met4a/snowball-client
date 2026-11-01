@@ -1900,6 +1900,11 @@ body.compact .log-view {
   border-radius: 8px;
   background: rgba(16, 21, 28, 0.7);
 }
+.cape-frames {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
 .cape-preview {
   width: 60px;
   height: 96px;

@@ -22,6 +22,8 @@ public final class Cosmetics extends Module implements CustomSettingsScreen {
 	public static final String NONE = "none";
 
 	public final ChoiceSetting cape;
+	/** A Snowball+ name colour (see Looks.COLOURS), or none. */
+	public final ChoiceSetting nameColour;
 	public final BooleanSetting showOthers = setting(new BooleanSetting("show_others", "See others' cosmetics", "Show the capes other Snowball players wear", true));
 
 	public Cosmetics() {
@@ -33,12 +35,22 @@ public final class Cosmetics extends Module implements CustomSettingsScreen {
 		cape = setting(new ChoiceSetting("cape", "Cape", "", NONE, capes));
 		// Others hear about a new cape now rather than at the next heartbeat.
 		cape.onChange(v -> SnowballPresence.nudge());
+		List<String> colours = new ArrayList<>();
+		colours.add(NONE);
+		colours.addAll(Looks.COLOURS.keySet());
+		nameColour = setting(new ChoiceSetting("name_colour", "Name colour", "", NONE, colours));
+		nameColour.onChange(v -> SnowballPresence.nudge());
 		showOthers.onChange(Looks::setShowOthers);
 	}
 
 	/** What you wear, for {@link Looks}: a cape id, or empty. */
 	public String wearing() {
 		return NONE.equals(cape.get()) ? "" : cape.get();
+	}
+
+	/** The name colour picked, for {@link Looks}: a colour id, or empty. */
+	public String nameColourPicked() {
+		return NONE.equals(nameColour.get()) ? "" : nameColour.get();
 	}
 
 	@Override

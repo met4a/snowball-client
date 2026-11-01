@@ -2603,8 +2603,14 @@
       `${ui.capes.length} design${ui.capes.length === 1 ? '' : 's'} waiting for a decision`);
 
     const rows = ui.capes.map((cape) => {
-      const picture = h('canvas', { class: 'cape-preview', width: '10', height: '16', role: 'img', 'aria-label': `Cape design by ${cape.name || cape.uuid}` }) as HTMLCanvasElement;
-      paintCape(picture, cape.pixels);
+      // An animated cape is up to four frames of 960 hex digits each; staff see every frame.
+      const frames = cape.pixels.match(/[0-9a-f]{960}/g) ?? [];
+      const picture = h('div', { class: 'cape-frames', role: 'img', 'aria-label': `Cape design by ${cape.name || cape.uuid}${frames.length > 1 ? `, ${frames.length} frames` : ''}` },
+        ...frames.map((frame) => {
+          const canvas = h('canvas', { class: 'cape-preview', width: '10', height: '16' }) as HTMLCanvasElement;
+          paintCape(canvas, frame);
+          return canvas;
+        }));
       const reason = h('input', {
         class: 'input',
         maxlength: '140',
@@ -2692,12 +2698,18 @@
     view.scrollTop = view.scrollHeight;
   }
 
+  /** Snowball+ name colours; the same ids and colours as the client's Looks.COLOURS and the worker. */
+  const NAME_COLOURS: Record<string, string> = {
+    ice: '#7fcbff', snow: '#eaf6ff', mint: '#6ff2c8', gold: '#ffd166', ember: '#ff8a4d', rose: '#ff7fb0', violet: '#b794ff',
+  };
+
   function chatRow(message: Snowball.ChatMessage): HTMLElement {
+    const colour = message.colour ? NAME_COLOURS[message.colour] : undefined;
     const time = new Date(message.at);
     return h('div', { class: `chat-line${message.system ? ' system' : ''}` },
       h('span', { class: 'chat-time' }, Number.isNaN(time.getTime()) ? '' : time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })),
       message.rank && message.rank !== 'snowball' ? rankChip(message.rank) : null,
-      h('span', { class: `chat-name${message.staff ? ' staff' : ''}` }, message.name),
+      h('span', { class: `chat-name${message.staff ? ' staff' : ''}`, ...(colour ? { style: `color:${colour}` } : {}) }, message.name),
       h('span', { class: 'chat-text' }, message.text));
   }
 
@@ -3506,7 +3518,8 @@
     render();
   });
   refreshStats();
-  setInterval(refreshStats, 60_000);
+  // Often enough that "playing right now" follows people joining and leaving.
+  setInterval(refreshStats, 20_000);
   void api.chatState().then((state) => {
     ui.chat = state;
     if (state.configured) render();

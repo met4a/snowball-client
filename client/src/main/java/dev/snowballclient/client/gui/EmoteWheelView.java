@@ -12,6 +12,8 @@ import dev.snowballclient.client.gui.anim.Smoothed;
 import dev.snowballclient.client.gui.radial.RingRasterizer;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.hud.GuiDraw;
+import dev.snowballclient.client.social.Permission;
+import dev.snowballclient.client.social.SnowballPlayers;
 import dev.snowballclient.client.ui.Canvas;
 import dev.snowballclient.client.ui.Keys;
 import dev.snowballclient.client.ui.Textures;
@@ -218,7 +220,9 @@ public final class EmoteWheelView extends View {
 			int size = Math.round(figure * (1f + 0.08f * h));
 			UiTexture art = i == hovered ? live(host.textures(), e, dt) : figureTextures[page * PER_PAGE + i];
 			int tint = Theme.lerpColor(0xFFC4C8D0, 0xFFFFFFFF, h);
+			if (locked(e)) tint = Theme.withAlpha(tint, 0.4f);
 			c.drawTexture(art, fx - size / 2, fy - size / 2, size, size, scaleAlpha(tint, a * fade));
+			if (e.plus()) UiText.drawCentered(c, "+", UiText.UI, fx + size / 2 - 2, fy - size / 2, scaleAlpha(theme.accent(), a * fade));
 		}
 
 		drawHub(c, a);
@@ -228,7 +232,7 @@ public final class EmoteWheelView extends View {
 		drawPagePill(c, cx, a);
 		Emote under = slot(hovered);
 		int below = cy + r + 6;
-		String name = under != null ? under.label() : Emotes.playingSelf() ? "Click the middle to stop" : "Point at an emote";
+		String name = under != null ? under.label() + (locked(under) ? "  ·  comes with Snowball+" : "") : Emotes.playingSelf() ? "Click the middle to stop" : "Point at an emote";
 		UiText.drawCentered(c, name, UiText.TITLE_SMALL, cx, below, scaleAlpha(under != null ? 0xFFFFFFFF : theme.mutedText(), a));
 		String hint = pages() > 1 ? "Scroll for the next page  ·  1-8 to pick" : "1-8 to pick";
 		UiText.drawCentered(c, hint, UiText.DETAIL, cx, below + 13, scaleAlpha(Theme.withAlpha(theme.mutedText(), 0.85f), a));
@@ -369,9 +373,14 @@ public final class EmoteWheelView extends View {
 
 	// ---- Input ----
 
+	/** A Snowball+ emote you cannot do yet; it shows dimmed and says so under the wheel. */
+	private static boolean locked(Emote e) {
+		return e.plus() && !SnowballPlayers.can(Permission.PLUS_FEATURES);
+	}
+
 	private void pick(int i) {
 		Emote e = slot(i);
-		if (e == null) return;
+		if (e == null || locked(e)) return;
 		Emotes.play(e);
 		host.closeAll();
 	}

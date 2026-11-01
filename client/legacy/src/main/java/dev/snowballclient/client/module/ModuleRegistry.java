@@ -3,6 +3,7 @@ package dev.snowballclient.client.module;
 import dev.snowballclient.client.combat.CombatTracker;
 import dev.snowballclient.client.config.ClientSettings;
 import dev.snowballclient.client.gui.theme.Theme;
+import dev.snowballclient.client.module.client.AntiCrash;
 import dev.snowballclient.client.module.client.ClientHud;
 import dev.snowballclient.client.module.client.ClientHudModules;
 import dev.snowballclient.client.module.client.HudLayout;
@@ -13,6 +14,8 @@ import dev.snowballclient.client.module.client.PvpHudModules;
 import dev.snowballclient.client.module.client.Skins;
 import dev.snowballclient.client.module.fps.FpsBoost;
 import dev.snowballclient.client.module.fps.SmartCulling;
+import dev.snowballclient.client.module.misc.DiscordPresenceModule;
+import dev.snowballclient.client.module.misc.NickHider;
 import dev.snowballclient.client.module.misc.Notifications;
 import dev.snowballclient.client.module.misc.ServerInfo;
 import dev.snowballclient.client.module.misc.SessionTimer;
@@ -58,6 +61,8 @@ public final class ModuleRegistry {
 	public static Zoom ZOOM;
 	public static Fullbright FULLBRIGHT;
 	public static VisualModules.LowFire LOW_FIRE;
+	public static NickHider NICK_HIDER;
+	public static AntiCrash ANTI_CRASH;
 
 	public static void registerAll(ModuleManager m, WaypointStore waypoints, Theme theme, ClientSettings clientSettings,
 								   ModRequests requests, Predicate<String> isLoaded, Map<String, String> disabledJars) {
@@ -79,6 +84,7 @@ public final class ModuleRegistry {
 		INTERFACE.blurBehind.hide();
 		MENU_3D = m.register(new Menu3D());
 		m.register(new Skins());
+		ANTI_CRASH = m.register(new AntiCrash());
 
 		// FPS BOOST
 		FPS_BOOST = m.register(new FpsBoost());
@@ -97,6 +103,8 @@ public final class ModuleRegistry {
 		NOTIFICATIONS = m.register(new Notifications());
 		m.register(new SessionTimer());
 		m.register(new SpotifyHud());
+		NICK_HIDER = m.register(new NickHider());
+		m.register(new DiscordPresenceModule("1.8.9"));
 
 		// QOL
 		m.register(new Keystrokes());
@@ -113,9 +121,9 @@ public final class ModuleRegistry {
 		m.register(new StorageScreens.ModProfiles());
 
 		m.order(ModuleCategory.CLIENT, "client_hud", "hud_layout", "skins", "fps_counter", "ping_display", "coordinates", "direction_hud",
-				"speed_display", "combo_counter", "reach_display", "memory_usage", "armor_hud", "interface", "menu_3d");
+				"speed_display", "combo_counter", "reach_display", "memory_usage", "armor_hud", "interface", "menu_3d", "anti_crash");
 		m.order(ModuleCategory.RENDER, "fps_boost", "fullbright", "zoom", "potion_hud", "low_fire", "fov_settings", "render_distance");
-		m.order(ModuleCategory.MISC, "spotify", "notifications", "clock", "server_info", "session_timer");
+		m.order(ModuleCategory.MISC, "nick_hider", "spotify", "discord_presence", "notifications", "clock", "server_info", "session_timer");
 		m.order(ModuleCategory.QOL, "keystrokes", "toggle_sprint", "zoom", "snaplook", "waypoints", "nether_travel", "cps_counter", "coordinates");
 	}
 }

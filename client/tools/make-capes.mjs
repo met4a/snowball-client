@@ -212,6 +212,65 @@ const CAPES = {
     c = add(c, [200, 170, 255], stars(u, v, 0.1, 53, 0.008) * 0.6);
     return c;
   },
+
+  // ---- Snowball+ capes: shipped with every client so everyone sees them, worn only with Snowball+.
+
+  glacier(u, v) {
+    // Deep ice, with pale cracks running down it and frost gathering at the hem.
+    let c = mix(hex('#BFE7FF'), hex('#1E5C8C'), smooth(0.0, 1.0, v));
+    const crack = (x0, lean, wob, seed) => {
+      const x = x0 + (v - 0.5) * lean + Math.sin(v * 17 + seed) * wob + Math.sin(v * 41 + seed * 2) * wob * 0.4;
+      return Math.exp(-(((u - x) / 0.012) ** 2));
+    };
+    const lines = crack(0.3, 0.18, 0.025, 1) + crack(0.62, -0.12, 0.03, 4) * 0.8 + crack(0.82, 0.25, 0.02, 9) * smooth(0.25, 0.6, v);
+    c = add(c, [235, 250, 255], Math.min(1, lines) * 0.75);
+    c = mix(c, hex('#F4FBFF'), smooth(0.78, 1.0, v + Math.sin(u * 30) * 0.02) * 0.9);
+    c = add(c, [255, 255, 255], stars(u, v, 0.12, 61, 0.008) * 0.5);
+    return c;
+  },
+  comet(u, v) {
+    // Night sky with a snowball flying up and to the left, its trail in Snowball+'s ice blue.
+    let c = mix(hex('#0B1630'), hex('#03060E'), v);
+    c = add(c, [255, 255, 255], stars(u, v, 0.2, 71, 0.009) * 0.8);
+    const hx = 0.36, hy = 0.3;
+    // The face is 10 wide and 16 tall, so v counts 1.6 times as far as u.
+    const dx = u - hx, dy = (v - hy) * 1.6;
+    // Along the trail (down and to the right of the head) and across it.
+    const along = (dx * 0.6 + dy * 0.8) / 1;
+    const across = (-dx * 0.8 + dy * 0.6);
+    if (along > 0) {
+      const spread = 0.035 + along * 0.22;
+      const tail = Math.exp(-((across / spread) ** 2)) * Math.exp(-along * 2.4);
+      c = add(c, hex('#9FD8FF'), tail * 1.1);
+    }
+    const r = Math.hypot(dx, dy) / 0.07;
+    c = add(c, hex('#9FD8FF'), Math.exp(-r * r * 0.4) * 0.6);
+    if (r < 1) {
+      const lit = Math.max(0, -dx / 0.07 * 0.5 - dy / 0.07 * 0.5 + Math.sqrt(Math.max(0, 1 - r * r)) * 0.8);
+      c = mix(c, mix(hex('#B9D6EE'), hex('#FFFFFF'), lit), 1 - smooth(0.9, 1, r));
+    }
+    return c;
+  },
+  prism(u, v) {
+    // A beam of white light coming in from the top, split into a spectrum that fans out below.
+    let c = mix(hex('#101018'), hex('#050508'), v);
+    const apex = 0.42;
+    const beam = Math.exp(-(((u - 0.5) / 0.03) ** 2)) * (1 - smooth(apex - 0.04, apex, v));
+    c = add(c, [255, 255, 255], beam * 0.9);
+    if (v > apex) {
+      const t = (u - 0.5) / ((v - apex) * 0.9 + 0.001);
+      if (Math.abs(t) < 0.5) {
+        const hue = (t + 0.5) * 300;
+        const k = (n) => { const x = (n + hue / 60) % 6; return 1 - Math.max(0, Math.min(1, Math.min(x, 4 - x))); };
+        const spectrum = [255 * k(5), 255 * k(3), 255 * k(1)];
+        c = add(c, spectrum, 0.75 * smooth(0.5, 0.42, Math.abs(t)) * smooth(apex, apex + 0.08, v));
+      }
+    }
+    // The glass the light passes through.
+    const tri = Math.abs(u - 0.5) < (v - (apex - 0.12)) * 0.6 && v < apex + 0.02 && v > apex - 0.12;
+    if (tri) c = mix(c, hex('#DDE9F5'), 0.35);
+    return c;
+  },
 };
 
 // ------------------------------------------------------------- laying it out

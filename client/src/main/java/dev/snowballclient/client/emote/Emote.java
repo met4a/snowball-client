@@ -171,6 +171,60 @@ public enum Emote {
 			p.set(Pose.LEFT_ARM, -0.3f + 0.1f * nod, 0.3f, -0.35f);
 			p.move(Pose.HEAD, 0f, 0.8f * nod, -0.6f * nod);
 		}
+	},
+
+	// ---- Snowball+ emotes: everyone with Snowball sees them, only Snowball+ can do them.
+
+	THROW("throw", "Snowball Throw", 1.8f, true) {
+		@Override
+		void pose(float t, Pose p) {
+			// Wind up behind the head, then throw forward and follow through.
+			float k = Math.min(1f, t / 1.8f);
+			float wind = (float) Math.sin(Math.min(1f, k / 0.45f) * Math.PI / 2);
+			float release = k < 0.45f ? 0f : (float) Math.sin(Math.min(1f, (k - 0.45f) / 0.2f) * Math.PI / 2);
+			p.set(Pose.RIGHT_ARM, -2.8f * wind + 2.3f * release, 0f, 0.25f * wind - 0.1f * release);
+			p.set(Pose.LEFT_ARM, -0.9f * wind + 0.5f * release, 0.2f, 0f);
+			p.set(Pose.BODY, 0f, 0.35f * wind - 0.6f * release, 0f);
+			p.set(Pose.HEAD, -0.1f * wind + 0.1f * release, 0.2f * wind - 0.3f * release, 0f);
+			p.set(Pose.RIGHT_LEG, 0.3f * release, 0f, 0f);
+			p.set(Pose.LEFT_LEG, -0.3f * release, 0f, 0f);
+		}
+	},
+	FLEX("flex", "Flex", 2.4f, true) {
+		@Override
+		void pose(float t, Pose p) {
+			// Both arms out and bent up, squeezing on the beat.
+			float squeeze = (float) (0.5 + 0.5 * Math.sin(t * Math.PI * 4));
+			p.set(Pose.RIGHT_ARM, -1.2f, 0f, 1.4f + 0.15f * squeeze);
+			p.set(Pose.LEFT_ARM, -1.2f, 0f, -1.4f - 0.15f * squeeze);
+			p.set(Pose.HEAD, -0.15f, 0.25f * (float) Math.sin(t * Math.PI), 0f);
+			p.set(Pose.BODY, -0.05f * squeeze, 0f, 0f);
+		}
+	},
+	VICTORY("victory", "Victory", 2.2f, true) {
+		@Override
+		void pose(float t, Pose p) {
+			// A fist pumped at the sky three times, the other hand on the hip.
+			float pump = (float) Math.abs(Math.sin(t * Math.PI * 2.7));
+			p.set(Pose.RIGHT_ARM, -0.3f, 0f, 2.3f + 0.6f * pump);
+			p.set(Pose.LEFT_ARM, 0.1f, 0f, -0.55f);
+			p.set(Pose.HEAD, -0.35f, -0.15f, 0f);
+			p.move(Pose.RIGHT_ARM, 0f, -0.8f * pump, 0f);
+		}
+	},
+	FLOAT("float", "Float", 3.6f, true) {
+		@Override
+		void pose(float t, Pose p) {
+			// Rises off the ground, arms open and legs together, bobbing gently, then settles.
+			float up = (float) Math.sin(Math.min(1f, t / 3.6f) * Math.PI);
+			float bob = (float) Math.sin(t * Math.PI * 1.5) * 0.6f * up;
+			p.set(Pose.RIGHT_ARM, 0f, 0f, 0.7f * up);
+			p.set(Pose.LEFT_ARM, 0f, 0f, -0.7f * up);
+			p.set(Pose.HEAD, -0.25f * up, 0f, 0f);
+			p.set(Pose.RIGHT_LEG, 0.15f * up, 0f, 0.05f);
+			p.set(Pose.LEFT_LEG, 0.15f * up, 0f, -0.05f);
+			for (int part = 0; part < Pose.PARTS; part++) p.move(part, 0f, -5f * up + bob, 0f);
+		}
 	};
 
 	/** How long fading in and out takes, in seconds. */
@@ -179,11 +233,22 @@ public enum Emote {
 	private final String id;
 	private final String label;
 	private final float seconds;
+	private final boolean plus;
 
 	Emote(String id, String label, float seconds) {
+		this(id, label, seconds, false);
+	}
+
+	Emote(String id, String label, float seconds, boolean plus) {
 		this.id = id;
 		this.label = label;
 		this.seconds = seconds;
+		this.plus = plus;
+	}
+
+	/** Whether only Snowball+ players can do it. Everyone sees it done. */
+	public boolean plus() {
+		return plus;
 	}
 
 	public String id() {

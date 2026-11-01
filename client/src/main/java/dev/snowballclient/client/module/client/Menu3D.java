@@ -16,7 +16,7 @@ import java.util.function.BooleanSupplier;
  * crosshair points and clicks, the bar under a window carries it and the red dot closes it.
  * Lean: screens lean towards the mouse, their layers float apart and their panels show thick glass
  * edges. Either way only Snowball's own menus change; the HUD editor stays flat so things can be
- * placed exactly, and Minecraft's screens are left alone.
+ * placed exactly, the main menu stays still, and Minecraft's screens are left alone.
  */
 public final class Menu3D extends Module implements Depth.Settings {
 	public static final String WINDOWS = "windows";
@@ -36,7 +36,6 @@ public final class Menu3D extends Module implements Depth.Settings {
 	public final ChoiceSetting motion = setting(new ChoiceSetting("motion", "Motion",
 			"Follow the mouse, drift on its own, both, or hold still at a slight angle", BOTH, List.of(FOLLOW, DRIFT, BOTH, STILL)));
 	public final BooleanSetting shadows = setting(new BooleanSetting("shadows", "Shadows", "Panels cast a shadow that moves as they lean", true));
-	public final BooleanSetting mainMenu = setting(new BooleanSetting("main_menu", "Main menu too", "Lean the Snowball main menu as well", true));
 
 	public Menu3D() {
 		super("menu_3d", "3D Menus", "Menus stand in the world as windows, or lean towards the mouse", ModuleCategory.CLIENT);
@@ -87,11 +86,6 @@ public final class Menu3D extends Module implements Depth.Settings {
 	@Override
 	public boolean drift() {
 		return DRIFT.equals(motion.get()) || BOTH.equals(motion.get());
-	}
-
-	@Override
-	public boolean mainMenu() {
-		return mainMenu.isOn();
 	}
 
 	@Override

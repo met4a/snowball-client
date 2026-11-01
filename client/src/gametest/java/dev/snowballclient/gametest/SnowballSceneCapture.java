@@ -119,6 +119,7 @@ public final class SnowballSceneCapture implements FabricClientGameTest {
 			context.takeScreenshot("scene_noon_with_time_changer");
 			LOG.info("Captured scene {} facing {}", SEED, YAW);
 		}
+		ClientSteps.endOnTitle(context);
 	}
 
 	private static void selectCategory(ClientGameTestContext context, ModuleCategory category) {

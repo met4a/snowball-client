@@ -47,6 +47,9 @@ public final class RankLookup {
 	private static final long SOON_MS = 30_000;
 	private static final int SOON_TIMES = 4;
 	private static final Pattern ENTRY = Pattern.compile("\"([0-9a-f]{32})\"\\s*:\\s*\"([a-z_]+)\"");
+	/** One player's looks object, for the fields other than the cape. */
+	private static final Pattern LOOKS = Pattern.compile("\"([0-9a-f]{32})\"\\s*:\\s*(\\{[^}]*\\})");
+	private static final Pattern COLOUR = Pattern.compile("\"colour\"\\s*:\\s*\"([a-z_]+)\"");
 	private static final Pattern CAPE = Pattern.compile("\"([0-9a-f]{32})\"\\s*:\\s*\\{\\s*\"cape\"\\s*:\\s*\"([a-z_]+)\"(?:\\s*,\\s*\"v\"\\s*:\\s*(\\d{1,9}))?");
 
 	private static ScheduledExecutorService timer;
@@ -142,7 +145,18 @@ public final class RankLookup {
 					if (c.group(3) != null) versions.put(uuidOf(c.group(1)), Integer.parseInt(c.group(3)));
 				}
 			}
-			for (UUID id : wanted) Looks.setCape(id, capes.get(id), versions.getOrDefault(id, 0));
+			Map<UUID, String> colours = new HashMap<>();
+			if (looksAt >= 0) {
+				Matcher l = LOOKS.matcher(answer.substring(looksAt));
+				while (l.find()) {
+					Matcher c = COLOUR.matcher(l.group(2));
+					if (c.find()) colours.put(uuidOf(l.group(1)), c.group(1));
+				}
+			}
+			for (UUID id : wanted) {
+				Looks.setCape(id, capes.get(id), versions.getOrDefault(id, 0));
+				Looks.setColour(id, colours.get(id));
+			}
 			// Everyone asked about and not in the answer is not playing with Snowball Client now.
 			for (UUID id : wanted) {
 				Rank rank = playing.get(id);

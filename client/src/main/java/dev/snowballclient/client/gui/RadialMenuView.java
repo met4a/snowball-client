@@ -111,6 +111,12 @@ public final class RadialMenuView extends View {
 	private int textProbe = -1;
 	private int cardProbe = -1;
 	private String query = "";
+	/**
+	 * Holds the keyboard for the search box once it is clicked. On a screen typing anywhere searches,
+	 * but a window standing in the world only passes typing on while a text box has the keyboard.
+	 */
+	private final TextField searchFocus = new TextField(MAX_QUERY, "");
+	private boolean hoveredSearch;
 	private List<Module> rowCache = List.of();
 	private boolean rowCacheValid;
 	private String cachedQuery = "";
@@ -175,6 +181,12 @@ public final class RadialMenuView extends View {
 	public double[] rowCenter(int row) {
 		int top = panelTop(rows().size()) + rowsOffset() + (row - scroll) * ROW_H;
 		return new double[]{metrics.centerX() + (PANEL_X + 40) * metrics.scale(), metrics.centerY() + (top + (ROW_H - 3) / 2.0) * metrics.scale()};
+	}
+
+	/** GUI-space centre of the search box at the top of the side panel. */
+	public double[] searchBoxCenter() {
+		int top = panelTop(rows().size()) + HEADER_H + 2;
+		return new double[]{metrics.centerX() + (PANEL_X + PANEL_W / 2.0) * metrics.scale(), metrics.centerY() + (top + 7.5) * metrics.scale()};
 	}
 
 	/** Index of a module in the rows currently shown, or -1. */
@@ -511,7 +523,7 @@ public final class RadialMenuView extends View {
 		int bx = x + ROW_INSET;
 		int bw = PANEL_W - ROW_INSET * 2;
 		int by = y + 2;
-		boolean active = searching();
+		boolean active = searching() || searchFocus.isFocused();
 		int bh;
 		int tx;
 		if (theme.glass()) {
@@ -720,6 +732,7 @@ public final class RadialMenuView extends View {
 		hoveredRow = -1;
 		hoveredSettings = false;
 		hoveredCard = -1;
+		hoveredSearch = false;
 
 		// The panel floats above the wheel in 3D Menus: find the mouse on the panel's own layer.
 		double[] onPanel = Depth.toLayer(mouseX, mouseY, PANEL_Z);
@@ -729,6 +742,11 @@ public final class RadialMenuView extends View {
 		if (lx < PANEL_X + ROW_INSET || lx >= PANEL_X + PANEL_W - ROW_INSET) return;
 		List<Module> rows = rows();
 		int top = panelTop(rows.size());
+		float searchY = ly - (top + HEADER_H + 2);
+		if (searchY >= 0 && searchY < 15) {
+			hoveredSearch = true;
+			return;
+		}
 		if (showCards()) {
 			float relY = ly - (top + HEADER_H + SEARCH_H + 2);
 			if (relY >= 0 && relY < CARD_H * 2 + CARD_GAP) {
@@ -808,6 +826,8 @@ public final class RadialMenuView extends View {
 	public boolean mouseClicked(double mouseX, double mouseY, int button) {
 		if (closing) return true;
 		updateHover(mouseX, mouseY);
+		searchFocus.setFocused(hoveredSearch);
+		if (hoveredSearch) return true;
 		if (hoveredSegment >= 0) {
 			selectCategory(hoveredSegment);
 			return true;
@@ -841,6 +861,14 @@ public final class RadialMenuView extends View {
 	@Override
 	public boolean keyPressed(int key) {
 		if (closing) return true;
+		// Space with the box focused is typed (charTyped), never a press of the focused row.
+		if (key == Keys.SPACE && searchFocus.isFocused()) return true;
+		if (key == Keys.ESCAPE && searchFocus.isFocused()) {
+			// Esc leaves the search box (and in a window, hands the keyboard back), clearing what was typed.
+			setQuery("");
+			searchFocus.setFocused(false);
+			return true;
+		}
 		if (searching()) {
 			if (key == Keys.ESCAPE) {
 				setQuery("");
@@ -874,6 +902,7 @@ public final class RadialMenuView extends View {
 			case Keys.ENTER, Keys.KP_ENTER, Keys.SPACE -> {
 				if (focusedRow >= 0 && focusedRow < rows.size()) activate(rows.get(focusedRow), false);
 				else if (searching() && !rows.isEmpty()) activate(rows.getFirst(), false);
+				if (key != Keys.SPACE) searchFocus.setFocused(false);
 			}
 			default -> {
 				return false;

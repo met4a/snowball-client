@@ -32,6 +32,7 @@ public final class SnowballLive {
 	private static final Pattern UUID_FIELD = Pattern.compile("\"uuid\"\\s*:\\s*\"([0-9a-f]{32})\"");
 	private static final Pattern ID = Pattern.compile("\"id\"\\s*:\\s*\"([a-z_]+)\"");
 	private static final Pattern CAPE = Pattern.compile("\"cape\"\\s*:\\s*\"([a-z_]+)\"");
+	private static final Pattern COLOUR = Pattern.compile("\"colour\"\\s*:\\s*\"([a-z_]+)\"");
 	private static final Pattern VERSION = Pattern.compile("\"v\"\\s*:\\s*(\\d{1,9})");
 	private static final Pattern RANK = Pattern.compile("\"rank\"\\s*:\\s*\"([a-z_]+)\"");
 
@@ -146,10 +147,12 @@ public final class SnowballLive {
 				Emotes.stopped(player);
 				// A Snowball cape covers the player's own; with them gone from Snowball, theirs is back.
 				Looks.setCape(player, null, 0);
+				Looks.setColour(player, null);
 			}
 			case "looks" -> {
 				String v = group(VERSION, text);
 				Looks.setCape(player, group(CAPE, text), v == null ? 0 : Integer.parseInt(v));
+				Looks.setColour(player, group(COLOUR, text));
 			}
 			default -> {
 			}

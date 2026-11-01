@@ -142,7 +142,12 @@ public final class SnowballPresence {
 	/** {"looks":{...}} for the bodies sent, or empty when nothing is worn. */
 	private static String looksJson() {
 		String cape = Looks.selfCape();
-		return cape.isEmpty() ? "" : ",\"looks\":{\"cape\":\"" + cape + "\"}";
+		String colour = Looks.selfColour();
+		if (cape.isEmpty() && colour.isEmpty()) return "";
+		StringBuilder looks = new StringBuilder(",\"looks\":{");
+		if (!cape.isEmpty()) looks.append("\"cape\":\"").append(cape).append('"');
+		if (!colour.isEmpty()) looks.append(cape.isEmpty() ? "" : ",").append("\"colour\":\"").append(colour).append('"');
+		return looks.append('}').toString();
 	}
 
 	static void beat(Account account, boolean enabled) throws Exception {

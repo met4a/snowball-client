@@ -37,9 +37,6 @@ public final class Depth {
 		/** Drift gently on its own. */
 		boolean drift();
 
-		/** Also lean the main menu. */
-		boolean mainMenu();
-
 		boolean shadows();
 	}
 
@@ -187,12 +184,12 @@ public final class Depth {
 		tilt = Tilt.FLAT;
 	}
 
-	static boolean begin(Object owner, Canvas c, int width, int height, double mouseX, double mouseY, boolean allowed, boolean mainMenu) {
+	static boolean begin(Object owner, Canvas c, int width, int height, double mouseX, double mouseY, boolean allowed) {
 		drawing = false;
 		frameInDepth = false;
 		frameOwner = owner;
 		float dt = CLOCK.tick();
-		if (!allowed || !enabled() || (mainMenu && !settings.mainMenu())) {
+		if (!allowed || !enabled()) {
 			YAW.snap(0f);
 			PITCH.snap(0f);
 			tilt = Tilt.FLAT;

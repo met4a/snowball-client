@@ -1,6 +1,7 @@
 package dev.snowballclient.client;
 
 import dev.snowballclient.client.config.ConfigManager;
+import dev.snowballclient.client.gui.CrashView;
 import dev.snowballclient.client.gui.RadialMenuView;
 import dev.snowballclient.client.gui.radial.RadialLayout;
 import dev.snowballclient.client.gui.radial.RadialMetrics;
@@ -226,6 +227,11 @@ public final class SnowballClient implements ClientModInitializer {
 		if (checkTicks == checkAt) screenshot(client, "check_main_menu");
 		else if (checkTicks == checkAt + 20) LegacyScreen.show(new RadialMenuView(this));
 		else if (checkTicks == checkAt + 60) screenshot(client, "check_snowball_menu");
+		// Anti-Crash: a deliberate error, as a broken mod would throw; the crash screen takes over.
+		else if (checkTicks == checkAt + 80) throw new IllegalStateException("Snowball Anti-Crash automated check");
+		else if (checkTicks == checkAt + 120) screenshot(client, "check_anti_crash");
+		else if (checkTicks == checkAt + 140 && client.currentScreen instanceof LegacyScreen screen && screen.view() instanceof CrashView crash) crash.press("Title screen");
+		else if (checkTicks == checkAt + 180) screenshot(client, "check_after_crash");
 	}
 
 	private void screenshot(MinecraftClient client, String name) {

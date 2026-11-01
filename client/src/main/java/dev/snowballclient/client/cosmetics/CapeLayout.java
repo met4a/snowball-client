@@ -10,6 +10,10 @@ public final class CapeLayout {
 	public static final int FACE_H = 16;
 	public static final int TEX_W = 64;
 	public static final int TEX_H = 32;
+	/** An animated cape has up to this many frames, shown one after another. */
+	public static final int MAX_FRAMES = 4;
+	/** How long each frame of an animated cape shows. */
+	public static final long FRAME_MS = 250;
 
 	private CapeLayout() {
 	}
@@ -54,6 +58,30 @@ public final class CapeLayout {
 		StringBuilder out = new StringBuilder(face.length * 6);
 		for (int c : face) out.append(String.format(java.util.Locale.ROOT, "%06x", c & 0xFFFFFF));
 		return out.toString();
+	}
+
+	/** Every frame one after another: 960 hex digits each. */
+	public static String encodeFrames(int[][] frames) {
+		StringBuilder out = new StringBuilder();
+		for (int[] frame : frames) out.append(encode(frame));
+		return out.toString();
+	}
+
+	/** The frames from the backend's form (one to {@link #MAX_FRAMES} faces), or null when it is not that. */
+	public static int[][] decodeFrames(String hex) {
+		int one = FACE_W * FACE_H * 6;
+		if (hex == null || hex.isEmpty() || hex.length() % one != 0 || hex.length() / one > MAX_FRAMES) return null;
+		int[][] frames = new int[hex.length() / one][];
+		for (int i = 0; i < frames.length; i++) {
+			frames[i] = decode(hex.substring(i * one, (i + 1) * one));
+			if (frames[i] == null) return null;
+		}
+		return frames;
+	}
+
+	/** Which frame shows now, so every frame gets {@link #FRAME_MS} in turn. */
+	public static int frameNow(int frames) {
+		return frames <= 1 ? 0 : (int) ((System.currentTimeMillis() / FRAME_MS) % frames);
 	}
 
 	/** The face from the backend's form, or null when it is not one. */

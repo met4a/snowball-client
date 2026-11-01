@@ -17,7 +17,8 @@ import java.util.UUID;
  */
 public final class CapeTextures {
 	private static final Map<String, ClientAsset.Texture> SHIPPED = new HashMap<>();
-	private static final Map<String, ClientAsset.Texture> CUSTOM = new HashMap<>();
+	/** A custom design's frames as textures, one per frame. */
+	private static final Map<String, ClientAsset.Texture[]> CUSTOM = new HashMap<>();
 
 	private CapeTextures() {
 	}
@@ -34,21 +35,25 @@ public final class CapeTextures {
 	}
 
 	private static ClientAsset.Texture custom(UUID id, String cape) {
-		ClientAsset.Texture made = CUSTOM.get(id + cape);
-		if (made != null) return made;
+		ClientAsset.Texture[] made = CUSTOM.get(id + cape);
+		// An animated cape changes frame as time passes; a still one has a single frame.
+		if (made != null) return made[CapeLayout.frameNow(made.length)];
 		int version;
 		try {
 			version = Integer.parseInt(cape.substring(Looks.CUSTOM.length() + 1));
 		} catch (NumberFormatException e) {
 			return null;
 		}
-		int[] face = CustomCapes.face(id, version);
-		if (face == null) return null;
-		var texture = MinecraftTextures.INSTANCE.upload("dynamic/cape/" + id.toString().replace("-", "") + "_" + version,
-				CapeLayout.TEX_W, CapeLayout.TEX_H, CapeLayout.texture(face));
-		Identifier path = MinecraftTextures.id(texture);
-		made = new ClientAsset.ResourceTexture(path, path);
+		int[][] frames = CustomCapes.frames(id, version);
+		if (frames == null) return null;
+		made = new ClientAsset.Texture[frames.length];
+		for (int i = 0; i < frames.length; i++) {
+			var texture = MinecraftTextures.INSTANCE.upload("dynamic/cape/" + id.toString().replace("-", "") + "_" + version + "_" + i,
+					CapeLayout.TEX_W, CapeLayout.TEX_H, CapeLayout.texture(frames[i]));
+			Identifier path = MinecraftTextures.id(texture);
+			made[i] = new ClientAsset.ResourceTexture(path, path);
+		}
 		CUSTOM.put(id + cape, made);
-		return made;
+		return made[CapeLayout.frameNow(made.length)];
 	}
 }

@@ -8,13 +8,13 @@ export const OWNER = '85c4ac3a0c284c20be4bee8a346ba51e';
 const mojang = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const mojangPublic = mojang.publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
 
-export async function room() {
+export async function room(env = {}) {
   const stored = new Map();
   const state = {
     blockConcurrencyWhile: (fn) => fn(),
     storage: { get: async (k) => stored.get(k), put: async (k, v) => stored.set(k, v) },
   };
-  const r = new ChatRoom(state, { ADMIN_UUID: OWNER, MOJANG_KEYS: mojangPublic });
+  const r = new ChatRoom(state, { ADMIN_UUID: OWNER, MOJANG_KEYS: mojangPublic, ...env });
   await r.ready;
   return r;
 }
