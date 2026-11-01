@@ -9,8 +9,8 @@ The plan was approved on 2026-11-01 with the recommended answers to Q1–Q8 (PLA
 menu*, one menu that works with colour switching, 3D Menus and everything else, not a separate
 design. So real glass now goes into the existing menus through `Glass.panel` (the radial menu's side
 panel, module settings, Menu & Accessibility, every `PanelView` page, the colour picker, waypoints,
-notifications) and the HUD backgrounds. **Open question for the user:** keep the radial wheel and drop
-the sidebar-window redesign planned for M4 (Q1 was answered "replace" before this)? Ask before starting M4.
+notifications) and the HUD backgrounds. **Decided:** the radial wheel stays. The sidebar-window
+redesign is dropped, and M4 restyles the wheel menu and its pages in place (PLAN.md §8.1, §13).
 
 ### M2: what changed
 
@@ -139,8 +139,8 @@ the sidebar-window redesign planned for M4 (Q1 was answered "replace" before thi
 
 ## Next
 
-1. **Ask the user:** keep the radial wheel menu (and redo M4 as "restyle the existing menus") instead of the sidebar-window redesign?
-2. M3 components (switch, slider and so on), built so they slot into the existing menus.
+1. M3 components (switch, slider and so on), built so they slot into the existing wheel menu and its pages.
+2. M4: restyle the wheel menu and its pages in place with them.
 3. In M7: measure GPU cost, try Vulkan outside the game-test harness, and run Iris, Sodium and ImmediatelyFast.
 
 ## Reproducing the reference captures

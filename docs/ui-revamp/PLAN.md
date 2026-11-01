@@ -1,6 +1,6 @@
 # Snowglass: in-game UI revamp plan (Phase 0)
 
-Status: **approved 2026-11-01**, with the recommended answers to all eight questions in §15. Branch: `ui/snowglass`. Progress is tracked in PROGRESS.md.
+Status: **approved 2026-11-01**, with the recommended answers to all eight questions in §15, **except Q1: the radial wheel stays** (decided later the same day). Branch: `ui/snowglass`. Progress is tracked in PROGRESS.md.
 Everything marked *verified* was checked this session against the repo, the Minecraft jars in the Gradle cache
 (`javap` on the 26.2 deobf jar and the Mojang-mapped 1.21.11 jar; there are no decompiled sources in the cache),
 or the extracted vanilla shaders. Everything marked *to verify* has not been checked yet and is scheduled.
@@ -300,6 +300,10 @@ These are thin interfaces. Version-agnostic code (tokens, layout, components, sp
 
 ### 8.1 Mod menu window (replaces the radial wheel if Q1 is yes)
 
+> **Dropped 2026-11-01.** The user chose to keep the radial wheel: one Snowball menu that works with
+> the palettes, 3D Menus and everything else. M4 restyles the wheel menu and its pages in place with
+> Snowglass components instead. The window below is kept only as a record of what was considered.
+
 Size: 70% of the scaled screen, clamped to 360×240 … 640×400 logical px, times Menu Scale.
 
 ```
@@ -499,7 +503,7 @@ One commit per milestone on `ui/snowglass`; no pushes unless asked.
 | **M1: design system** | `snowglass` package with tokens, material levels and category colours; Inter faces in SmoothText plus fixed-width digits; new and extended line icons; `Spring` (standard and liquid, delta-time); Theme schema 2 with migration; dev-only **Glass Lab** View (opens in dev runs and game tests only) that shows every token and component and has sliders for every material parameter. Until M2 it uses the Off material. | All three builds pass. Unit tests: spring frame-rate independence (30 vs 144 vs 240 fps within 1%), contrast sweep, config migration from 1.10.0 fixtures. Glass Lab screenshot captured by a game test on both modern versions. |
 | **M2: glass renderer** | Backdrop pyramid; `snowball:glass` and pyramid pipelines; glass render state; the `GuiRenderer.draw` HEAD inject and `guiRenderState` accessor; Lite, Full and Off; automatic fallbacks; resize, reload and shutdown handling | Glass Lab screenshots over all six backdrops on 1.21.11 GL, 26.2 GL and 26.2 Vulkan. A forced compile failure falls back to Off without crashing (test flag). No new GL imports. GPU frame-time numbers recorded (or "not measured" with the reason). ImmediatelyFast smoke run. |
 | **M3: components** | Window, card, switch (droplet thumb, stretch while pressed), slider (droplet and value capsule, Shift fine steps), dropdown/popover (morph from control), colour picker popover, keybind chip with conflicts, text and number fields, segmented control, chips, search capsule, scrollbar, tooltip, focus ring; keyboard focus model | Every component in the Glass Lab at GUI scale 1, 2, 3 and Auto. Focus traversal unit tests. Hit targets ≥ 12 logical px checked in a test. Reduce Motion path screenshot. |
-| **M4: mod menu and settings** | New menu window (Q1), settings pane, FPS Boost segmented presets, advanced disclosure, status pills, search, filter chips, open/close motion | `SnowballMenuGameTest` rewritten for the new menu (open, every category, toggle by mouse and keyboard, the change persisted, Right Shift toggles, Esc closes the top layer). Screenshots at three resolutions, GUI 2 and Auto. 1.8.9 builds and shows the Off material. |
+| **M4: mod menu and settings** | The radial wheel menu kept and restyled in place: its side panel, rows, search and FPS Boost cards, and the module settings page, rebuilt with the M3 components; status pills; open/close motion on springs. The wheel layout, palettes and 3D Menus work as today | The existing `SnowballMenuGameTest` still passes unchanged (open, every category, toggle by mouse and keyboard, the change persisted, Right Shift toggles, Esc closes). Screenshots at three resolutions, GUI 2 and Auto. 1.8.9 builds and keeps its look. |
 | **M5: HUD and editor** | Glass HUD pills and cards, keystroke flash, armour and potion cards, `hudGlass`, text throttling, anchors and migration, editor snapping, scroll-to-scale, toolbar | HUD screenshots over six backdrops; F1 hides; migration test; HUD glass GPU cost measured. |
 | **M6: remaining surfaces** | Notifications, `PanelView` family, waypoints, colour picker, emote wheel, container search, tooltips, confirm dialog, windows in the world (Off material); main menu and loading screen per Q5 | A screenshot of every surface in the inventory. |
 | **M7: polish** | Performance pass, accessibility audit (contrast sampled from screenshots, keyboard-only walkthrough, narration of window titles and focused controls through vanilla narration where `ViewScreen` allows), compatibility runs, GUI scales 1–6 and Auto, README, CHANGELOG, licences | Final report: what changed, screenshots, measured numbers, what's still unverified, and what you need to do yourself (a launcher rebuild only; no manifest edits). |
@@ -514,9 +518,9 @@ One commit per milestone on `ui/snowglass`; no pushes unless asked.
 
 ## 15. Questions (also asked in chat)
 
-**Answered 2026-11-01: approved as recommended, all eight.**
+**Answered 2026-11-01: approved as recommended, all eight. Q1 was later reversed: the wheel stays.**
 
-1. **Mod menu:** replace the radial wheel with the sidebar window? *Recommended: yes, replace.* (Keeping both doubles M4.)
+1. **Mod menu:** replace the radial wheel with the sidebar window? *Recommended: yes, replace.* (Keeping both doubles M4.) **Final answer: keep the wheel** and restyle it in place.
 2. **1.8.9:** it shares the UI code. *Recommended:* it gets the new layout and components automatically with the Off material and no shader work. The alternative, freezing 1.8.9 on today's UI, means forking ~55 files.
 3. **Typeface:** Inter, as in the brief, replacing Nunito everywhere, the main menu included, and **on by default for everyone**, with "Minecraft font" as the option? *Recommended: yes.* The alternatives are keeping Nunito, or Monocraft to match the launcher.
 4. **Icons:** keep and extend Snowball's own line icons instead of adopting Lucide or Phosphor? *Recommended: keep* (original, already pixel-exact, "recognisably Snowball").
