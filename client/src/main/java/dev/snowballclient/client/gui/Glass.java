@@ -38,15 +38,6 @@ public final class Glass {
 	/** A main surface whose body is {@code bodyOpacity} solid, for panels that sit over something worth seeing. */
 	public static void panel(Canvas c, Theme t, int x, int y, int w, int h, int radius, float alpha, float bodyOpacity) {
 		if (w <= 0 || h <= 0 || alpha <= 0.01f) return;
-		if (t.glass() && c.drawsGlass(t.menuGlassQuality())) {
-			// Real Snowglass: the world behind, blurred, bent at the rim and tinted in the panel colour.
-			// The 3D Menus thickness, the menu colour's glow and the lean's light stay as they were.
-			slab(c, t, x, y, w, h, radius, alpha);
-			c.glass(new GlassPanel(x, y, w, h, radius, t.surface(1f), t.glassLevel(), t.menuGlassQuality(), alpha, Depth.shadows(), false));
-			if (t.liquid()) accentGlow(c, t, x, y, w, h, radius, alpha);
-			shade(c, x, y, w, h, radius, alpha);
-			return;
-		}
 		if (!t.glass()) {
 			if (Depth.active()) shadow(c, x, y, w, h, radius, alpha, 0.44f);
 			else GuiDraw.roundedRect(c, x + 2, y + 4, w, h, radius + 1, scaleAlpha(0x70000000, alpha));
@@ -102,6 +93,19 @@ public final class Glass {
 		int edgeTop = scaleAlpha(Theme.withAlpha(WHITE, 0.09f + 0.12f * hover + (t.liquid() ? 0.05f * lightOn(0f, -1f) : 0f)), alpha);
 		c.fill(x + radius, y, x + w - radius, y + 1, edgeTop);
 		c.fill(x + radius, y + h - 1, x + w - radius, y + h, scaleAlpha(0x1A000000, alpha));
+	}
+
+	/**
+	 * A module's card in a list: real glass where the canvas can draw it, each card its own pane of the
+	 * world behind, blurred and tinted in the panel colour; the flat card {@link #chip} draws otherwise.
+	 */
+	public static void card(Canvas c, Theme t, int x, int y, int w, int h, int radius, float alpha) {
+		if (w <= 0 || h <= 0 || alpha <= 0.01f) return;
+		if (t.glass() && c.drawsGlass(t.menuGlassQuality())) {
+			c.glass(new GlassPanel(x, y, w, h, radius, t.surface(1f), t.glassLevel(), t.menuGlassQuality(), alpha, false, false));
+			return;
+		}
+		chip(c, t, x, y, w, h, radius, 0f, alpha);
 	}
 
 	/**

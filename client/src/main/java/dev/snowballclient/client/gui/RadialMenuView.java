@@ -550,7 +550,7 @@ public final class RadialMenuView extends View {
 	}
 
 	private void drawRowBackground(Canvas c, int index, int rx, int y, int rw, float alpha) {
-		Glass.chip(c, theme, rx, y, rw, ROW_H - 3, 4, 0f, alpha);
+		Glass.card(c, theme, rx, y, rw, ROW_H - 3, 4, alpha);
 	}
 
 	private void drawRow(Canvas c, Module m, int index, int rx, int y, int rw, float alpha) {

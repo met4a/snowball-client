@@ -11,6 +11,16 @@ The plan was approved on 2026-11-01 with the recommended answers to Q1–Q8 (PLA
 - 1.10.0's `smooth_font` (modules.json) carries over: anyone who had it on gets Inter (`InterfaceSettings.migrateSettings`).
 - The "Inter replaces Nunito" notes under M1 still describe the smooth font; it is just not the default any more.
 
+**Glass on the modules, not the list, decided 2026-11-01 (user):** "make the modules glass not the list, like revert it back".
+- Their three references (TikTok, @gingyninja) are crystal-PvP gameplay with no menu on screen. The look taken from them is the now-playing card in their HUD: a dark, see-through rounded card in Minecraft's font.
+- `Glass.panel` no longer draws real glass. Every panel (the wheel's side list, settings pages, `PanelView` pages, colour picker, waypoints, notifications) is back to the look it had before M2.
+- New `Glass.card`: each module row in the wheel's side list is its own pane of real glass, in the panel colour, at the Transparency level and menu glass quality. With glass off, or on a canvas that cannot draw it, the row is the old flat card (`Glass.chip`).
+- Unchanged: the HUD glass backgrounds (M2) and the glass dropdown popover and tooltip (M3).
+- **Verified:**
+  - `./gradlew build` passes: 233 unit tests per version, 0 failures. `-p legacy build` passes, and `check-generated.mjs` is clean.
+  - `-Ponly=snowglass` passes on 26.2 and 1.21.11 (OpenGL). The menu screenshots were looked at: glass cards on the old list panel over snow, village and night, and with the 3D lean.
+- **Not verified:** the cards at GUI scales other than 2, and with the Lite glass quality.
+
 ### M3: what changed
 
 - **`gui/snowglass/Controls`** (shared; draws on any canvas):
