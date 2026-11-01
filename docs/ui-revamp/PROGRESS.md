@@ -3,7 +3,49 @@
 Read this first in any new session, then `PLAN.md`. Branch: `ui/snowglass` (not pushed).
 The plan was approved on 2026-11-01 with the recommended answers to Q1–Q8 (PLAN.md §15).
 
-## Current state: M2 (real glass) done, and it is in the real Snowball menu
+## Current state: M3 (controls) done, in the wheel menu's settings pages
+
+### M3: what changed
+
+- **`gui/snowglass/Controls`** (shared; draws on any canvas):
+  - switch: the thumb stretches with its spring's speed and a little while pressed; its side states on/off
+  - slider: white thumb; while dragged, a value capsule appears above it
+  - segmented choice: a sliding accent pill that stretches while it moves
+  - dropdown, and its glass popover that grows out of the control; the chosen option has a check mark as well as the colour
+  - capsules for keys and text; a keybind conflict gets a warning outline plus words in the row
+  - colour well
+  - focus ring (concentric, accent; yellow in high contrast), slim scrollbar, glass tooltip with word wrap
+  - every hit area is at least 12 units
+- **`FocusList`**: Tab or Down moves forward, Shift+Tab or Up back, both wrapping. Nothing is focused until the keyboard is used.
+- **`ModuleSettingsView`**: every setting uses these controls. A choice of 4 or fewer short options is segmented; longer ones become a dropdown.
+  - Mouse: Shift-drag moves a slider a tenth as far.
+  - Keyboard: Left and Right step a slider (one step, the finest a setting allows), step a choice or set a switch; Enter or Space activates; Esc closes the open dropdown, then the text box, then the page.
+  - A row whose description is cut short shows it whole in a tooltip after 0.4 s.
+  - The keybind row says which module or Minecraft control already uses the key (`Host.vanillaKeyUser`, through Fabric's `getBoundKeyOf`), plus a scrollbar.
+- **`TextField`**: a capsule with a focus ring under the glass looks; the classic look is unchanged.
+- New Stonecutter rename rule: `KeyBindingHelper.getBoundKeyOf(` ↔ `KeyMappingHelper.getBoundKeyOf(`.
+
+### M3: verified
+
+- Builds on all three targets; 232 unit tests per version, 0 failures (new `ControlsTest`, `FocusListTest`). `check-generated.mjs` is clean.
+- The full game-test suite passes on 26.2 (5m 55s) and 1.21.11 (6m 6s).
+- In-game screenshots, 26.2, over the village:
+  - `settings_interface_village_gui2.png`: every control type
+  - `settings_focus_village_gui2.png`: Tab focus ring
+  - `settings_dropdown_village_gui2.png`: Enter opens the glass dropdown
+  - `settings_tooltip_village_gui2.png`: the full description
+
+  All four were looked at and work as intended.
+
+### M3: not done or not verified
+
+- **Lifted glass thumbs.** No glass "droplet" thumbs: a glass thumb would sample the world under the panel rather than the panel, and read as a hole. Thumbs are solid white, with stretch and a press response.
+- **Colour picker.** Still opens as its own screen, not a popover.
+- **Shift fine-drag.** Not exercised by a game test, only by reading the code.
+- **Reduce Motion with the new controls.** Springs snap in code; no screenshot of that path.
+- **GUI scales.** Only GUI 2 was photographed.
+
+## Earlier: M2 (real glass) done, and it is in the real Snowball menu
 
 **Direction from the user (2026-11-01, after seeing the Glass Lab):** they want *the normal Snowball
 menu*, one menu that works with colour switching, 3D Menus and everything else, not a separate
@@ -139,8 +181,12 @@ redesign is dropped, and M4 restyles the wheel menu and its pages in place (PLAN
 
 ## Next
 
-1. M3 components (switch, slider and so on), built so they slot into the existing wheel menu and its pages.
-2. M4: restyle the wheel menu and its pages in place with them.
+1. M4: restyle the wheel menu in place with the M3 controls. That covers:
+   - the side panel's rows (their switches), search capsule and FPS Boost cards
+   - the other `PanelView` pages
+   - the colour picker as a popover
+
+   The wheel layout, the palettes and 3D Menus stay as they are.
 3. In M7: measure GPU cost, try Vulkan outside the game-test harness, and run Iris, Sodium and ImmediatelyFast.
 
 ## Reproducing the reference captures

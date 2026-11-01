@@ -108,6 +108,22 @@ public final class SnowglassGameTest implements FabricClientGameTest {
 		});
 		context.waitTicks(30);
 		save(context, "settings_interface_village_gui2");
+		// The keyboard: Tab twice reaches Colours (after the keybind row), Enter opens its dropdown.
+		context.getInput().pressKey(KEY_TAB);
+		context.getInput().pressKey(KEY_TAB);
+		context.waitTicks(5);
+		save(context, "settings_focus_village_gui2");
+		context.getInput().pressKey(KEY_ENTER);
+		context.waitTicks(15);
+		save(context, "settings_dropdown_village_gui2");
+		context.getInput().pressKey(KEY_ESCAPE);
+		context.waitTicks(10);
+		// Resting the mouse on a row whose description is cut short shows all of it.
+		double[] point = onClient(context, mc -> mc.gui.screen() instanceof ViewScreen v && v.view() instanceof ModuleSettingsView s ? s.rowPoint(1) : null);
+		double scale = onClient(context, mc -> (double) mc.getWindow().getGuiScale());
+		context.getInput().setCursorPos(point[0] * scale, point[1] * scale);
+		context.waitTicks(30);
+		save(context, "settings_tooltip_village_gui2");
 		context.getInput().pressKey(KEY_ESCAPE);
 		context.waitForScreen(null);
 	}

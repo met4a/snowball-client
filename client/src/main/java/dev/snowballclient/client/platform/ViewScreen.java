@@ -206,6 +206,11 @@ public final class ViewScreen extends Screen implements Host {
 	}
 
 	@Override
+	public String vanillaKeyUser(int key) {
+		return GameHost.INSTANCE.vanillaKeyUser(key);
+	}
+
+	@Override
 	public boolean isMenuKey(int key) {
 		return currentKey != null && currentKey.key() == key && SnowballClient.get().openMenuKey().matches(currentKey);
 	}

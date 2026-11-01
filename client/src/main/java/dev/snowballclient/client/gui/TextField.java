@@ -1,5 +1,7 @@
 package dev.snowballclient.client.gui;
 
+import dev.snowballclient.client.gui.snowglass.Controls;
+import dev.snowballclient.client.gui.snowglass.SnowglassTokens;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.hud.GuiDraw;
 import dev.snowballclient.client.ui.Canvas;
@@ -112,15 +114,21 @@ public final class TextField {
 
 	public void render(Canvas c, Theme theme, float alpha) {
 		if (theme.glass()) {
-			Glass.chip(c, theme, x, y, width, height, 4, focused ? 0.6f : 0f, alpha);
+			// A capsule in the quieter fill, as Snowglass's other controls; focus rings it in the accent.
+			int r = height / 2;
+			GuiDraw.roundedRect(c, x, y, width, height, r, scaleAlpha(Theme.withAlpha(0xFFFFFFFF, focused ? 0.10f : 0.06f), alpha));
+			GuiDraw.roundedOutline(c, x, y, width, height, r, scaleAlpha(focused ? theme.accent() : SnowglassTokens.HAIRLINE_STRONG, alpha));
+			if (focused) Controls.focusRing(c, theme, x, y, width, height, r, alpha * 0.6f);
 		} else {
 			int fill = Theme.lerpColor(theme.surface(1f), theme.highlight(), focused ? 0.07f : 0.035f);
 			GuiDraw.roundedRect(c, x, y, width, height, 4, scaleAlpha(Theme.withAlpha(fill, Math.min(1f, theme.panelOpacity + 0.05f)), alpha));
+			GuiDraw.roundedOutline(c, x, y, width, height, 4, scaleAlpha(focused ? theme.accent() : theme.border(), alpha));
 		}
-		GuiDraw.roundedOutline(c, x, y, width, height, 4, scaleAlpha(focused ? theme.accent() : theme.border(), alpha));
-		int tx = x + 5;
+		// Text keeps clear of a capsule's round ends.
+		int inset = theme.glass() ? Math.max(5, height / 2) : 5;
+		int tx = x + inset;
 		int ty = y + (height - 8) / 2;
-		int room = width - 12;
+		int room = width - inset - 7;
 		if (value.isEmpty() && !focused) {
 			UiText.draw(c, UiText.fit(c, hint, UiText.UI_SMALL, room), UiText.UI_SMALL, tx, ty, scaleAlpha(theme.mutedText(), alpha));
 			return;
