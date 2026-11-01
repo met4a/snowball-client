@@ -101,8 +101,10 @@ public final class GuiDraw {
 	public static void roundedOutline(Fill g, int x, int y, int w, int h, int radius, int argb) {
 		if (w <= 1 || h <= 1 || (argb >>> 24) == 0) return;
 		int r = Math.max(0, Math.min(radius, Math.min(w, h) / 2));
-		g.fill(x + r, y, x + w - r, y + 1, argb);
-		g.fill(x + r, y + h - 1, x + w - r, y + h, argb);
+		// The top and bottom lines run on from where the corners' first row ends, so there is no gap between them.
+		int edge = r > 0 ? cornerInset(r, 0) + 1 : 0;
+		g.fill(x + edge, y, x + w - edge, y + 1, argb);
+		g.fill(x + edge, y + h - 1, x + w - edge, y + h, argb);
 		g.fill(x, y + r, x + 1, y + h - r, argb);
 		g.fill(x + w - 1, y + r, x + w, y + h - r, argb);
 		for (int i = 0; i < r; i++) {

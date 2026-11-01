@@ -3,9 +3,96 @@
 Read this first in any new session, then `PLAN.md`. Branch: `ui/snowglass` (not pushed).
 The plan was approved on 2026-11-01 with the recommended answers to Q1–Q8 (PLAN.md §15).
 
-## Current state: M6 (the remaining surfaces) done
+## Current state: M6 done, merged with 1.12.0, reviewed and polished
 
 **Asked 2026-11-01 (user):** do M4, M5 and M6, then either pick the best-looking look for people or send screenshots of all of them so they can choose the default.
+
+**Asked 2026-11-02 (user, before going to sleep):**
+- Update to the new Snowball, push, and do everything without them.
+- The HUD text pills "look wierd": make sure everything is perfect, and use other agents to decide whether it is good.
+
+### Merge with 1.12.0
+
+`main` (1.11.0, Snowball+ store, 1.12.0) merged into `ui/snowglass` (`d3bf19e`). There were two conflicts:
+- The game-test list keeps upstream's Anti-Crash and Map Art tests and the Snowglass test.
+- The wheel's search keeps the Snowglass capsule and lights while it has the keyboard (upstream's new click-to-focus).
+
+**Verified:**
+- `./gradlew build`, `-p legacy build` and `check-generated.mjs` all pass.
+- On both 26.2 and 1.21.11, every other game test passes: menu, flicker, render, skins, spatial, anticrash and mapart.
+
+### Review round (three independent reviewer agents)
+
+1. **Default look:** keep the Snowball palette and Full glass, and raise **Transparency from 50 to 75 (Thick)**.
+   - It is the closest to the reference's dark see-through cards.
+   - Grey descriptions read at about 3.8–4.3:1, against 3.0–3.7:1 at 50.
+   - At 50, rows turned into grey slabs on snow and muddy olive at night.
+2. **HUD** (FAIL on the pills): they read as blue toy buttons in daylight, the two-colour labels looked dirty, elements touched the screen edges, the clock sat under notifications, and the armour had two durability bars.
+3. **Menus and pages:**
+   - dark text on accent buttons was smeared by its shadow ("SAVE" read "SNVE")
+   - rounded outlines had a gap where the straight edges meet the corners
+   - glass rows let too much of the world through
+   - status pills were cramped
+   - the FPS Boost cards were a different kind of card from the rows
+   - Mod Profiles rows were glass although they are switches
+
+**Fixed:**
+- **Default Transparency is 75** (`Theme.DEFAULT_GLASS_LEVEL`). A 1.x `gui.json` whose panel opacity was never changed (0.82) migrates to it. A chosen opacity still maps as before.
+- **Text shadow:** dark text is drawn without one (`UiText.shadowFor`), on both the pixel and the smooth font.
+- **Outline gaps:**
+  - `GuiDraw.roundedOutline` and `Glass.rim` run their straight edges on from the corners' first row, so there is no gap.
+  - The switch's off hairline had its alpha replaced instead of scaled (`Theme.withAlpha`), so it drew opaque. It is now scaled, and the stair-stepped glow round an on switch is gone.
+- **Wheel menu:**
+  - Descriptions on glass use a lighter grey at full strength.
+  - Status pills are 13 tall with 6 units each side.
+  - Advanced shows only its chevron, with no SHOW/HIDE pill.
+  - The FPS BOOST cards are glass like the rows, with their text lined up with the rows.
+- **Secondary pages:** Mod Profiles rows are plain cards, 24 tall, and page titles are in capitals like the rest.
+- **HUD:**
+  - The two-colour labels are gone. Text tiles are 14 tall (padding 4/3) with 3-unit corners (4 on taller cards).
+  - HUD glass is darker: the opacity setting maps to level 35–100, so the default 0.45 gives 64.
+  - Elements keep a 2-unit margin from the screen's edges (`HudModule.INSET`).
+  - Notifications start below any HUD element in the top-right corner.
+  - **Armour:** one bar, green, amber and red levels, and more room.
+  - **Potions:** times are in the main colour.
+  - **Editor:** the toolbar sits above the hotbar, the rotate arm stops at the box, and labels stay on screen.
+
+**Second review pass:** the HUD tiles, clock, armour and potion card now PASS. So do the main list, FPS Boost, search, settings, presets, config profiles, Nether Travel and the colour picker. Fixed after it:
+- **The main list scrolls since 1.12.0 added modules.** While it scrolls the rows are 5 units narrower, so the scrollbar has its own lane and the focus ring no longer covers it.
+- **Neutral status pills** ("16 HIDDEN") are drawn in the main text colour at 80%. Descriptions on glass are 40% of the way to the main text colour.
+- **Mod Profiles** gets a scrollbar lane and a smaller bottom reserve (34).
+- **Main menu:** the Singleplayer, Multiplayer, Snowball Menu and Quit buttons are capsules like every other button. The square icon buttons and the account chip keep small corners.
+- **Cosmetics:** the cape grid is centred, and the capes are glass cards.
+- **Keystrokes:** the pressed flash has the glass key's corner.
+- **Notifications** keep the HUD's 2-unit right margin, lining up with the clock.
+- **Taller HUD cards** (potions, armour) are tinted a step further, to match the tiles over bright sky.
+- **HUD editor:** the toolbar buttons have 4-unit corners. The element's label goes below it when the rotate knob is above, and the resize handle sits inside the box.
+- **Coordinates:** a single space before the facing.
+
+**Third review pass:**
+- **HUD:** every element PASS (text tiles, clock, keystrokes, potions, armour, notification, editor).
+- **Menus:** main list (village, snow, night), focus, Cosmetics and the main menu PASS. The snow-scene descriptions are now 4.8:1.
+- **Last tweaks after it:**
+  - The resize dot is back on the box's corner, pulled in only at the screen's edge.
+  - Effects are listed in Minecraft's own order, so two with the same time cannot swap.
+  - In Mod Profiles, SAVE lines up with the rows until there are saved profiles to show beside it.
+  - Three descriptions cut short by the scrollbar lane are shorter: Presets "Ready-made setups in one click", 3D Menus "Menus in 3D, as windows", Watermark "Snowball's mark on screen".
+- **Still visible, from the glass shader rather than these screens:** a light 1-unit rim on HUD tiles at night, and the HUD blur is light (shapes show through keys).
+
+**Verified on the final code (2026-11-02):**
+- `./gradlew build` passes: 259 unit tests per version, 0 failures, 1 skipped (`SkinLibraryTest`, as before).
+- `-p legacy build` passes, and `check-generated.mjs` is clean (245 files).
+- **Every game test passes on 26.2 and 1.21.11:** menu, flicker, render, skins, spatial, anticrash, mapart and snowglass.
+- 1.21.11's first run crashed in the render test with the known "Network synchronizer in invalid state" flake, while the server was 14 s behind with another Minecraft open. The re-run passed.
+
+**Not changed, with reasons:**
+- **Nether Travel tabs:** they are still square.
+- **Settings tooltip:** it can still run past the panel edge, since `Controls.tooltip` keeps it on the screen, not inside the panel.
+- **Cosmetics:** the others'-capes button stays a button, not a switch.
+- **HUD rhythm:** the left column's uneven gaps come from fractional positions, with ping hidden in singleplayer. Even stacking needs the 9-way anchors.
+- **Text sizes:** UiText's font sizes at 720p and 1440p are older behaviour.
+- **Wheel wedge:** its straight inner edge and white label are in the wheel textures, not part of Snowglass.
+- **Glass showing the HUD:** the potion card shows through the glass behind the menu, blurred. That is the glass showing what is behind it, as vanilla's blur does.
 
 ### M6: what changed
 
@@ -304,7 +391,7 @@ redesign is dropped, and M4 restyles the wheel menu and its pages in place (PLAN
 
 ## Next
 
-1. **The default look:** the user picks one from the `look_*.png` comparison. Changing it is the palette or Theme default plus `GlassLookTest`.
+1. **The default look:** chosen with a reviewer agent: Snowball palette, Full glass, Transparency 75. The user can still pick another from the `look_*.png` comparison. Changing it means the palette or Theme default, plus `GlassLookTest`.
 2. **M7:**
    - measure GPU cost
    - try Vulkan outside the game-test harness

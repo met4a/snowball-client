@@ -178,10 +178,5 @@ public final class PvpHudModules {
 			}
 			return hideDefault.isOn() ? null : "Pack: Default";
 		}
-
-		@Override
-		protected boolean mutesLabels() {
-			return false;
-		}
 	}
 }

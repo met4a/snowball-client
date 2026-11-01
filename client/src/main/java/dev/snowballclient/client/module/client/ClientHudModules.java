@@ -81,7 +81,7 @@ public final class ClientHudModules {
 			String pos = "block".equals(precision.get())
 					? String.format(Locale.ROOT, "XYZ %d %d %d", p.getBlockX(), p.getBlockY(), p.getBlockZ())
 					: String.format(Locale.ROOT, "XYZ %.1f %.1f %.1f", p.getX(), p.getY(), p.getZ());
-			String text = showFacing.isOn() ? pos + "  " + p.getDirection().getSerializedName().toUpperCase(Locale.ROOT) : pos;
+			String text = showFacing.isOn() ? pos + " " + p.getDirection().getSerializedName().toUpperCase(Locale.ROOT) : pos;
 			if (!otherDimension.isOn() || mc.level == null) return text;
 			NetherTravel.Direction way = mc.level.dimension() == Level.NETHER ? NetherTravel.Direction.TO_OVERWORLD
 					: mc.level.dimension() == Level.OVERWORLD ? NetherTravel.Direction.TO_NETHER : null;

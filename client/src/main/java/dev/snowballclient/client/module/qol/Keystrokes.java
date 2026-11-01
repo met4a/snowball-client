@@ -101,8 +101,9 @@ public final class Keystrokes extends HudModule {
 		}
 		float t = Math.max(0f, Math.min(1f, s.get()));
 		// Each key is its own pane of glass where the HUD draws glass, and the accent floods it while held.
-		if (glassPane(g, theme, x, y, w, h, 5, keyOpacity.floatValue())) {
-			if (t > 0.01f) GuiDraw.roundedRect(g::fill, x, y, w, h, 5, Theme.withAlpha(theme.accent(), 0.85f * t));
+		if (glassPane(g, theme, x, y, w, h, 3, keyOpacity.floatValue())) {
+			// A little more corner than the glass asks for: fills step where the glass is smooth, so 4 here looks like its 3.
+			if (t > 0.01f) GuiDraw.roundedRect(g::fill, x, y, w, h, 4, Theme.withAlpha(theme.accent(), 0.85f * t));
 		} else {
 			int idle = theme.surface(keyOpacity.floatValue());
 			int pressed = Theme.withAlpha(theme.accent(), Math.min(1f, keyOpacity.floatValue() + 0.4f));

@@ -16,8 +16,8 @@ class GlassLookTest {
 		assertTrue(theme.glass());
 		assertTrue(theme.liquid());
 		assertTrue(theme.blurBehind);
-		assertEquals(50, theme.glassLevel(), "Regular is the default");
-		assertEquals(0.82f, theme.panelOpacity, 0.001f, "flat panels keep their old default opacity");
+		assertEquals(75, theme.glassLevel(), "Thick is the default");
+		assertEquals(Theme.panelOpacityFor(75), theme.panelOpacity, 0.001f, "flat panels follow the default level");
 		assertEquals(Theme.FONT_MINECRAFT, theme.font, "Minecraft's font is the default, as before Snowglass");
 		assertEquals(Theme.HUD_GLASS_AUTO, theme.hudGlass);
 		assertFalse(theme.reduceMotion);
@@ -27,7 +27,7 @@ class GlassLookTest {
 	void theLookIsSavedAndReadBack() {
 		Theme theme = new Theme();
 		theme.glassQuality = Theme.GLASS_LITE;
-		theme.setGlassLevel(75);
+		theme.setGlassLevel(25);
 		theme.hudGlass = Theme.GLASS_OFF;
 		theme.reduceMotion = true;
 		theme.font = Theme.FONT_INTER;
@@ -35,7 +35,7 @@ class GlassLookTest {
 		Theme loaded = new Theme();
 		loaded.fromJson(theme.toJson());
 		assertEquals(Theme.GLASS_LITE, loaded.glassQuality);
-		assertEquals(75, loaded.glassLevel());
+		assertEquals(25, loaded.glassLevel());
 		assertEquals(Theme.GLASS_OFF, loaded.hudGlass);
 		assertTrue(loaded.reduceMotion);
 		assertEquals(Theme.FONT_INTER, loaded.font);

@@ -12,11 +12,13 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
  * A module that draws a movable HUD element. Position is stored as a fraction of the free screen
- * space, so the element stays fully visible at every resolution and GUI scale.
+ * space inside a small margin, so the element stays fully visible at every resolution and GUI scale.
  */
 public abstract class HudModule extends Module {
 	/** Draws backgrounds as glass; HUD elements are drawn one at a time on the render thread, so one is shared. */
 	private static final GuiCanvas CANVAS = new GuiCanvas();
+	/** The margin kept from the screen's edges, in GUI units, so an element in a corner is not cut by it. */
+	public static final int INSET = 2;
 
 	public final NumberSetting posX;
 	public final NumberSetting posY;
@@ -54,12 +56,12 @@ public abstract class HudModule extends Module {
 		return new int[]{lastX, lastY, lastWidth, lastHeight};
 	}
 
-	/** Moves the element so its top left corner lands here, as far as the screen allows. */
+	/** Moves the element so its top left corner lands here, as far as the screen (less its margin) allows. */
 	public final void moveTo(double x, double y, int guiWidth, int guiHeight) {
-		double freeX = Math.max(1, guiWidth - lastWidth);
-		double freeY = Math.max(1, guiHeight - lastHeight);
-		posX.set(Math.max(0, Math.min(1, x / freeX)));
-		posY.set(Math.max(0, Math.min(1, y / freeY)));
+		double freeX = Math.max(1, guiWidth - lastWidth - 2 * INSET);
+		double freeY = Math.max(1, guiHeight - lastHeight - 2 * INSET);
+		posX.set(Math.max(0, Math.min(1, (x - INSET) / freeX)));
+		posY.set(Math.max(0, Math.min(1, (y - INSET) / freeY)));
 	}
 
 	/** Content size in unscaled GUI pixels; return 0 width to hide this frame. */
@@ -74,8 +76,8 @@ public abstract class HudModule extends Module {
 		int h = contentHeight(mc);
 		if (w <= 0 || h <= 0) return;
 		float s = scale.floatValue();
-		float x = (float) (posX.get() * Math.max(0, g.guiWidth() - w * s));
-		float y = (float) (posY.get() * Math.max(0, g.guiHeight() - h * s));
+		float x = INSET + (float) (posX.get() * Math.max(0, g.guiWidth() - w * s - 2 * INSET));
+		float y = INSET + (float) (posY.get() * Math.max(0, g.guiHeight() - h * s - 2 * INSET));
 		lastX = Math.round(x);
 		lastY = Math.round(y);
 		lastWidth = Math.round(w * s);

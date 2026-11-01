@@ -38,7 +38,7 @@ public final class Menu3D extends Module implements Depth.Settings {
 	public final BooleanSetting shadows = setting(new BooleanSetting("shadows", "Shadows", "Panels cast a shadow that moves as they lean", true));
 
 	public Menu3D() {
-		super("menu_3d", "3D Menus", "Menus stand in the world as windows, or lean towards the mouse", ModuleCategory.CLIENT);
+		super("menu_3d", "3D Menus", "Menus in 3D, as windows", ModuleCategory.CLIENT);
 		alsoIn(ModuleCategory.VISUALS);
 		Depth.install(this);
 	}

@@ -20,6 +20,23 @@ public final class HudRenderer {
 		this.huds = modules.all().stream().filter(HudModule.class::isInstance).map(HudModule.class::cast).toArray(HudModule[]::new);
 	}
 
+	/**
+	 * Where notifications start: just below any HUD element in the top-right corner (the clock, by
+	 * default), so a card never covers it.
+	 */
+	private int notificationTop(GuiGraphicsExtractor graphics) {
+		int top = NotificationCenter.TOP;
+		if (ModuleRegistry.CLIENT_HUD != null && !ModuleRegistry.CLIENT_HUD.isEnabled()) return top;
+		int left = graphics.guiWidth() - NotificationCenter.RIGHT - NotificationCenter.WIDTH;
+		for (HudModule hud : huds) {
+			if (!hud.isEnabled()) continue;
+			int[] box = hud.lastBounds();
+			if (box[2] <= 0 || box[0] + box[2] <= left || box[1] > top + 24) continue;
+			top = Math.max(top, box[1] + box[3] + 4);
+		}
+		return top;
+	}
+
 	public void render(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
 		Minecraft mc = Minecraft.getInstance();
 		if (mc.player == null) return; // F1 hides the whole HUD pass in vanilla, so no extra check is needed.
@@ -33,6 +50,6 @@ public final class HudRenderer {
 				graphics.text(mc.font, zoom, (graphics.guiWidth() - mc.font.width(zoom)) / 2, graphics.guiHeight() / 2 + 14, theme.text(), true);
 			}
 		}
-		if (ModuleRegistry.NOTIFICATIONS != null && ModuleRegistry.NOTIFICATIONS.isEnabled()) NotificationCenter.render(canvas.wrap(graphics), theme);
+		if (ModuleRegistry.NOTIFICATIONS != null && ModuleRegistry.NOTIFICATIONS.isEnabled()) NotificationCenter.render(canvas.wrap(graphics), theme, notificationTop(graphics));
 	}
 }

@@ -171,9 +171,12 @@ public final class UiText {
 		int baseline = (int) Math.round(y * density) + BASELINE * pixelsFor(kind);
 		c.push();
 		c.scale((float) (1.0 / density), (float) (1.0 / density));
-		// A soft shadow a pixel or two down, as Minecraft's text has, so it reads on any panel.
-		int drop = Math.max(1, Math.round(pixelsFor(kind) * 0.5f));
-		SmoothText.draw(c, text, weight(kind), pixels, xPixels, baseline + drop, (int) ((argb >>> 24) * 0.32f) << 24);
+		// A soft shadow a pixel or two down, as Minecraft's text has, so it reads on any panel; dark text on
+		// a light fill (an accent button) has none, since there it would only smear the letters.
+		if (shadowFor(argb)) {
+			int drop = Math.max(1, Math.round(pixelsFor(kind) * 0.5f));
+			SmoothText.draw(c, text, weight(kind), pixels, xPixels, baseline + drop, (int) ((argb >>> 24) * 0.32f) << 24);
+		}
 		SmoothText.draw(c, text, weight(kind), pixels, xPixels, baseline, argb);
 		c.pop();
 	}
@@ -192,14 +195,27 @@ public final class UiText {
 
 	private static void drawScaled(Canvas c, String text, int x, int y, float scale, int argb) {
 		if ((argb >>> 24) < 4) return;
+		boolean shadow = shadowFor(argb);
 		if (Math.abs(scale - 1f) < 0.01f) {
-			c.drawText(text, x, y, argb, true);
+			c.drawText(text, x, y, argb, shadow);
 			return;
 		}
 		c.push();
 		c.translate(x, y);
 		c.scale(scale, scale);
-		c.drawText(text, 0, 0, argb, true);
+		c.drawText(text, 0, 0, argb, shadow);
 		c.pop();
+	}
+
+	/**
+	 * Whether text in this colour gets a shadow: light text does, as Minecraft's always has; dark text
+	 * (on an accent button or a light segment) does not, because a shadow under dark letters merges
+	 * with them and smears the word.
+	 */
+	static boolean shadowFor(int argb) {
+		int r = (argb >> 16) & 0xFF;
+		int g = (argb >> 8) & 0xFF;
+		int b = argb & 0xFF;
+		return 0.2126f * r + 0.7152f * g + 0.0722f * b >= 96f;
 	}
 }

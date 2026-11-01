@@ -43,7 +43,10 @@ public final class PotionHud extends HudModule {
 		maxNameWidth = 0;
 		maxTimeWidth = 0;
 		if (mc.player == null) return;
-		for (MobEffectInstance effect : mc.player.getActiveEffects()) {
+		// Minecraft's own order (by kind, then time left, then colour), so two effects with the same time never swap places.
+		List<MobEffectInstance> active = new ArrayList<>(mc.player.getActiveEffects());
+		active.sort(null);
+		for (MobEffectInstance effect : active) {
 			int amp = effect.getAmplifier();
 			String level = amp >= 0 && amp < ROMAN.length ? ROMAN[amp] : " " + (amp + 1);
 			String time = effect.isInfiniteDuration() ? "**:**" : formatTicks(effect.getDuration());
@@ -81,10 +84,10 @@ public final class PotionHud extends HudModule {
 			int y = 1 + i * ROW;
 			MobEffectInstance effect = effects.get(i);
 			if (showIcons.isOn()) g.blitSprite(RenderPipelines.GUI_TEXTURED, Hud.getMobEffectSprite(effect.getEffect()), 2, y + 1, 18, 18);
-			// The name in the main colour; the time to its right, quieter, and in the warning colour for its last 10 seconds.
+			// The name on the left, the time right-aligned, in the warning colour for its last 10 seconds.
 			boolean ending = effect.endsWithin(200) && !effect.isInfiniteDuration();
 			g.text(mc.font, names.get(i), textX, y + 6, theme.text(), true);
-			g.text(mc.font, times.get(i), width - 5 - timeWidths.get(i), y + 6, ending ? SnowglassTokens.WARNING : theme.mutedText(), true);
+			g.text(mc.font, times.get(i), width - 5 - timeWidths.get(i), y + 6, ending ? SnowglassTokens.WARNING : theme.text(), true);
 		}
 	}
 }

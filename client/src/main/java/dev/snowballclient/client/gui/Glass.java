@@ -137,13 +137,24 @@ public final class Glass {
 	 * the element's own opacity setting standing in for the Transparency slider; fills otherwise.
 	 */
 	public static void hud(Canvas c, Theme t, int w, int h, float opacity, String quality) {
-		if (hudPane(c, t, 0, 0, w, h, hudRadius(h), opacity, quality)) return;
+		// A taller card (potions, armour) frosts more of a bright sky into itself, so it is tinted a step further to match the one-line tiles.
+		float tint = h > 18 ? Math.min(1f, opacity + 0.15f) : opacity;
+		if (hudPane(c, t, 0, 0, w, h, hudRadius(h), tint, quality)) return;
 		hud((GuiDraw.Fill) c, t, w, h, opacity);
 	}
 
-	/** A one-line element is a pill; a taller one is a card with rounded corners. */
+	/** Small, even corners: 3 units on a one-line element, 4 on a taller card. */
 	public static int hudRadius(int h) {
-		return h <= 18 ? h / 2 : 5;
+		return h <= 18 ? 3 : 4;
+	}
+
+	/**
+	 * The glass level for a HUD opacity setting. HUD glass is thin and sits on bright sky as often as on
+	 * dark ground, so the scale starts at 35: the default 0.45 gives a dark, see-through 64, and the
+	 * setting still runs to fully tinted.
+	 */
+	static int hudLevel(float opacity) {
+		return Math.round(35f + 65f * Math.max(0f, Math.min(1f, opacity)));
 	}
 
 	/**
@@ -158,8 +169,7 @@ public final class Glass {
 	/** A pane of HUD glass that fades with {@code alpha}, such as a notification coming and going. */
 	public static boolean hudPane(Canvas c, Theme t, int x, int y, int w, int h, int radius, float opacity, String quality, float alpha) {
 		if (!t.glass() || t.highContrast || !c.drawsGlass(quality)) return false;
-		int level = Math.round(Math.max(0f, Math.min(1f, opacity)) * 100f);
-		c.glass(new GlassPanel(x, y, w, h, radius, t.surface(1f), level, quality, alpha, false, false));
+		c.glass(new GlassPanel(x, y, w, h, radius, t.surface(1f), hudLevel(opacity), quality, alpha, false, false));
 		return true;
 	}
 
@@ -261,8 +271,10 @@ public final class Glass {
 		int bottomC = rimColour(base + strength * lightOn(0f, 1f), alpha);
 		int leftC = rimColour(base + strength * lightOn(-1f, 0f), alpha);
 		int rightC = rimColour(base + strength * lightOn(1f, 0f), alpha);
-		c.fill(x + r, y, x + w - r, y + 1, topC);
-		c.fill(x + r, y + h - 1, x + w - r, y + h, bottomC);
+		// Run the straight edges on from the corners' first row, so the outline has no gap where they meet.
+		int edge = r > 0 ? GuiDraw.cornerInset(r, 0) + 1 : 0;
+		c.fill(x + edge, y, x + w - edge, y + 1, topC);
+		c.fill(x + edge, y + h - 1, x + w - edge, y + h, bottomC);
 		// Sides fade from the colour of the edge above them to the one below.
 		GuiDraw.verticalGradient(c, x, y + r, 1, h - 2 * r, Theme.lerpColor(leftC, topC, 0.4f), Theme.lerpColor(leftC, bottomC, 0.4f), 8);
 		GuiDraw.verticalGradient(c, x + w - 1, y + r, 1, h - 2 * r, Theme.lerpColor(rightC, topC, 0.4f), Theme.lerpColor(rightC, bottomC, 0.4f), 8);

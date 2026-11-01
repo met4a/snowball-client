@@ -9,7 +9,7 @@ import dev.snowballclient.client.ui.Host;
 /** Opens the ready-made setups: Competitive, High FPS, Balanced, Casual and Potato. */
 public final class Presets extends ActionModule {
 	public Presets() {
-		super("presets", "Presets", "Ready-made setups you can apply in one click", ModuleCategory.CLIENT);
+		super("presets", "Presets", "Ready-made setups in one click", ModuleCategory.CLIENT);
 	}
 
 	@Override

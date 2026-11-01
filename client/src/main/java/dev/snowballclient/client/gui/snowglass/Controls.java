@@ -28,7 +28,7 @@ public final class Controls {
 	public static final int SLIDER_THUMB_H = 14;
 	public static final int POPOVER_ROW_H = 16;
 	public static final int SCROLLBAR_W = 3;
-	private static final int OFF_TRACK = 0xFF1A2028;
+	private static final int OFF_TRACK = 0xFF2A323D;
 	private static final int TOOLTIP_MAX_W = 180;
 
 	private Controls() {
@@ -43,9 +43,9 @@ public final class Controls {
 		float k = Math.max(0f, Math.min(1f, on));
 		float a = enabled ? alpha : alpha * 0.45f;
 		int r = SWITCH_H / 2;
-		if (k > 0.01f) GuiDraw.roundedRect(c, x - 2, y - 2, SWITCH_W + 4, SWITCH_H + 4, r + 2, scaleAlpha(Theme.withAlpha(t.accent(), 0.18f * k), a));
 		GuiDraw.roundedRect(c, x, y, SWITCH_W, SWITCH_H, r, scaleAlpha(Theme.lerpColor(OFF_TRACK, t.accent(), k), a));
-		if (k < 0.99f) GuiDraw.roundedOutline(c, x, y, SWITCH_W, SWITCH_H, r, scaleAlpha(Theme.withAlpha(SnowglassTokens.HAIRLINE_STRONG, 1f - k), a));
+		// A faint hairline round the off track, fading as it fills: scaled, so the token's own faintness is kept.
+		if (k < 0.99f) GuiDraw.roundedOutline(c, x, y, SWITCH_W, SWITCH_H, r, scaleAlpha(SnowglassTokens.HAIRLINE_STRONG, (1f - k) * a));
 		int knob = SWITCH_H - 4;
 		int knobW = Math.min(SWITCH_W - 4, Math.round(knob * Math.max(1f, stretch)));
 		int travel = SWITCH_W - 4 - knobW;

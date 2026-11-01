@@ -94,7 +94,18 @@ public final class SnowglassGameTest implements FabricClientGameTest {
 			context.waitTicks(40);
 			int before = onClient(context, mc -> mc.options.guiScale().get());
 			onClient(context, mc -> {
-				for (String id : HUD) SnowballClient.get().modules().get(id).ifPresent(m -> m.setEnabled(true));
+				// The defaults, whatever earlier runs saved: HUD elements where they start, and the default look.
+				for (String id : HUD) SnowballClient.get().modules().get(id).ifPresent(m -> {
+					m.setEnabled(true);
+					if (m instanceof HudModule hud) {
+						hud.posX.reset();
+						hud.posY.reset();
+						hud.scale.reset();
+					}
+				});
+				ModuleRegistry.INTERFACE.palette.set("snowball");
+				ModuleRegistry.INTERFACE.glassQuality.set(Theme.GLASS_FULL);
+				ModuleRegistry.INTERFACE.glassLevel.set((double) Theme.DEFAULT_GLASS_LEVEL);
 				// The menu test leaves Glass GUI on, which swaps the blur behind menus for clear glass.
 				SnowballClient.get().modules().get("glass_gui").ifPresent(m -> m.setEnabled(false));
 				return null;
@@ -304,7 +315,7 @@ public final class SnowglassGameTest implements FabricClientGameTest {
 			photographMenu(context, "look_level_" + level);
 		}
 		onClient(context, mc -> {
-			ModuleRegistry.INTERFACE.glassLevel.set(50.0);
+			ModuleRegistry.INTERFACE.glassLevel.set((double) Theme.DEFAULT_GLASS_LEVEL);
 			return null;
 		});
 	}

@@ -25,6 +25,10 @@ public final class Theme {
 	public static final List<String> FONTS = List.of(FONT_MINECRAFT, FONT_INTER);
 	public static final float MIN_SCALE = 0.75f;
 	public static final float MAX_SCALE = 1.25f;
+	/** The Transparency the slider starts at: Thick. */
+	public static final int DEFAULT_GLASS_LEVEL = 75;
+	/** Panel opacity before Snowglass when it was never changed; it becomes the default Transparency. */
+	static final float OLD_DEFAULT_PANEL_OPACITY = 0.82f;
 	/** The panel colour before Snowglass, migrated to the brand surface colour when it was never changed. */
 	static final int OLD_DEFAULT_SURFACE = 0xFF07090C;
 
@@ -33,7 +37,7 @@ public final class Theme {
 	 * How solid flat-drawn panels are, worked out from {@link #glassLevel}; kept for the surfaces that
 	 * do not draw Snowglass yet. Not saved: set it through {@link #setGlassLevel}.
 	 */
-	public float panelOpacity = 0.82f;
+	public float panelOpacity = panelOpacityFor(DEFAULT_GLASS_LEVEL);
 	public float borderOpacity = 0.22f;
 	public int accentColor = 0xFF7FCBFF;
 	public int highlightColor = 0xFFDDF3FF;
@@ -48,8 +52,11 @@ public final class Theme {
 	public boolean highContrast = false;
 	/** How glass is drawn: {@link #GLASS_FULL} refracts the world, {@link #GLASS_LITE} only blurs it, {@link #GLASS_OFF} is solid. */
 	public String glassQuality = GLASS_FULL;
-	/** The Transparency slider: 0 Ultra Clear to 100 Fully Tinted (see MaterialLevel). */
-	private int glassLevel = 50;
+	/**
+	 * The Transparency slider: 0 Ultra Clear to 100 Fully Tinted (see MaterialLevel). Thick by default:
+	 * dark, see-through glass on which white text and grey descriptions both read on any backdrop.
+	 */
+	private int glassLevel = DEFAULT_GLASS_LEVEL;
 	/** Glass quality for HUD elements, or {@link #HUD_GLASS_AUTO}. */
 	public String hudGlass = HUD_GLASS_AUTO;
 	/** Short fades instead of movement. */
@@ -264,7 +271,9 @@ public final class Theme {
 		JsonElement opacity = o.remove("panelOpacity");
 		if (opacity != null && opacity.isJsonPrimitive() && opacity.getAsJsonPrimitive().isNumber()) {
 			float p = opacity.getAsFloat();
-			if (Float.isFinite(p)) o.addProperty("glassLevel", glassLevelFor(p));
+			// Never changed: the new default. Chosen by hand: as close to the old look as the slider allows.
+			if (Math.abs(p - OLD_DEFAULT_PANEL_OPACITY) < 0.005f) o.addProperty("glassLevel", DEFAULT_GLASS_LEVEL);
+			else if (Float.isFinite(p)) o.addProperty("glassLevel", glassLevelFor(p));
 		}
 		JsonElement speed = o.get("animationSpeed");
 		if (speed != null && speed.isJsonPrimitive() && speed.getAsJsonPrimitive().isNumber() && speed.getAsFloat() <= 0f) {

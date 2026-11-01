@@ -68,7 +68,9 @@ public final class CosmeticsView extends PanelView {
 	}
 
 	private int[] tile(int i) {
-		int x = panelX + 13 + (i % PER_ROW) * (TILE_W + GAP);
+		// The grid centred in the panel, the same margin on both sides.
+		int gridW = PER_ROW * (TILE_W + GAP) - GAP;
+		int x = panelX + (panelW - gridW) / 2 + (i % PER_ROW) * (TILE_W + GAP);
 		int y = panelY + HEADER_H + 8 + (i / PER_ROW) * (TILE_H + GAP);
 		return new int[]{x, y};
 	}
@@ -93,7 +95,7 @@ public final class CosmeticsView extends PanelView {
 			int[] p = tile(i);
 			boolean hover = inside(p[0], p[1], TILE_W, TILE_H, mouseX, mouseY);
 			boolean chosen = id.equals(worn);
-			Glass.chip(c, theme, p[0], p[1], TILE_W, TILE_H, 4, hover ? 1f : 0f, 1f);
+			Glass.card(c, theme, p[0], p[1], TILE_W, TILE_H, 4, hover ? 1f : 0f, 1f);
 			int px = p[0] + (TILE_W - 30) / 2;
 			int py = p[1] + 6;
 			if (previews[i] != null) {

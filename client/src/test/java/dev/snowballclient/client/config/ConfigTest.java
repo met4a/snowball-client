@@ -197,7 +197,7 @@ class ConfigTest {
 		Theme theme = new Theme();
 		new ConfigManager(dir).loadAll(new ModuleManager(), theme, new WaypointStore());
 		assertEquals(Theme.GLASS_OFF, theme.glassQuality, "classic becomes Off");
-		assertEquals(50, theme.glassLevel(), "the old default opacity is the default level");
+		assertEquals(Theme.DEFAULT_GLASS_LEVEL, theme.glassLevel(), "an opacity never changed becomes the new default level");
 		assertEquals(0xFF160B1A, theme.surfaceColor, "a colour the player picked is kept");
 		assertFalse(theme.reduceMotion);
 		assertEquals(1.5f, theme.motion());

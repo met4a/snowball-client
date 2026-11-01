@@ -342,6 +342,11 @@ public final class TitleMenuView extends View {
 		if ((border >>> 24) != 0) GuiDraw.roundedOutline(c, x, y, w, h, radius, border);
 	}
 
+	/** The menu's buttons are capsules, like every button in Snowball; the square icon buttons and the account chip keep small corners. */
+	private static int radius(Item item) {
+		return item.kind == Kind.ICON || item.kind == Kind.CHIP ? RADIUS : item.h / 2;
+	}
+
 	/** The dark face every button shares, a little lighter under the mouse. */
 	private int face(float hover, float alpha) {
 		int base = Theme.lerpColor(theme.surface(1f), 0xFF000000, 0.35f);
@@ -366,13 +371,13 @@ public final class TitleMenuView extends View {
 	private void face(Canvas c, Item item, float hover, float alpha) {
 		if (theme.glass() && c.drawsGlass(theme.menuGlassQuality())) {
 			boolean focus = items.indexOf(item) == focused;
-			c.glass(new GlassPanel(item.x, item.y, item.w, item.h, RADIUS, theme.surface(1f), theme.glassLevel(), theme.menuGlassQuality(), alpha, false, focus));
+			c.glass(new GlassPanel(item.x, item.y, item.w, item.h, radius(item), theme.surface(1f), theme.glassLevel(), theme.menuGlassQuality(), alpha, false, focus));
 			int lit = Theme.withAlpha(0xFFFFFFFF, 0.08f * hover * alpha);
 			int border = focus ? scaleAlpha(theme.accent(), alpha) : Theme.withAlpha(0xFFFFFFFF, 0.14f * hover * alpha);
-			if ((lit >>> 24) != 0 || (border >>> 24) != 0) shape(c, item.x, item.y, item.w, item.h, RADIUS, lit, border);
+			if ((lit >>> 24) != 0 || (border >>> 24) != 0) shape(c, item.x, item.y, item.w, item.h, radius(item), lit, border);
 			return;
 		}
-		shape(c, item.x, item.y, item.w, item.h, RADIUS, face(hover, alpha), edge(item, hover, alpha));
+		shape(c, item.x, item.y, item.w, item.h, radius(item), face(hover, alpha), edge(item, hover, alpha));
 	}
 
 	private void drawButton(Canvas c, Item item, float alpha) {
@@ -403,9 +408,9 @@ public final class TitleMenuView extends View {
 			int deep = Theme.lerpColor(accent, 0xFF000000, 0.45f);
 			int rim = Theme.lerpColor(accent, 0xFFFFFFFF, 0.35f);
 			float d = (float) UiText.density();
-			float radius = RADIUS * d;
+			float corner = radius(item) * d;
 			SmoothShapes.painted(c, d, "title_accent_" + Integer.toHexString(accent), item.x, item.y, item.w, item.h, Theme.withAlpha(0xFFFFFFFF, alpha), (g, w, h) -> {
-				RoundRectangle2D.Float body = new RoundRectangle2D.Float(0.5f, 0.5f, w - 1f, h - 1f, radius * 2, radius * 2);
+				RoundRectangle2D.Float body = new RoundRectangle2D.Float(0.5f, 0.5f, w - 1f, h - 1f, corner * 2, corner * 2);
 				g.setPaint(new GradientPaint(0, 0, new Color(accent, true), w, h, new Color(deep, true)));
 				g.fill(body);
 				g.setPaint(new GradientPaint(0, 0, new Color(255, 255, 255, 46), 0, h * 0.55f, new Color(255, 255, 255, 0)));
@@ -414,10 +419,10 @@ public final class TitleMenuView extends View {
 				g.setStroke(new BasicStroke(1f));
 				g.draw(body);
 			});
-			if (hover > 0.01f) SmoothShapes.roundRect(c, d, item.x, item.y, item.w, item.h, RADIUS, Theme.withAlpha(0xFFFFFFFF, 0.10f * hover * alpha), 0);
-			if (items.indexOf(item) == focused) SmoothShapes.roundRect(c, d, item.x - 2, item.y - 2, item.w + 4, item.h + 4, RADIUS + 2, 0, scaleAlpha(theme.text(), alpha));
+			if (hover > 0.01f) SmoothShapes.roundRect(c, d, item.x, item.y, item.w, item.h, radius(item), Theme.withAlpha(0xFFFFFFFF, 0.10f * hover * alpha), 0);
+			if (items.indexOf(item) == focused) SmoothShapes.roundRect(c, d, item.x - 2, item.y - 2, item.w + 4, item.h + 4, radius(item) + 2, 0, scaleAlpha(theme.text(), alpha));
 		} else {
-			shape(c, item.x, item.y, item.w, item.h, RADIUS, scaleAlpha(Theme.lerpColor(accent, 0xFFFFFFFF, 0.12f * hover), alpha), edge(item, hover, alpha));
+			shape(c, item.x, item.y, item.w, item.h, radius(item), scaleAlpha(Theme.lerpColor(accent, 0xFFFFFFFF, 0.12f * hover), alpha), edge(item, hover, alpha));
 		}
 		int text = scaleAlpha(theme.onAccentText(), alpha);
 		int textY = item.y + item.h / 2 - Math.round(UiText.lineHeight(c, UiText.UI) / 2f) + 1;
@@ -433,7 +438,7 @@ public final class TitleMenuView extends View {
 
 	private void drawQuit(Canvas c, Item item, float alpha) {
 		float hover = item.hover.get();
-		shape(c, item.x, item.y, item.w, item.h, RADIUS, Theme.withAlpha(RED, (0.10f + 0.16f * hover) * alpha),
+		shape(c, item.x, item.y, item.w, item.h, radius(item), Theme.withAlpha(RED, (0.10f + 0.16f * hover) * alpha),
 				items.indexOf(item) == focused ? scaleAlpha(RED, alpha) : Theme.withAlpha(RED, 0.20f * hover * alpha));
 		int textY = item.y + item.h / 2 - Math.round(UiText.lineHeight(c, UiText.UI_SMALL) / 2f) + 1;
 		UiText.drawCentered(c, item.label, UiText.UI_SMALL, item.x + item.w / 2, textY,

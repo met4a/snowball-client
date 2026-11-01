@@ -24,7 +24,7 @@ public final class ClientHudExtras {
 		private final BooleanSetting showEdition = setting(new BooleanSetting("edition", "Show edition", "Write Snowball+ when you have it", true));
 
 		public Watermark() {
-			super("watermark", "Watermark", "The Snowball mark in the corner", ModuleCategory.CLIENT, 0.0, 0.0, false);
+			super("watermark", "Watermark", "Snowball's mark on screen", ModuleCategory.CLIENT, 0.0, 0.0, false);
 		}
 
 		private String text(Minecraft mc) {
@@ -66,11 +66,6 @@ public final class ClientHudExtras {
 			String value = text.get().trim();
 			return value.isEmpty() ? null : value;
 		}
-
-		@Override
-		protected boolean mutesLabels() {
-			return false;
-		}
 	}
 
 	/** Who you are looking at and how much health they have left. */
@@ -88,11 +83,6 @@ public final class ClientHudExtras {
 			int health = (int) Math.ceil(target.getHealth());
 			int max = (int) Math.ceil(target.getMaxHealth());
 			return target.getName().getString() + "  " + health + "/" + max;
-		}
-
-		@Override
-		protected boolean mutesLabels() {
-			return false;
 		}
 	}
 }

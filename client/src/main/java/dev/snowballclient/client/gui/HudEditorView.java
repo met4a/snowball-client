@@ -35,7 +35,12 @@ public final class HudEditorView extends View {
 	private static final double SCALE_STEP = 0.05;
 	private static final int BAR_H = 24;
 	private static final int BAR_GAP = 4;
+	private static final int BAR_RADIUS = 6;
 	private static final String[] TOOLS = {"Grid", "Snap", "Reset all", "Done"};
+	/** The hotbar's height, which the toolbar stays above. */
+	private static final int HOTBAR_H = 22;
+	/** The margin HUD elements keep from the screen's edges; snapping to an edge means snapping to it. */
+	private static final int EDGE = 2;
 
 	private enum Grab {
 		NONE, MOVE, RESIZE, ROTATE
@@ -134,17 +139,28 @@ public final class HudEditorView extends View {
 			int oy = Math.max(0, box[1] - 2);
 			GuiDraw.roundedOutline(c, ox, oy, Math.min(width - ox, box[2] + 4), Math.min(height - oy, box[3] + 4), 3, Theme.withAlpha(edge, active ? 1f : 0.75f));
 			if (active && !locked) {
-				GuiDraw.roundedRect(c, box[0] + box[2] - HANDLE + 2, box[1] + box[3] - HANDLE + 2, HANDLE, HANDLE, 2, theme.accent());
+				// On the box's corner, pulled in only as far as the screen's edge needs.
+				int hx = Math.min(box[0] + box[2] - HANDLE + 2, width - HANDLE);
+				int hy = Math.min(box[1] + box[3] - HANDLE + 2, height - HANDLE);
+				GuiDraw.roundedRect(c, hx, hy, HANDLE, HANDLE, 2, theme.accent());
 				int[] knob = rotateKnob(box);
 				int armX = box[0] + box[2] / 2;
-				c.fill(armX, Math.min(knob[1], box[1] - 2), armX + 1, Math.max(knob[1], box[1] + box[3] + 2), Theme.withAlpha(theme.accent(), 0.6f));
+				// The arm runs from the box's edge to the knob, never across the element itself.
+				boolean above = knob[1] < box[1];
+				int armTop = above ? knob[1] : box[1] + box[3] + 2;
+				int armBottom = above ? box[1] - 2 : knob[1];
+				c.fill(armX, armTop, armX + 1, armBottom, Theme.withAlpha(theme.accent(), 0.6f));
 				GuiDraw.circle(c, knob[0], knob[1], HANDLE / 2 + 1, theme.accent());
 			}
 			if (active || hovered) {
 				String label = hud.name() + "  " + Math.round(hud.scale.get() * 100) + "%"
 						+ (hud.rotation.get() == 0 ? "" : "  " + Math.round(hud.rotation.get()) + "°")
 						+ (locked ? "  LOCKED" : "");
-				UiText.draw(c, label, UiText.DETAIL, box[0], Math.max(2, box[1] - 12), scaleAlpha(theme.text(), 0.9f));
+				int labelX = Math.max(2, Math.min(box[0], width - 2 - UiText.width(c, label, UiText.DETAIL)));
+				// Above the element, unless the rotate knob is up there: then below it, so the two never collide.
+				boolean knobAbove = active && !locked && rotateKnob(box)[1] < box[1];
+				int labelY = knobAbove ? Math.min(height - 10, box[1] + box[3] + 4) : Math.max(2, box[1] - 12);
+				UiText.draw(c, label, UiText.DETAIL, labelX, labelY, scaleAlpha(theme.text(), 0.9f));
 			}
 		}
 
@@ -168,12 +184,12 @@ public final class HudEditorView extends View {
 			total += widths[i];
 		}
 		int bx = width / 2 - total / 2;
-		int by = height - BAR_H - 6;
+		int by = height - HOTBAR_H - BAR_H - 6;
 		if (c.drawsGlass(theme.menuGlassQuality()) && theme.glass()) {
-			c.glass(GlassPanel.menu(theme, bx, by, total, BAR_H, BAR_H / 2, 1f));
+			c.glass(GlassPanel.menu(theme, bx, by, total, BAR_H, BAR_RADIUS, 1f));
 		} else {
-			GuiDraw.roundedRect(c, bx, by, total, BAR_H, BAR_H / 2, theme.surface(0.9f));
-			GuiDraw.roundedOutline(c, bx, by, total, BAR_H, BAR_H / 2, theme.border());
+			GuiDraw.roundedRect(c, bx, by, total, BAR_H, BAR_RADIUS, theme.surface(0.9f));
+			GuiDraw.roundedOutline(c, bx, by, total, BAR_H, BAR_RADIUS, theme.border());
 		}
 		int x = bx + pad;
 		int y = by + (BAR_H - Controls.CONTROL_H) / 2;
@@ -184,7 +200,7 @@ public final class HudEditorView extends View {
 			tools[i][3] = Controls.CONTROL_H;
 			boolean on = (i == 0 && grid) || (i == 1 && snap);
 			boolean hover = inside(tools[i], mouseX, mouseY);
-			Controls.capsule(c, theme, x + widths[i], y, TOOLS[i], on, false, hover, 1f);
+			tool(c, x, y, widths[i], TOOLS[i], on, hover);
 			x += widths[i] + BAR_GAP;
 		}
 		String hint;
@@ -196,6 +212,14 @@ public final class HudEditorView extends View {
 			hint = "Drag  ·  corner or scroll resizes  ·  knob turns  ·  arrows nudge (Shift: 8)  ·  L lock  ·  Ctrl+Z undo  ·  R resets";
 		}
 		UiText.drawCentered(c, hint, UiText.DETAIL, width / 2, by - 11, scaleAlpha(theme.text(), 0.85f));
+	}
+
+	/** A toolbar button: small corners like the HUD's cards; lit in the menu colour while its option is on. */
+	private void tool(Canvas c, int x, int y, int w, String label, boolean on, boolean hover) {
+		int h = Controls.CONTROL_H;
+		GuiDraw.roundedRect(c, x, y, w, h, 4, Theme.withAlpha(on ? theme.accent() : 0xFFFFFFFF, on ? 0.22f : hover ? 0.12f : 0.06f));
+		GuiDraw.roundedOutline(c, x, y, w, h, 4, on ? theme.accent() : hover ? Theme.withAlpha(theme.accent(), 0.6f) : Theme.withAlpha(0xFFFFFFFF, 0.16f));
+		UiText.drawCentered(c, label, UiText.UI_SMALL, x + w / 2, y + 4, on ? theme.accent() : theme.text());
 	}
 
 	/** Above the element, or below it when the element is already against the top of the screen. */
@@ -340,8 +364,8 @@ public final class HudEditorView extends View {
 		double line = -1;
 		// Candidates as pairs: where the near edge would go, and where the guide is drawn (-1: an edge, no guide).
 		List<double[]> targets = new ArrayList<>();
-		targets.add(new double[]{0, -1});
-		targets.add(new double[]{limit - size, -1});
+		targets.add(new double[]{EDGE, -1});
+		targets.add(new double[]{limit - size - EDGE, -1});
 		targets.add(new double[]{(limit - size) / 2.0, limit / 2.0});
 		for (HudModule other : elements) {
 			if (other == selected) continue;

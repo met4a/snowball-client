@@ -51,6 +51,7 @@ public final class RadialMenuView extends View {
 	private static final int ROW_H = 30;
 	private static final int ROW_INSET = 6;
 	private static final int PANEL_PAD = 6;
+	private static final int SCROLL_LANE = 5;
 	private static final int CARD_H = 28;
 	private static final int CARD_GAP = 4;
 	private static final int CARDS_H = CARD_H * 2 + CARD_GAP + 4;
@@ -247,6 +248,11 @@ public final class RadialMenuView extends View {
 		float units = height / Math.max(0.01f, metrics.scale());
 		int budget = (int) (units * 0.86f) - HEADER_H - SEARCH_H - PANEL_PAD - (showCards() ? CARDS_H : 0);
 		return Math.max(2, Math.min(MAX_ROWS, budget / ROW_H));
+	}
+
+	/** A row's width: the panel less its insets, and less a lane for the scrollbar while the list scrolls. */
+	private int rowWidth() {
+		return PANEL_W - ROW_INSET * 2 - (rows().size() > visibleRows() ? SCROLL_LANE : 0);
 	}
 
 	private int rowsOffset() {
@@ -474,11 +480,11 @@ public final class RadialMenuView extends View {
 			float t = clamp01((panelAge - 0.03f - (i - scroll) * 0.035f) / 0.2f);
 			if (t <= 0f) continue;
 			int shift = Math.round((1f - easeOut(t)) * 12f);
-			drawRowBackground(c, i, x + ROW_INSET + shift, y0 + (i - scroll) * ROW_H, PANEL_W - ROW_INSET * 2, alpha * t);
+			drawRowBackground(c, i, x + ROW_INSET + shift, y0 + (i - scroll) * ROW_H, rowWidth(), alpha * t);
 		}
 		if (glide > 0.01f) {
 			int gx = x + ROW_INSET;
-			int gw = PANEL_W - ROW_INSET * 2;
+			int gw = rowWidth();
 			Glass.chip(c, theme, gx, Math.round(gy), gw, ROW_H - 3, 4, 1f, alpha * glide);
 			if (!theme.glass()) GuiDraw.roundedOutline(c, gx, Math.round(gy), gw, ROW_H - 3, 4, scaleAlpha(theme.border(), alpha * glide));
 		}
@@ -486,9 +492,10 @@ public final class RadialMenuView extends View {
 			float t = clamp01((panelAge - 0.03f - (i - scroll) * 0.035f) / 0.2f);
 			if (t <= 0f) continue;
 			int shift = Math.round((1f - easeOut(t)) * 12f);
-			drawRow(c, rows.get(i), i, x + ROW_INSET + shift, y0 + (i - scroll) * ROW_H, PANEL_W - ROW_INSET * 2, alpha * t);
+			drawRow(c, rows.get(i), i, x + ROW_INSET + shift, y0 + (i - scroll) * ROW_H, rowWidth(), alpha * t);
 		}
-		Controls.scrollbar(c, theme, x + PANEL_W - 5, y0, visible * ROW_H - 3, scroll, visible, rows.size(), false, alpha);
+		// In its own lane right of the rows, which are narrower while the list scrolls.
+		Controls.scrollbar(c, theme, x + PANEL_W - ROW_INSET - Controls.SCROLLBAR_W, y0, visible * ROW_H - 3, scroll, visible, rows.size(), false, alpha);
 	}
 
 	private void drawHeader(Canvas c, int x, int top, List<Module> rows, float alpha) {
@@ -560,16 +567,16 @@ public final class RadialMenuView extends View {
 		int cw = (PANEL_W - ROW_INSET * 2 - CARD_GAP) / 2;
 		if (cardProbe != textProbe) {
 			cardProbe = textProbe;
-			for (int i = 0; i < CARDS.length; i++) cardBlurbs[i] = UiText.fit(c, FpsBoost.blurb(CARDS[i]), UiText.DETAIL, cw - 12);
+			for (int i = 0; i < CARDS.length; i++) cardBlurbs[i] = UiText.fit(c, FpsBoost.blurb(CARDS[i]), UiText.DETAIL, cw - 16);
 		}
 		int picked = 0;
 		for (int i = 0; i < CARDS.length; i++) {
 			if (CARDS[i].equals(chosen)) picked = i;
 			int cx = x + ROW_INSET + (i % 2) * (cw + CARD_GAP);
 			int cy = y + 2 + (i / 2) * (CARD_H + CARD_GAP);
-			boolean hover = i == hoveredCard;
-			Glass.chip(c, theme, cx, cy, cw, CARD_H, 4, hover ? 1f : 0f, alpha);
-			GuiDraw.roundedOutline(c, cx, cy, cw, CARD_H, 4, scaleAlpha(hover ? Theme.withAlpha(theme.highlight(), 0.35f) : theme.border(), alpha));
+			// Glass like the module rows below them; only the chosen one is outlined, by the gliding selection.
+			Glass.card(c, theme, cx, cy, cw, CARD_H, 4, i == hoveredCard ? 1f : 0f, alpha);
+			if (!theme.glass()) GuiDraw.roundedOutline(c, cx, cy, cw, CARD_H, 4, scaleAlpha(theme.border(), alpha));
 		}
 		// The selection glides to the card picked, stretching a little on the way, as the settings pages' choices do.
 		float tx = (picked % 2) * (cw + CARD_GAP);
@@ -594,8 +601,8 @@ public final class RadialMenuView extends View {
 			int cy = y + 2 + (i / 2) * (CARD_H + CARD_GAP);
 			boolean sel = i == picked;
 			int titleColor = sel ? theme.text() : Theme.lerpColor(theme.mutedText(), theme.text(), 0.65f);
-			UiText.draw(c, FpsBoost.label(CARDS[i]), UiText.UI, cx + 7, cy + 4, scaleAlpha(titleColor, alpha));
-			UiText.draw(c, cardBlurbs[i], UiText.DETAIL, cx + 7, cy + 17, scaleAlpha(theme.mutedText(), alpha));
+			UiText.draw(c, FpsBoost.label(CARDS[i]), UiText.UI, cx + 10, cy + 4, scaleAlpha(titleColor, alpha));
+			UiText.draw(c, cardBlurbs[i], UiText.DETAIL, cx + 10, cy + 17, scaleAlpha(theme.glass() ? Theme.lerpColor(theme.mutedText(), theme.text(), 0.4f) : theme.mutedText(), alpha));
 			if (sel) GuiDraw.roundedRect(c, cx + cw - 9, cy + 5, 4, 4, 2, scaleAlpha(theme.accent(), alpha));
 		}
 	}
@@ -641,10 +648,11 @@ public final class RadialMenuView extends View {
 
 		int textRight = cursor;
 		int nameRight = textRight;
-		String status = advanced != null ? (advanced.expanded() ? "HIDE" : "SHOW") : m.statusText();
+		// Advanced says whether it is open with its chevron alone.
+		String status = advanced != null ? null : m.statusText();
 		if (status != null) {
-			int statusColor = "RESTART".equals(status) ? theme.accent() : theme.mutedText();
-			nameRight -= statusPill(c, status, textRight, y + 2, statusColor, alpha) + 6;
+			int statusColor = "RESTART".equals(status) ? theme.accent() : Theme.withAlpha(theme.text(), 0.8f);
+			nameRight -= statusPill(c, status, textRight, y + 1, statusColor, alpha) + 6;
 		}
 		FittedRow text = fit(c, m, status, nameRight - (rx + 10) - 4, textRight - (rx + 10) - 4);
 		int nameColor = scaleAlpha(active || !m.isToggleable() ? theme.text() : Theme.lerpColor(theme.mutedText(), theme.text(), 0.55f), alpha);
@@ -652,7 +660,9 @@ public final class RadialMenuView extends View {
 			UiText.draw(c, text.name(), UiText.UI, rx + 10, cy - 4, nameColor);
 		} else {
 			UiText.draw(c, text.name(), UiText.UI, rx + 10, y + 3, nameColor);
-			UiText.draw(c, text.description(), UiText.DETAIL, rx + 10, y + 16, scaleAlpha(Theme.withAlpha(theme.mutedText(), 0.9f), alpha));
+			// A lighter grey on glass, where the usual one was too faint over bright or busy backdrops.
+			int quiet = theme.glass() ? Theme.lerpColor(theme.mutedText(), theme.text(), 0.4f) : theme.mutedText();
+			UiText.draw(c, text.description(), UiText.DETAIL, rx + 10, y + 16, scaleAlpha(quiet, alpha));
 		}
 	}
 
@@ -671,20 +681,20 @@ public final class RadialMenuView extends View {
 	}
 
 	private int settingsGlyphX(Module m) {
-		int cursor = PANEL_X + ROW_INSET + (PANEL_W - ROW_INSET * 2) - 8;
+		int cursor = PANEL_X + ROW_INSET + rowWidth() - 8;
 		if (!m.isToggleable()) return cursor - 3;
 		return cursor - Controls.SWITCH_W - 7 - 1;
 	}
 
 	/** A short status (RESTART, MISSING, the FPS preset) as a pill ending at {@code right}; returns its width. */
 	private static int statusPill(Canvas c, String status, int right, int y, int colour, float alpha) {
-		int h = 11;
-		int w = UiText.width(c, status, UiText.DETAIL) + 8;
+		int h = 13;
+		int w = UiText.width(c, status, UiText.DETAIL) + 12;
 		int x = right - w;
 		GuiDraw.roundedRect(c, x, y, w, h, h / 2, scaleAlpha(Theme.withAlpha(colour, 0.14f), alpha));
 		GuiDraw.roundedOutline(c, x, y, w, h, h / 2, scaleAlpha(Theme.withAlpha(colour, 0.45f), alpha));
 		int ty = y + Math.round((h - UiText.lineHeight(c, UiText.DETAIL)) / 2f) + 1;
-		UiText.draw(c, status, UiText.DETAIL, x + 4, ty, scaleAlpha(colour, alpha));
+		UiText.draw(c, status, UiText.DETAIL, x + 6, ty, scaleAlpha(colour, alpha));
 		return w;
 	}
 
@@ -759,7 +769,7 @@ public final class RadialMenuView extends View {
 			}
 		}
 		int rowsTop = top + rowsOffset();
-		if (ly < rowsTop) return;
+		if (ly < rowsTop || lx >= PANEL_X + ROW_INSET + rowWidth()) return;
 		int rel = (int) Math.floor(ly - rowsTop);
 		int idx = rel / ROW_H;
 		if (rel % ROW_H >= ROW_H - 3 || idx >= visibleRows() || scroll + idx >= rows.size()) return;
