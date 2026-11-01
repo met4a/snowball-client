@@ -76,6 +76,10 @@ public abstract class PanelView extends View {
 
 	protected void button(Canvas c, int x, int y, int w, int h, String label, boolean primary, int mouseX, int mouseY) {
 		boolean hover = inside(x, y, w, h, mouseX, mouseY);
+		if (theme.glass()) {
+			Glass.capsuleButton(c, theme, x, y, w, h, label, primary, hover, 1f);
+			return;
+		}
 		int bg = primary ? theme.accent() : Theme.lerpColor(theme.surface(1f), theme.highlight(), hover ? 0.12f : 0.06f);
 		if (primary && hover) bg = Theme.lerpColor(bg, 0xFFFFFFFF, 0.2f);
 		if (primary || !theme.glass()) GuiDraw.roundedRect(c, x, y, w, h, 4, bg);

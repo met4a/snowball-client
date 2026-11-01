@@ -1,6 +1,7 @@
 package dev.snowballclient.client.gui;
 
 import dev.snowballclient.client.gui.snowglass.GlassPanel;
+import dev.snowballclient.client.gui.snowglass.SnowglassTokens;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.hud.GuiDraw;
 import dev.snowballclient.client.ui.Canvas;
@@ -100,12 +101,35 @@ public final class Glass {
 	 * world behind, blurred and tinted in the panel colour; the flat card {@link #chip} draws otherwise.
 	 */
 	public static void card(Canvas c, Theme t, int x, int y, int w, int h, int radius, float alpha) {
+		card(c, t, x, y, w, h, radius, 0f, alpha);
+	}
+
+	/** A card, lit a little while the mouse is over it ({@code hover} 0 to 1). */
+	public static void card(Canvas c, Theme t, int x, int y, int w, int h, int radius, float hover, float alpha) {
 		if (w <= 0 || h <= 0 || alpha <= 0.01f) return;
 		if (t.glass() && c.drawsGlass(t.menuGlassQuality())) {
 			c.glass(new GlassPanel(x, y, w, h, radius, t.surface(1f), t.glassLevel(), t.menuGlassQuality(), alpha, false, false));
+			if (hover > 0.01f) chip(c, t, x, y, w, h, radius, 1f, alpha * hover);
 			return;
 		}
-		chip(c, t, x, y, w, h, radius, 0f, alpha);
+		chip(c, t, x, y, w, h, radius, hover, alpha);
+	}
+
+	/**
+	 * A button in the Snowglass style: a capsule, filled with the menu colour when it is the main action
+	 * and see-through otherwise. The classic look keeps the boxes it always had, which callers draw.
+	 */
+	public static void capsuleButton(Canvas c, Theme t, int x, int y, int w, int h, String label, boolean primary, boolean hover, float alpha) {
+		int r = h / 2;
+		if (primary) {
+			GuiDraw.roundedRect(c, x, y, w, h, r, scaleAlpha(hover ? Theme.lerpColor(t.accent(), WHITE, 0.2f) : t.accent(), alpha));
+		} else {
+			GuiDraw.roundedRect(c, x, y, w, h, r, scaleAlpha(Theme.withAlpha(WHITE, hover ? 0.10f : 0.06f), alpha));
+			GuiDraw.roundedOutline(c, x, y, w, h, r, scaleAlpha(hover ? Theme.withAlpha(t.accent(), 0.7f) : SnowglassTokens.HAIRLINE_STRONG, alpha));
+		}
+		int ty = y + Math.round((h - UiText.lineHeight(c, UiText.UI_SMALL)) / 2f) + 1;
+		String text = UiText.fit(c, label, UiText.UI_SMALL, w - 8);
+		UiText.drawCentered(c, text, UiText.UI_SMALL, x + w / 2, ty, scaleAlpha(primary ? t.onAccentText() : t.text(), alpha));
 	}
 
 	/**
@@ -128,9 +152,14 @@ public final class Glass {
 	 * for the caller to draw its own fill.
 	 */
 	public static boolean hudPane(Canvas c, Theme t, int x, int y, int w, int h, int radius, float opacity, String quality) {
+		return hudPane(c, t, x, y, w, h, radius, opacity, quality, 1f);
+	}
+
+	/** A pane of HUD glass that fades with {@code alpha}, such as a notification coming and going. */
+	public static boolean hudPane(Canvas c, Theme t, int x, int y, int w, int h, int radius, float opacity, String quality, float alpha) {
 		if (!t.glass() || t.highContrast || !c.drawsGlass(quality)) return false;
 		int level = Math.round(Math.max(0f, Math.min(1f, opacity)) * 100f);
-		c.glass(new GlassPanel(x, y, w, h, radius, t.surface(1f), level, quality, 1f, false, false));
+		c.glass(new GlassPanel(x, y, w, h, radius, t.surface(1f), level, quality, alpha, false, false));
 		return true;
 	}
 

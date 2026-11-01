@@ -2,6 +2,7 @@ package dev.snowballclient.client.gui;
 
 import dev.snowballclient.client.SnowballClient;
 import dev.snowballclient.client.config.ConfigManager;
+import dev.snowballclient.client.gui.snowglass.Controls;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.hud.GuiDraw;
 import dev.snowballclient.client.hud.NotificationCenter;
@@ -73,11 +74,11 @@ public final class ModProfilesView extends PanelView {
 			Entry e = mods.get(i);
 			int y = listTop() + (i - scroll) * ROW_H;
 			boolean hover = inside(panelX + 8, y, panelW - 16, ROW_H - 3, mouseX, mouseY);
-			Glass.chip(c, theme, panelX + 8, y, panelW - 16, ROW_H - 3, 4, hover ? 1f : 0f, 1f);
+			Glass.card(c, theme, panelX + 8, y, panelW - 16, ROW_H - 3, 4, hover ? 1f : 0f, 1f);
 			boolean wanted = !requests.isDisabled(e.id());
 			UiText.draw(c, UiText.fit(c, e.name(), UiText.UI, panelW - 130), UiText.UI, panelX + 16, y + 4, wanted ? theme.text() : theme.mutedText());
-			if (wanted != e.loaded()) UiText.drawRight(c, "RESTART", UiText.UI_SMALL, panelX + panelW - 46, y + 5, theme.accent());
-			ToggleWidget.draw(c, panelX + panelW - 38, y + (ROW_H - 3 - ToggleWidget.HEIGHT) / 2, wanted ? 1f : 0f, theme, 1f);
+			if (wanted != e.loaded()) UiText.drawRight(c, "RESTART", UiText.UI_SMALL, panelX + panelW - 50, y + 5, theme.accent());
+			Controls.toggle(c, theme, panelX + panelW - 42, y + (ROW_H - 3 - Controls.SWITCH_H) / 2, wanted ? 1f : 0f, 1f, true, 1f);
 		}
 		nameBox.render(c, theme, 1f);
 		int bx = panelX + panelW - 196;

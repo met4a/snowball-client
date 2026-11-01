@@ -4,6 +4,7 @@ import dev.snowballclient.client.gui.Glass;
 import dev.snowballclient.client.gui.ToggleWidget;
 import dev.snowballclient.client.gui.UiText;
 import dev.snowballclient.client.gui.theme.Theme;
+import dev.snowballclient.client.module.ModuleRegistry;
 import dev.snowballclient.client.ui.Canvas;
 
 import java.util.ArrayDeque;
@@ -24,6 +25,10 @@ public final class NotificationCenter {
 	private static final ArrayDeque<Entry> ENTRIES = new ArrayDeque<>();
 
 	private NotificationCenter() {
+	}
+
+	private static boolean fpsBoost() {
+		return ModuleRegistry.FPS_BOOST != null && ModuleRegistry.FPS_BOOST.isEnabled();
 	}
 
 	public static void post(String title, String body) {
@@ -48,9 +53,11 @@ public final class NotificationCenter {
 			float eased = 1f - (1f - in) * (1f - in) * (1f - in);
 			float alpha = Math.min(eased, Math.min(1f, (LIFETIME_MS - age) / (float) FADE_MS));
 			int x = g.guiWidth() - 6 - WIDTH + Math.round((1f - eased) * 24f);
-			if (theme.glass()) {
+			// A card of HUD glass, as the HUD's own elements are; the panel look where glass cannot be drawn.
+			boolean glass = Glass.hudPane(g, theme, x, y, WIDTH, HEIGHT, 8, 0.7f, theme.hudGlassQuality(fpsBoost()), alpha);
+			if (!glass && theme.glass()) {
 				Glass.panel(g, theme, x, y, WIDTH, HEIGHT, 5, alpha);
-			} else {
+			} else if (!glass) {
 				GuiDraw.roundedRect(g, x + 1, y + 2, WIDTH, HEIGHT, 5, ToggleWidget.scaleAlpha(0x60000000, alpha));
 				GuiDraw.roundedRect(g, x, y, WIDTH, HEIGHT, 5, ToggleWidget.scaleAlpha(theme.surface(theme.panelOpacity), alpha));
 				GuiDraw.roundedOutline(g, x, y, WIDTH, HEIGHT, 5, ToggleWidget.scaleAlpha(theme.border(), alpha));

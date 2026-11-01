@@ -1,16 +1,30 @@
 package dev.snowballclient.gametest;
 
 import dev.snowballclient.client.SnowballClient;
+import dev.snowballclient.client.gui.CapeStudioView;
+import dev.snowballclient.client.gui.ColorPickerView;
+import dev.snowballclient.client.gui.ConfigProfilesView;
+import dev.snowballclient.client.gui.CosmeticsView;
+import dev.snowballclient.client.gui.EmoteWheelView;
 import dev.snowballclient.client.gui.HudEditorView;
+import dev.snowballclient.client.gui.ModProfilesView;
 import dev.snowballclient.client.gui.ModuleSettingsView;
+import dev.snowballclient.client.gui.NetherTravelView;
+import dev.snowballclient.client.gui.PresetsView;
+import dev.snowballclient.client.gui.ScreenshotsView;
+import dev.snowballclient.client.gui.WaypointView;
+import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.hud.HudModule;
+import dev.snowballclient.client.hud.NotificationCenter;
 import dev.snowballclient.client.module.ModuleCategory;
 import dev.snowballclient.client.module.ModuleRegistry;
 import dev.snowballclient.client.module.client.Menu3D;
 import dev.snowballclient.client.platform.ViewScreen;
+import dev.snowballclient.client.ui.View;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
+import net.minecraft.client.gui.screens.TitleScreen;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,7 +33,10 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 import static dev.snowballclient.gametest.ClientSteps.*;
 
@@ -100,6 +117,11 @@ public final class SnowglassGameTest implements FabricClientGameTest {
 			}
 			setGuiScale(context, before);
 		}
+		// Snowball's main menu, which replaces Minecraft's title screen.
+		setGuiScale(context, 2);
+		context.setScreen(TitleScreen::new);
+		context.waitTicks(60);
+		save(context, "title_gui2");
 		endOnTitle(context);
 	}
 
@@ -107,6 +129,8 @@ public final class SnowglassGameTest implements FabricClientGameTest {
 	private static void variations(ClientGameTestContext context) {
 		wheel(context);
 		hud(context);
+		surfaces(context);
+		looks(context);
 		onClient(context, mc -> {
 			ModuleRegistry.INTERFACE.palette.set("aurora");
 			return null;
@@ -209,6 +233,80 @@ public final class SnowglassGameTest implements FabricClientGameTest {
 			return null;
 		});
 		context.waitTicks(3);
+	}
+
+	/** A notification, then every other Snowball page, each opened over the village. */
+	private static void surfaces(ClientGameTestContext context) {
+		onClient(context, mc -> {
+			NotificationCenter.post("Snowglass", "A notification over the HUD");
+			return null;
+		});
+		context.waitTicks(8);
+		save(context, "notification_village_gui2");
+		Map<String, Supplier<View>> pages = new LinkedHashMap<>();
+		SnowballClient client = SnowballClient.get();
+		pages.put("presets", () -> new PresetsView(client));
+		pages.put("config_profiles", () -> new ConfigProfilesView(client));
+		pages.put("mod_profiles", () -> new ModProfilesView(client));
+		pages.put("nether_travel", () -> new NetherTravelView(client));
+		pages.put("screenshots", () -> new ScreenshotsView(client));
+		pages.put("cosmetics", () -> new CosmeticsView(client, ModuleRegistry.COSMETICS));
+		pages.put("cape_studio", () -> new CapeStudioView(client));
+		pages.put("waypoints", () -> new WaypointView(ModuleRegistry.WAYPOINTS, client));
+		pages.put("color_picker", () -> new ColorPickerView(ModuleRegistry.INTERFACE.menuColor, client));
+		pages.put("emote_wheel", () -> new EmoteWheelView(client));
+		for (Map.Entry<String, Supplier<View>> page : pages.entrySet()) {
+			onClient(context, mc -> {
+				ViewScreen.showOnScreen(page.getValue().get());
+				return null;
+			});
+			context.waitTicks(20);
+			save(context, "page_" + page.getKey() + "_village_gui2");
+			// The emote wheel closes by itself once its key is not held; the rest close with Esc.
+			if (onClient(context, mc -> mc.gui.screen() != null)) context.getInput().pressKey(KEY_ESCAPE);
+			context.waitForScreen(null);
+			context.waitTicks(4);
+		}
+	}
+
+	/**
+	 * The candidates for the default look, side by side: the menu in every palette, then in each glass
+	 * quality and at each Transparency stop. Everything is put back to the defaults afterwards.
+	 */
+	private static void looks(ClientGameTestContext context) {
+		for (String palette : List.of("snowball", "aurora", "northern_lights", "sakura", "ember", "midnight")) {
+			onClient(context, mc -> {
+				ModuleRegistry.INTERFACE.palette.set(palette);
+				return null;
+			});
+			photographMenu(context, "look_palette_" + palette);
+		}
+		onClient(context, mc -> {
+			ModuleRegistry.INTERFACE.palette.set("snowball");
+			return null;
+		});
+		for (String quality : List.of(Theme.GLASS_FULL, Theme.GLASS_LITE, Theme.GLASS_OFF)) {
+			onClient(context, mc -> {
+				ModuleRegistry.INTERFACE.glassQuality.set(quality);
+				return null;
+			});
+			photographMenu(context, "look_quality_" + quality);
+		}
+		onClient(context, mc -> {
+			ModuleRegistry.INTERFACE.glassQuality.set(Theme.GLASS_FULL);
+			return null;
+		});
+		for (int level : new int[]{0, 25, 50, 75, 100}) {
+			onClient(context, mc -> {
+				ModuleRegistry.INTERFACE.glassLevel.set((double) level);
+				return null;
+			});
+			photographMenu(context, "look_level_" + level);
+		}
+		onClient(context, mc -> {
+			ModuleRegistry.INTERFACE.glassLevel.set(50.0);
+			return null;
+		});
 	}
 
 	private static void pick(ClientGameTestContext context, ModuleCategory category) {

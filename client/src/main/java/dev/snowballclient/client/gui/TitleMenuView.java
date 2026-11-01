@@ -6,6 +6,8 @@ import dev.snowballclient.client.gui.anim.Smoothed;
 import dev.snowballclient.client.gui.icons.Icons;
 import dev.snowballclient.client.gui.icons.LineIcon;
 import dev.snowballclient.client.gui.smooth.SmoothShapes;
+import dev.snowballclient.client.gui.snowglass.GlassPanel;
+import dev.snowballclient.client.gui.snowglass.MaterialLevel;
 import dev.snowballclient.client.gui.theme.Theme;
 import dev.snowballclient.client.hud.GuiDraw;
 import dev.snowballclient.client.module.ModuleRegistry;
@@ -351,11 +353,27 @@ public final class TitleMenuView extends View {
 		return EDGE + UiText.width(c, version, UiText.UI_SMALL) + 8 + disclaimerWidth + EDGE <= width;
 	}
 
+	/**
+	 * A button's face: its own pane of glass over the world behind where the canvas draws glass, lit a
+	 * little under the mouse; the dark face otherwise.
+	 */
+	private void face(Canvas c, Item item, float hover, float alpha) {
+		if (theme.glass() && c.drawsGlass(theme.menuGlassQuality())) {
+			boolean focus = items.indexOf(item) == focused;
+			c.glass(new GlassPanel(item.x, item.y, item.w, item.h, RADIUS, theme.surface(1f), theme.glassLevel(), theme.menuGlassQuality(), alpha, false, focus));
+			int lit = Theme.withAlpha(0xFFFFFFFF, 0.08f * hover * alpha);
+			int border = focus ? scaleAlpha(theme.accent(), alpha) : Theme.withAlpha(0xFFFFFFFF, 0.14f * hover * alpha);
+			if ((lit >>> 24) != 0 || (border >>> 24) != 0) shape(c, item.x, item.y, item.w, item.h, RADIUS, lit, border);
+			return;
+		}
+		shape(c, item.x, item.y, item.w, item.h, RADIUS, face(hover, alpha), edge(item, hover, alpha));
+	}
+
 	private void drawButton(Canvas c, Item item, float alpha) {
 		float hover = item.hover.get();
 		boolean blocked = item.blocked != null;
 		float a = alpha * (blocked ? 0.7f : 1f);
-		shape(c, item.x, item.y, item.w, item.h, RADIUS, face(hover, a), edge(item, hover, a));
+		face(c, item, hover, a);
 		drawIconAndLabel(c, item, scaleAlpha(blocked ? theme.mutedText() : theme.text(), a));
 	}
 
@@ -418,7 +436,7 @@ public final class TitleMenuView extends View {
 
 	private void drawIconButton(Canvas c, Item item, float alpha) {
 		float hover = item.hover.get();
-		shape(c, item.x, item.y, item.w, item.h, RADIUS, face(hover, alpha), edge(item, hover, alpha));
+		face(c, item, hover, alpha);
 		int color = scaleAlpha(Theme.lerpColor(theme.mutedText(), theme.text(), 0.55f + 0.45f * hover), alpha);
 		float size = 12;
 		Icons.draw(c, item.icon, item.x + (item.w - size) / 2f, item.y + (item.h - size) / 2f, size, color);
@@ -426,7 +444,7 @@ public final class TitleMenuView extends View {
 
 	private void drawChip(Canvas c, Item item, float alpha) {
 		float hover = item.hover.get();
-		shape(c, item.x, item.y, item.w, item.h, RADIUS, face(hover, alpha), edge(item, hover, alpha));
+		face(c, item, hover, alpha);
 		int face = 14;
 		actions.drawPlayerFace(c, item.x + 8, item.y + (item.h - face) / 2, face);
 		int textY = item.y + item.h / 2 - Math.round(UiText.lineHeight(c, UiText.UI_SMALL) / 2f) + 1;
@@ -443,7 +461,12 @@ public final class TitleMenuView extends View {
 		int h = 18;
 		int x = Math.max(4, Math.min(width - w - 4, item.x + item.w / 2 - w / 2));
 		int y = item.y > height / 2 ? item.y - h - 6 : item.y + item.h + 6;
-		shape(c, x, y, w, h, 5, Theme.withAlpha(Theme.lerpColor(theme.surface(1f), 0xFF000000, 0.3f), 0.94f * alpha), Theme.withAlpha(0xFFFFFFFF, 0.10f * alpha));
+		// Small, thick glass where it can be, like the settings pages' tooltips.
+		if (theme.glass() && c.drawsGlass(theme.menuGlassQuality())) {
+			c.glass(new GlassPanel(x, y, w, h, 6, theme.surface(1f), Math.max(theme.glassLevel(), MaterialLevel.THICK), theme.menuGlassQuality(), alpha, true, false));
+		} else {
+			shape(c, x, y, w, h, 5, Theme.withAlpha(Theme.lerpColor(theme.surface(1f), 0xFF000000, 0.3f), 0.94f * alpha), Theme.withAlpha(0xFFFFFFFF, 0.10f * alpha));
+		}
 		UiText.draw(c, text, UiText.UI_SMALL, x + 7, y + h / 2 - Math.round(UiText.lineHeight(c, UiText.UI_SMALL) / 2f) + 1, scaleAlpha(theme.text(), alpha));
 	}
 

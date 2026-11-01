@@ -3,9 +3,50 @@
 Read this first in any new session, then `PLAN.md`. Branch: `ui/snowglass` (not pushed).
 The plan was approved on 2026-11-01 with the recommended answers to Q1–Q8 (PLAN.md §15).
 
-## Current state: M5 (HUD and HUD editor) done
+## Current state: M6 (the remaining surfaces) done
 
 **Asked 2026-11-01 (user):** do M4, M5 and M6, then either pick the best-looking look for people or send screenshots of all of them so they can choose the default.
+
+### M6: what changed
+
+Following the user's "glass on the modules, not the list": panels keep their pre-glass look everywhere; the things you pick and press are glass or use the M3 controls.
+- **Shared:**
+  - `Glass.card` takes a hover amount (glass plus the chip's highlight).
+  - New `Glass.capsuleButton`: an accent pill for the main action, a see-through capsule otherwise.
+  - `Glass.hudPane` takes a fade.
+- **Secondary pages** (`PanelView`):
+  - Every button is a capsule under the glass looks; the classic look keeps its boxes.
+  - Rows that are things you pick are glass cards: presets, config profiles, and the mods in Mod Profiles. Mod Profiles uses the M3 switch.
+  - Screenshot and cape tiles stay chips: their pictures fill them.
+- **Waypoints:** capsule buttons. The row switch stays the small one, since a waypoint row is 18 units tall.
+- **Colour picker:** capsule buttons, and white pill slider thumbs ringed in the accent while in use. It still opens as its own small screen, not a popover.
+- **Notifications:** a card of HUD glass (same quality rules as the HUD), sliding and fading as before. They stay top-right: top-centre would collide with boss bars and titles.
+- **Main menu:**
+  - Singleplayer, Multiplayer, the square icon buttons and the account chip are each a pane of glass over the world behind. Hover lights them a little and focus outlines them in the accent.
+  - The Snowball Menu (accent) and Quit buttons keep their looks.
+  - Its tooltip is small thick glass.
+- **Left as they were, on purpose:**
+  - **Emote wheel:** already themed. Glass ring segments were a stretch goal in the plan.
+  - **Container search box:** Minecraft's own text box inside Minecraft's inventory.
+  - **Confirm dialog:** deletes already confirm inline ("SURE?"), and nothing would use a modal.
+  - **Windows in the world:** they get the Off material automatically, since that canvas cannot draw glass.
+- `SnowglassGameTest` also photographs:
+  - a notification and every secondary page (presets, config profiles, mod profiles, Nether travel, screenshots, cosmetics, cape studio, waypoints, colour picker, emote wheel), over the village
+  - Snowball's main menu
+  - **the candidate default looks:** the menu in all six palettes, in each glass quality, and at each Transparency stop (`look_*.png`)
+
+### M6: verified
+
+- `./gradlew build` passes: 233 unit tests per version, 0 failures. `-p legacy build` passes, and `check-generated.mjs` is clean.
+- `-Ponly=menu,snowglass` passes on 26.2 and 1.21.11. Looked at on both:
+  - every `page_*` shot, the notification card and the main menu (glass buttons with the world showing through)
+  - the 14 `look_*` shots
+
+### M6: not verified
+
+- The secondary pages at GUI scales other than 2, and the Skins page (it loads skins from the network, so the test does not open it).
+
+## Earlier: M5 (HUD and HUD editor)
 
 ### M5: what changed
 
@@ -263,13 +304,15 @@ redesign is dropped, and M4 restyles the wheel menu and its pages in place (PLAN
 
 ## Next
 
-1. M4: restyle the wheel menu in place with the M3 controls. That covers:
-   - the side panel's rows (their switches), search capsule and FPS Boost cards
-   - the other `PanelView` pages
-   - the colour picker as a popover
+1. **The default look:** the user picks one from the `look_*.png` comparison. Changing it is the palette or Theme default plus `GlassLookTest`.
+2. **M7:**
+   - measure GPU cost
+   - try Vulkan outside the game-test harness
+   - run Iris, Sodium and ImmediatelyFast
+   - check GUI scales 1–6
+   - update the README, CHANGELOG and licences
 
-   The wheel layout, the palettes and 3D Menus stay as they are.
-3. In M7: measure GPU cost, try Vulkan outside the game-test harness, and run Iris, Sodium and ImmediatelyFast.
+   The colour picker as a popover is still open.
 
 ## Reproducing the reference captures
 
