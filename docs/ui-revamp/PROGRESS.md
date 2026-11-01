@@ -3,7 +3,19 @@
 Read this first in any new session, then `PLAN.md`. Branch: `ui/snowglass` (not pushed).
 The plan was approved on 2026-11-01 with the recommended answers to Q1–Q8 (PLAN.md §15).
 
-## Current state: M6 done, merged with 1.12.0, reviewed and polished
+## Released: Snowball Client 2.0.0 (2026-11-02)
+
+**Released with the user's go-ahead:** they chose to retry the 1.21.11 mod check first, version 2.0.0, and everyone through auto-update.
+- **Merge:** pull request met4a/snowball-client#3 is merged into `main` (`731784f`) and tagged `2.0.0`.
+- **Windows:**
+  - Built locally with `npm run dist`, which ran every game test on both versions. The first try hit the known 1.21.11 network-synchronizer flake; the retry passed.
+  - Published as the latest release on met4a/snowball-website with `latest.yml`, so installed launchers update themselves.
+- **macOS:**
+  - The tag's macOS workflow built the app ("package" passed). Its `.dmg`/`.zip` files for Apple Silicon and Intel, `latest-mac.yml` and checksums are on the same release.
+  - The two Minecraft smoke tests on GitHub's Macs failed as they have since 1.8.1: 1.8.9 on Apple Silicon (LWJGL 2 cannot get an OpenGL context on the VM) and 26.2 on Intel. 1.21.11 and 26.2 on Apple Silicon passed.
+- **Website:** the downloads, sizes, checksums and macOS beta point at 2.0.0 (`a5a5c27` here, `3ea0933` on snowball-website, live on snowball.krakensmp.xyz).
+
+## Before release: M6 done, merged with 1.12.0, reviewed and polished
 
 **Asked 2026-11-01 (user):** do M4, M5 and M6, then either pick the best-looking look for people or send screenshots of all of them so they can choose the default.
 
