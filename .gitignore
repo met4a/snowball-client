@@ -51,6 +51,10 @@ launcher/app-config.local.json
 launcher/build-resources/*.pfx
 launcher/signing/
 
+# Third-party screenshots used only as design direction for the in-game UI (docs/ui-revamp).
+# They are copyrighted by their owners and must never be committed or shipped.
+.design-refs/
+
 # Scratch
 *.tmp
 *.bak
