@@ -20,7 +20,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * skip.
  */
 public final class SpotifyHud extends HudModule {
-	public final BooleanSetting cover = setting(new BooleanSetting("cover", "Album cover", "Show the cover where the system gives one (not on Windows)", true));
+	public final BooleanSetting cover = setting(new BooleanSetting("cover", "Album cover", "Show the album cover of the song playing", true));
 	public final BooleanSetting progress = setting(new BooleanSetting("progress", "Progress bar", "How far through the song, where the system says", true));
 	public final BooleanSetting announce = setting(new BooleanSetting("announce", "Announce new songs", "A notification when the song changes", false));
 	public final NumberSetting maxWidth = setting(new NumberSetting("max_width", "Width", "Widest the card gets before names are shortened", 170, 100, 300, 10));
@@ -67,6 +67,7 @@ public final class SpotifyHud extends HudModule {
 		if (now == null) return;
 		Playback p = now.playback();
 		var art = cover.isOn() ? now.art().texture(MinecraftTextures.INSTANCE, p.artUrl()) : null;
-		SpotifyCard.draw(canvas.wrap(g), theme, p, art, style(), width, height, System.currentTimeMillis(), now.appOpen());
+		boolean loading = art == null && cover.isOn() && now.art().loading(p.artUrl());
+		SpotifyCard.draw(canvas.wrap(g), theme, p, art, loading, style(), width, height, System.currentTimeMillis(), now.appOpen());
 	}
 }

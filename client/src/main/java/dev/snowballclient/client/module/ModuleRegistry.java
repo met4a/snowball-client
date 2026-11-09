@@ -24,6 +24,7 @@ import dev.snowballclient.client.module.fps.ParticleLimiter;
 import dev.snowballclient.client.module.fps.PerformanceAdvisor;
 import dev.snowballclient.client.module.fps.SmartCulling;
 import dev.snowballclient.client.module.misc.ChatSettings;
+import dev.snowballclient.client.module.misc.LyricsModule;
 import dev.snowballclient.client.module.misc.NickHider;
 import dev.snowballclient.client.module.misc.Notifications;
 import dev.snowballclient.client.module.misc.ScreenshotUtility;
@@ -44,6 +45,7 @@ import dev.snowballclient.client.module.qol.Waypoints;
 import dev.snowballclient.client.module.qol.Zoom;
 import dev.snowballclient.client.module.render.ArmorHud;
 import dev.snowballclient.client.module.render.Crosshair;
+import dev.snowballclient.client.module.render.CustomSky;
 import dev.snowballclient.client.module.render.FovSettings;
 import dev.snowballclient.client.module.render.Fullbright;
 import dev.snowballclient.client.module.render.GlassGui;
@@ -104,6 +106,8 @@ public final class ModuleRegistry {
 	public static EmotesModule EMOTES;
 	public static FpsBoost FPS_BOOST;
 	public static HitColor HIT_COLOR;
+	public static CustomSky CUSTOM_SKY;
+	public static LyricsModule LYRICS;
 	public static CrystalGlow CRYSTAL_GLOW;
 	public static VisualModules.NoHurtShake NO_HURT_SHAKE;
 	public static VisualModules.LowFire LOW_FIRE;
@@ -179,6 +183,7 @@ public final class ModuleRegistry {
 		LOW_FIRE = m.register(new VisualModules.LowFire());
 		BLOCK_OUTLINE = m.register(new VisualModules.BlockOutline());
 		TIME_CHANGER = m.register(new VisualModules.TimeChanger());
+		CUSTOM_SKY = m.register(new CustomSky());
 
 		// MISC
 		SCREENSHOTS = m.register(new ScreenshotUtility());
@@ -190,6 +195,7 @@ public final class ModuleRegistry {
 		NICK_HIDER = m.register(new NickHider());
 		m.register(new DiscordPresenceModule(SharedConstants.getCurrentVersion().name()));
 		m.register(new SpotifyHud());
+		LYRICS = m.register(new LyricsModule());
 		EMOTES = m.register(new EmotesModule());
 
 		// QOL
@@ -218,12 +224,12 @@ public final class ModuleRegistry {
 		m.order(ModuleCategory.CLIENT, "client_hud", "presets", "hud_layout", "interface", "cosmetics", "skins", "menu_3d", "watermark", "fps_counter", "ping_display", "coordinates",
 				"direction_hud", "custom_text", "memory_usage", "pack_display", "anti_crash");
 		m.order(ModuleCategory.RENDER, "fps_boost", "fov_settings", "potion_hud", "block_outline", "no_hurt_shake", "low_fire", "third_person",
-				"time_changer", "weather_effects");
+				"time_changer", "custom_sky", "weather_effects");
 		m.order(ModuleCategory.PVP, "crosshair", "armor_hud", "cps_counter", "combo_counter", "reach_display", "target_info");
 		m.order(ModuleCategory.MOVEMENT, "toggle_sprint", "speed_display");
 		m.order(ModuleCategory.VISUALS, "glass_gui", "menu_3d", "fullbright", "zoom", "freelook", "snaplook", "hit_color", "crystal_glow");
 		m.order(ModuleCategory.WORLD, "waypoints", "render_distance", "entity_distance");
-		m.order(ModuleCategory.MISC, "chat_settings", "emotes", "nick_hider", "spotify", "discord_presence", "screenshot_utility", "notifications", "clock", "server_info", "session_timer");
+		m.order(ModuleCategory.MISC, "chat_settings", "emotes", "nick_hider", "spotify", "lyrics", "discord_presence", "screenshot_utility", "notifications", "clock", "server_info", "session_timer");
 		m.order(ModuleCategory.QOL, "keystrokes", "ez_pots", "item_counter");
 	}
 

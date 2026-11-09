@@ -8,8 +8,8 @@ import dev.snowballclient.client.ui.UiTexture;
 import java.util.function.ToIntFunction;
 
 /**
- * The now-playing card the Spotify HUD draws, the same on every Minecraft version: the cover (or a
- * note when there is none), the song, the artist, and a bar for how far through it is where the
+ * The now-playing card the Spotify HUD draws, the same on every Minecraft version: the cover (a soft
+ * pulse while it loads, a note when there is none), the song, the artist, and a bar for how far through it is where the
  * system says.
  */
 public final class SpotifyCard {
@@ -59,7 +59,8 @@ public final class SpotifyCard {
 		return style.progress() && p.hasTrack() && p.durationMs() > 0;
 	}
 
-	public static void draw(Canvas c, Theme t, Playback p, UiTexture cover, Style style, int w, int h, long now, boolean appOpen) {
+	/** @param coverLoading the song's cover is on its way: its square breathes rather than showing a note */
+	public static void draw(Canvas c, Theme t, Playback p, UiTexture cover, boolean coverLoading, Style style, int w, int h, long now, boolean appOpen) {
 		int left = textLeft(style);
 		if (style.cover()) {
 			int y = (h - COVER) / 2;
@@ -67,6 +68,9 @@ public final class SpotifyCard {
 				c.drawTexture(cover, PAD, y, COVER, COVER, 0xFFFFFFFF);
 				// A hairline of light on the cover's top edge, like the glass around it.
 				c.fill(PAD, y, PAD + COVER, y + 1, 0x33FFFFFF);
+			} else if (coverLoading) {
+				float pulse = 0.5f + 0.5f * (float) Math.sin(now / 260.0);
+				GuiDraw.roundedRect(c, PAD, y, COVER, COVER, 3, Theme.withAlpha(0xFFFFFFFF, 0.08f + 0.10f * pulse));
 			} else {
 				GuiDraw.roundedRect(c, PAD, y, COVER, COVER, 3, Theme.withAlpha(t.accent(), 0.22f));
 				note(c, PAD + COVER / 2, y + COVER / 2, t.accent());

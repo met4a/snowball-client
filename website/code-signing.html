@@ -6,18 +6,29 @@
     <title>Code signing policy - Snowball Client</title>
     <meta name="theme-color" content="#05070a" />
     <link rel="icon" type="image/png" href="assets/logo.png" />
-    <link rel="stylesheet" href="styles.css?v=6" />
+    <link rel="apple-touch-icon" href="assets/logo.png" />
+    <link rel="stylesheet" href="styles.css?v=9" />
+    <script>document.documentElement.classList.add('js');</script>
   </head>
   <body>
     <!-- Publish this page only after SignPath Foundation approves the project. -->
+    <a class="skip" href="#main">Skip to content</a>
     <header class="site-header">
-      <div class="wrap">
-        <a class="brand" href="index.html"><img src="assets/logo.png" alt="" />SNOWBALL <span>CLIENT</span></a>
-        <a class="btn primary small" href="index.html#download" style="margin-left:auto">Download</a>
+      <div class="wrap header-in">
+        <a class="brand" href="index.html"><img src="assets/logo.png" alt="" width="26" height="26" />SNOWBALL <span>CLIENT</span></a>
+        <nav class="nav" id="site-nav" aria-label="Main">
+          <a href="index.html#features">Features</a>
+          <a href="index.html#try">Try it</a>
+          <a href="index.html#launcher">Launcher</a>
+          <a href="store.html">Snowball+</a>
+          <a href="index.html#faq">FAQ</a>
+        </nav>
+        <a class="btn primary sm header-cta" href="index.html#download">Download</a>
+        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open menu"><span></span><span></span></button>
       </div>
     </header>
 
-    <main class="wrap doc">
+    <main id="main" class="wrap narrow doc">
       <h1>Code signing policy</h1>
       <p class="updated">Last updated 14 September 2026</p>
 
@@ -40,16 +51,46 @@
       <p>The installer version can be removed from Windows Settings &gt; Apps. The portable version is a single file you can delete. Game files and settings live in <code>%APPDATA%\SnowballClientLauncher</code>.</p>
     </main>
 
-    <footer>
+    <footer class="site-footer">
       <div class="wrap">
-        <span>&copy; 2026 Snowball Client</span>
-        <div class="links">
-          <a href="index.html">Home</a>
-          <a href="privacy.html">Privacy</a>
-          <a href="terms.html">Terms</a>
+        <div class="footer-grid">
+          <div class="footer-brand">
+            <a class="brand" href="index.html"><img src="assets/logo.png" alt="" width="26" height="26" />SNOWBALL <span>CLIENT</span></a>
+            <p>A free Minecraft launcher with its own client built in.</p>
+          </div>
+          <div class="footer-col">
+            <p class="footer-h">Product</p>
+            <ul>
+              <li><a href="index.html#download">Download</a></li>
+              <li><a href="index.html#try">Try the menu</a></li>
+              <li><a href="index.html#features">Features</a></li>
+              <li><a href="store.html">Snowball+</a></li>
+            </ul>
+          </div>
+          <div class="footer-col">
+            <p class="footer-h">Project</p>
+            <ul>
+              <li><a href="https://github.com/met4a/snowball-website/releases">Releases</a></li>
+              <li><a href="https://github.com/met4a/snowball-client/blob/main/CHANGELOG.md">Changelog</a></li>
+              <li><a href="https://github.com/met4a/snowball-client">Source</a></li>
+              <li><a href="index.html#faq">FAQ</a></li>
+            </ul>
+          </div>
+          <div class="footer-col">
+            <p class="footer-h">Legal</p>
+            <ul>
+              <li><a href="privacy.html">Privacy</a></li>
+              <li><a href="terms.html">Terms</a></li>
+            </ul>
+          </div>
         </div>
-        <p class="disclaimer">Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.</p>
+        <div class="footer-bottom">
+          <p>&copy; 2026 Snowball Client.</p>
+          <p>Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.</p>
+        </div>
       </div>
     </footer>
+
+    <script src="site.js?v=3" defer></script>
   </body>
 </html>
