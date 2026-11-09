@@ -9,6 +9,35 @@ installer once.
 
 ---
 
+## 2.1.0
+
+### What's new
+- **Lyrics.** The words of the song Spotify is playing, in time with it. A bar
+  on your HUD shows the line being sung and lights up each word as it comes,
+  and the words float up in the world around you (or high in the sky). When a
+  song starts, its title and artist drift in front of you.
+- **Custom Sky.** Swap the Overworld sky for a starry night full of coloured
+  clouds: Nebula, Galaxy, Aurora, Sunset, Crimson or your own two colours.
+  Choose how many stars and clouds, how bright, and whether it slowly turns.
+  Distant land fades into the sky's colour. Only your view changes.
+- **Hit Colour, now with effects.** Your hits throw a ripple of light, drops of
+  colour that splash the ground, stars on critical hits, and a pillar of light
+  when a mob you hit dies. The flash is gold by default and can glow in the
+  dark. Each effect has its own switch.
+- **Crystal Glow patterns.** Crystals can shimmer, pulse or cycle through the
+  rainbow, with a halo of turning rings and sparkles around them. Still never
+  shown through walls.
+- **New rank badges.** Every rank has a new glass badge: the Snowball logo on
+  dark glass, Plus on ice blue. Names no longer carry a [Tag].
+- **A new look for the website**, matching Snowglass.
+
+### Fixed
+- The Spotify HUD shows the real album cover on Windows instead of a green
+  square, and its progress bar now moves on Windows too.
+- Hit Colour's Strength slider worked backwards: higher made the flash weaker.
+
+---
+
 ## 2.0.0
 
 ### What's new
