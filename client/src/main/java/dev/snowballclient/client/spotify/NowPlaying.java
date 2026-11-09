@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -23,8 +24,10 @@ import java.util.regex.Pattern;
  * game asks the system the way any music widget does.
  *
  * <ul>
- *   <li><b>Windows</b>: the Spotify window's title, which is "Artist - Song" while it plays. One small
- *       PowerShell loop watches it (it ends with the game), so nothing new starts every few seconds.</li>
+ *   <li><b>Windows</b>: the system's media session, which Spotify fills in with the song, artist,
+ *       album, cover and time (what the volume flyout shows). Where that is missing, the Spotify
+ *       window's title, which is "Artist - Song" while it plays. One small PowerShell loop watches
+ *       both (it ends with the game), so nothing new starts every few seconds.</li>
  *   <li><b>macOS</b>: Spotify's AppleScript, which also gives the album, the cover and the time.
  *       macOS asks once whether Minecraft may talk to Spotify.</li>
  *   <li><b>Linux</b>: MPRIS over D-Bus, the standard every Linux music player speaks.</li>
@@ -38,6 +41,10 @@ public final class NowPlaying {
 	private static final long POLL_MS = 2_000;
 	/** How long nobody needs the song before the watcher stops. */
 	private static final long IDLE_STOP_MS = 15_000;
+	/** Covers Windows hands over directly are keyed by this, then the song; addresses are fetched. */
+	static final String SESSION_COVER = "session:";
+	/** A new reading this close to where the song was expected to be is jitter, not a seek. */
+	private static final long DRIFT_MS = 1_500;
 
 	public enum Platform { WINDOWS, MAC, LINUX, OTHER }
 
@@ -178,23 +185,18 @@ public final class NowPlaying {
 			return;
 		}
 		playback = next;
-		if (!next.artUrl().isEmpty()) art.load(next.artUrl());
+		if (next.artUrl().startsWith(SESSION_COVER)) art.expect(next.artUrl());
+		else if (!next.artUrl().isEmpty()) art.load(next.artUrl());
 	}
 
 	// ---- Windows: one watcher reads the window title ----
 
 	private void startWatcher() {
-		long pid = ProcessHandle.current().pid();
-		// Prints the Spotify window's title every couple of seconds, in UTF-8 so every song name
-		// survives, and ends by itself when the game is gone.
-		String script = "[Console]::OutputEncoding=[Text.Encoding]::UTF8;"
-				+ "while($true){"
-				+ "if(-not (Get-Process -Id " + pid + " -ErrorAction SilentlyContinue)){exit};"
-				+ "$t=(Get-Process Spotify -ErrorAction SilentlyContinue | Where-Object {$_.MainWindowTitle} | Select-Object -First 1).MainWindowTitle;"
-				+ "if($t){[Console]::Out.WriteLine('T:'+$t)}else{[Console]::Out.WriteLine('N:')};"
-				+ "[Console]::Out.Flush();Start-Sleep -Seconds 2}";
+		String script = WATCHER.replace("GAME_PID", Long.toString(ProcessHandle.current().pid()));
 		try {
-			Process process = new ProcessBuilder("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script)
+			// Encoded, so the script's quotes reach PowerShell untouched by Windows' argument parsing.
+			String encoded = Base64.getEncoder().encodeToString(script.getBytes(StandardCharsets.UTF_16LE));
+			Process process = new ProcessBuilder("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded)
 					.redirectErrorStream(true)
 					.start();
 			watcher = process;
@@ -207,6 +209,47 @@ public final class NowPlaying {
 		}
 	}
 
+	/**
+	 * Prints what Spotify is playing every second, in UTF-8 so every song name survives, and ends by
+	 * itself when the game is gone. From the media session: "S:" playing, length, position, song,
+	 * artist, album (tab-separated), then "C:" song, artist, album and the cover in base64 once per
+	 * song (empty when it has none). Without a session: "T:" and the window title, or "N:".
+	 * PowerShell names ignore case, so the WinRT types are $TM, $TP... and never clash with $p, $r...
+	 * Windows PowerShell cannot see the cover stream's own methods; reflection reaches them.
+	 */
+	static final String WATCHER = String.join("\n",
+			"[Console]::OutputEncoding=[Text.Encoding]::UTF8",
+			"$g=$null",
+			"try{Add-Type -AssemblyName System.Runtime.WindowsRuntime",
+			"$m=[System.WindowsRuntimeSystemExtensions].GetMethods()|?{$_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1'}|select -First 1",
+			"function W($o,$t){$k=$m.MakeGenericMethod($t).Invoke($null,@($o));if($k.Wait(3000)){$k.Result}}",
+			"$TM=[Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager,Windows.Media.Control,ContentType=WindowsRuntime]",
+			"$TP=[Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties,Windows.Media.Control,ContentType=WindowsRuntime]",
+			"$TR=[Windows.Storage.Streams.IRandomAccessStreamWithContentType,Windows.Storage.Streams,ContentType=WindowsRuntime]",
+			"$TI=[Windows.Storage.Streams.IInputStream,Windows.Storage.Streams,ContentType=WindowsRuntime]",
+			"$TA=[System.IO.WindowsRuntimeStreamExtensions].GetMethod('AsStreamForRead',[type[]]@($TI))",
+			"$g=W ($TM::RequestAsync()) $TM}catch{$g=$null}",
+			"function C($v){([string]$v) -replace \"[`t`r`n]\",' '}",
+			"$last=$null",
+			"while($true){",
+			"if(-not (Get-Process -Id GAME_PID -ErrorAction SilentlyContinue)){exit}",
+			"$s=$null;$p=$null",
+			"if($g){try{$s=$g.GetSessions()|?{$_.SourceAppUserModelId -like '*Spotify*'}|select -First 1;if($s){$p=W ($s.TryGetMediaPropertiesAsync()) $TP}}catch{$p=$null}}",
+			"if($p -and $p.Title){",
+			"$t=$s.GetTimelineProperties();$on=[int]($s.GetPlaybackInfo().PlaybackStatus -eq 'Playing')",
+			"$end=[long]$t.EndTime.TotalMilliseconds;$pos=$t.Position.TotalMilliseconds",
+			"if($on -and $end -gt 0){$pos+=([DateTimeOffset]::Now-$t.LastUpdatedTime).TotalMilliseconds}",
+			"$pos=[long][Math]::Max(0,[Math]::Min($pos,[Math]::Max($end,0)))",
+			"$f=(C $p.Title)+\"`t\"+(C $p.Artist)+\"`t\"+(C $p.AlbumTitle)",
+			"[Console]::Out.WriteLine('S:'+$on+\"`t\"+$end+\"`t\"+$pos+\"`t\"+$f)",
+			"if($f -ne $last){$last=$f;$d=''",
+			"try{if($p.Thumbnail){$r=W ($p.Thumbnail.OpenReadAsync()) $TR;$n=$TA.Invoke($null,@($r));$b=New-Object IO.MemoryStream;$n.CopyTo($b);$n.Dispose();$d=[Convert]::ToBase64String($b.ToArray())}}catch{$d=''}",
+			"[Console]::Out.WriteLine('C:'+$f+\"`t\"+$d)}",
+			"}else{$last=$null",
+			"$w=(Get-Process Spotify -ErrorAction SilentlyContinue|?{$_.MainWindowTitle}|select -First 1).MainWindowTitle",
+			"if($w){[Console]::Out.WriteLine('T:'+$w)}else{[Console]::Out.WriteLine('N:')}}",
+			"[Console]::Out.Flush();Start-Sleep -Milliseconds 1000}");
+
 	private void readWatcher(Process process) {
 		try (BufferedReader in = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
 			String line;
@@ -214,10 +257,27 @@ public final class NowPlaying {
 				long now = clock.getAsLong();
 				if (line.startsWith("N:")) accept(null, now);
 				else if (line.startsWith("T:")) accept(fromWindowTitle(line.substring(2).trim(), playback, now), now);
+				else if (line.startsWith("S:")) {
+					Playback next = fromSession(line.substring(2), playback, now);
+					if (next != null) accept(next, now);
+				} else if (line.startsWith("C:")) cover(line.substring(2));
 			}
 		} catch (IOException ignored) {
 			// The watcher was stopped.
 		}
+	}
+
+	/** A "C:" line: the cover Windows holds for a song, or nothing when it has none. */
+	private void cover(String line) {
+		String[] f = line.split("\t", -1);
+		if (f.length < 4) return;
+		byte[] bytes;
+		try {
+			bytes = f[3].isBlank() ? null : Base64.getDecoder().decode(f[3].trim());
+		} catch (IllegalArgumentException e) {
+			bytes = null;
+		}
+		art.accept(sessionKey(f[0], f[1], f[2]), bytes);
 	}
 
 	private void stopWatcher() {
@@ -241,6 +301,32 @@ public final class NowPlaying {
 		int dash = title.indexOf(" - ");
 		if (dash <= 0) return new Playback(title, "", "", "", 0, 0, true, now);
 		return new Playback(title.substring(dash + 3).trim(), title.substring(0, dash).trim(), "", "", 0, 0, true, now);
+	}
+
+	static String sessionKey(String track, String artist, String album) {
+		return SESSION_COVER + track.trim() + "\n" + artist.trim() + "\n" + album.trim();
+	}
+
+	/**
+	 * An "S:" line from the Windows media session: playing (1/0), length and position in ms, song,
+	 * artist, album. A position within a second or so of where the last reading said the song would
+	 * be keeps the old timing, so the progress bar and lyrics do not twitch at every reading.
+	 */
+	static Playback fromSession(String line, Playback previous, long now) {
+		String[] f = line.split("\t", -1);
+		if (f.length < 6 || f[3].isBlank()) return null;
+		boolean playing = f[0].trim().equals("1");
+		long duration = Math.max(0, (long) number(f[1]));
+		long position = Math.max(0, (long) number(f[2]));
+		String track = f[3].trim();
+		String artist = f[4].trim();
+		String album = f[5].trim();
+		String cover = sessionKey(track, artist, album);
+		if (previous != null && previous.sameSong(new Playback(track, artist, album, cover, 0, 0, playing, now)) && previous.playing() && playing
+				&& previous.durationMs() == duration && Math.abs(previous.progressAt(now) - position) < DRIFT_MS) {
+			return new Playback(track, artist, album, cover, duration, previous.progressMs(), true, previous.readAt());
+		}
+		return new Playback(track, artist, album, cover, duration, position, playing, now);
 	}
 
 	static final String APPLESCRIPT = String.join("\n",
