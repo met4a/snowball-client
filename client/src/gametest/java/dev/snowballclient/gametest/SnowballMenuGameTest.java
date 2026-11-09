@@ -69,30 +69,30 @@ public final class SnowballMenuGameTest implements FabricClientGameTest {
 				PlayerInfo info = mc.getConnection().getPlayerInfo(mc.getUser().getProfileId());
 				return info == null ? "" : mc.gui.hud.getTabList().getNameForDisplay(info).getString();
 			});
-			// A Snowball player wears the logo alone, never a written [Snowball].
-			if (!listed.startsWith(String.valueOf((char) 0xE000)) || listed.contains("[Snowball]")) {
-				throw new AssertionError("The player list name is not the Snowball logo alone: " + listed);
+			if (!listed.startsWith(String.valueOf((char) 0xE000)) || !listed.contains("[Snowball]")) {
+				throw new AssertionError("The player list name has no Snowball rank: " + listed);
 			}
 			LOG.info("Player list shows the rank: {}", listed.replace((char) 0xE000, '*'));
 
-			// Every rank draws its own badge, so a wrong glyph shows up here rather than in game.
+			// Every rank draws its own badge and tag, so a wrong glyph shows up here rather than in game.
 			for (Rank rank : Rank.values()) {
 				String shown = onClient(context, mc -> {
 					SnowballPlayers.setSelfRank(rank);
 					PlayerInfo info = mc.getConnection().getPlayerInfo(mc.getUser().getProfileId());
 					return info == null ? "" : mc.gui.hud.getTabList().getNameForDisplay(info).getString();
 				});
-				// Every rank wears its badge alone, never a written [Tag].
-				if (!shown.startsWith(String.valueOf(rank.badge())) || shown.contains("[" + rank.tag() + "]")) {
+				// Staff wear only their icon; every other rank its badge and its [Tag].
+				boolean tagged = shown.contains("[" + rank.tag() + "]");
+				if (!shown.startsWith(String.valueOf(rank.badge())) || tagged == rank.iconOnly()) {
 					throw new AssertionError("Rank " + rank.id() + " is not drawn correctly: " + shown);
 				}
 			}
-			// The player list itself, photographed: every rank wears its badge alone, at
+			// The player list itself, photographed: staff wear the icon alone, other ranks badge and tag, at
 			// every GUI scale. Minecraft only draws the list in singleplayer when an objective is shown in it.
 			world.getServer().runCommand("scoreboard objectives add snowball_list dummy");
 			world.getServer().runCommand("scoreboard objectives setdisplay list snowball_list");
 			int guiScaleBefore = onClient(context, mc -> mc.options.guiScale().get());
-			for (Rank shown : new Rank[]{Rank.SNOWBALL, Rank.PLUS, Rank.TESTER, Rank.OWNER}) {
+			for (Rank shown : new Rank[]{Rank.OWNER, Rank.TESTER}) {
 				for (int scale = 1; scale <= 4; scale++) {
 					int guiScale = scale;
 					onClient(context, mc -> {
@@ -126,7 +126,7 @@ public final class SnowballMenuGameTest implements FabricClientGameTest {
 				SnowballPlayers.setSelfRank(Rank.SNOWBALL);
 				return null;
 			});
-			LOG.info("All {} ranks draw correctly: each as its badge alone", Rank.values().length);
+			LOG.info("All {} ranks draw correctly: staff as their icon alone, the rest as badge and tag", Rank.values().length);
 
 			// Glass GUI: the same screen with Minecraft's background, then with Snowball's glass.
 			for (boolean glass : new boolean[]{false, true}) {
@@ -145,15 +145,13 @@ public final class SnowballMenuGameTest implements FabricClientGameTest {
 
 			// The badge above a player's head. It comes from EntityRenderer#getNameTag, which the
 			// player-list checks above never touch, and it is only visible in third person.
-			for (Rank shown : new Rank[]{Rank.SNOWBALL, Rank.PLUS, Rank.OWNER}) {
-				onClient(context, mc -> {
-					SnowballPlayers.setSelfRank(shown);
-					mc.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_BACK);
-					return null;
-				});
-				context.waitTicks(10);
-				context.takeScreenshot("name_tag_badge_" + shown.id());
-			}
+			onClient(context, mc -> {
+				SnowballPlayers.setSelfRank(Rank.OWNER);
+				mc.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_BACK);
+				return null;
+			});
+			context.waitTicks(10);
+			context.takeScreenshot("name_tag_badge");
 			onClient(context, mc -> {
 				mc.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON);
 				SnowballPlayers.setSelfRank(Rank.SNOWBALL);

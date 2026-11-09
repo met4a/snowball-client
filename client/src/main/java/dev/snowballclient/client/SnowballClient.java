@@ -20,9 +20,6 @@ import dev.snowballclient.client.module.storage.ContainerPreview;
 import dev.snowballclient.client.perf.ModRequests;
 import dev.snowballclient.client.perf.ModScanner;
 import dev.snowballclient.client.module.client.Menu3D;
-import dev.snowballclient.client.platform.CrystalEffectsWorld;
-import dev.snowballclient.client.platform.HitEffectsWorld;
-import dev.snowballclient.client.platform.LyricsWorld;
 import dev.snowballclient.client.platform.MinecraftSkinPlatform;
 import dev.snowballclient.client.platform.MinecraftTextures;
 import dev.snowballclient.client.platform.SnowglassRenderer;
@@ -236,15 +233,9 @@ public final class SnowballClient implements ClientModInitializer {
 		Menu3D.supportWindows(() -> Minecraft.getInstance().level != null);
 		//? if >=26.1 {
 		LevelRenderEvents.COLLECT_SUBMITS.register(context -> SpatialGame.render(context.submitNodeCollector()));
-		LevelRenderEvents.COLLECT_SUBMITS.register(context -> LyricsWorld.render(context.submitNodeCollector()));
-		LevelRenderEvents.COLLECT_SUBMITS.register(context -> HitEffectsWorld.render(context.submitNodeCollector()));
-		LevelRenderEvents.COLLECT_SUBMITS.register(context -> CrystalEffectsWorld.render(context.submitNodeCollector()));
 		LevelRenderEvents.BEFORE_BLOCK_OUTLINE.register((context, outline) -> !SpatialGame.pointing());
 		//?} else {
 		/*WorldRenderEvents.BEFORE_ENTITIES.register(context -> SpatialGame.render(context.commandQueue()));
-		WorldRenderEvents.BEFORE_ENTITIES.register(context -> LyricsWorld.render(context.commandQueue()));
-		WorldRenderEvents.BEFORE_ENTITIES.register(context -> HitEffectsWorld.render(context.commandQueue()));
-		WorldRenderEvents.BEFORE_ENTITIES.register(context -> CrystalEffectsWorld.render(context.commandQueue()));
 		WorldRenderEvents.BEFORE_BLOCK_OUTLINE.register((context, outline) -> !SpatialGame.pointing());
 		*///?}
 		ClientTooltipComponentCallback.EVENT.register(data ->
@@ -257,7 +248,6 @@ public final class SnowballClient implements ClientModInitializer {
 				Vec3 eye = player.getEyePosition();
 				Vec3 point = hit != null ? hit.getLocation() : closestPoint(entity.getBoundingBox(), eye);
 				ModuleRegistry.COMBAT.onAttack(entity.getId(), eye.distanceTo(point), System.currentTimeMillis());
-				HitEffectsWorld.hit(entity, point, eye);
 			}
 			return InteractionResult.PASS;
 		});

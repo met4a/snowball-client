@@ -17,8 +17,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.UUID;
 
 /**
- * Shows a player's Snowball rank in the player list as the rank's badge, unless it is turned off in
- * Menu & Accessibility. Nothing is drawn for players who are not on Snowball. The list measures the whole name, badge included, so its column is
+ * Shows a player's Snowball rank in the player list: the rank's badge, its name in brackets, or
+ * both, as chosen in Menu & Accessibility; staff show only their icon. Nothing is drawn for players
+ * who are not on Snowball. The list measures the whole name, badge included, so its column is
  * sized for it rather than written past. Your own line has your name swapped when Nick Hider is on.
  */
 @Mixin(PlayerTabOverlay.class)
@@ -30,7 +31,7 @@ public class PlayerTabOverlayMixin {
 		if (ModuleRegistry.NICK_HIDER != null && isMe(info)) shown = ModuleRegistry.NICK_HIDER.tabName(shown);
 		String format = SnowballClient.tabFormat();
 		Rank rank = format.isEmpty() ? null : SnowballPlayers.rank(info.getProfile().id());
-		if (rank != null) shown = Component.empty().append(RankText.prefix(rank)).append(shown);
+		if (rank != null) shown = Component.empty().append(RankText.prefix(rank, format.contains("badge"), format.contains("tag"))).append(shown);
 		if (shown != original) name.setReturnValue(shown);
 	}
 

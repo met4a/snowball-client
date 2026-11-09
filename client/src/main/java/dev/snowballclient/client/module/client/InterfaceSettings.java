@@ -82,7 +82,7 @@ public final class InterfaceSettings extends Module {
 		pauseGame = setting(new BooleanSetting("pause_game", "Pause singleplayer in menu", "", clientSettings.pauseGameInMenu));
 		customMainMenu = setting(new BooleanSetting("custom_main_menu", "Snowball main menu", "Use Snowball's main menu instead of Minecraft's title screen", true));
 		customLoadingScreen = setting(new BooleanSetting("custom_loading_screen", "Snowball loading screen", "Show the Snowball loading screen while the game loads its resources", true));
-		tabRanks = setting(new ChoiceSetting("tab_ranks", "Ranks in the player list", "Show a Snowball player's badge next to their name", "badge", java.util.List.of("badge", "off")));
+		tabRanks = setting(new ChoiceSetting("tab_ranks", "Ranks in the player list", "How a player's Snowball rank is shown next to their name", "badge_tag", java.util.List.of("badge_tag", "badge", "tag", "off")));
 
 		nameTagBadges = setting(new BooleanSetting("name_tag_badges", "Badges above players", "Show a Snowball player's badge on the name floating above their head", true));
 		showMe = setting(new BooleanSetting("show_me", "Show others I use Snowball", "Other Snowball players see your badge while you play with Snowball Client", true));
