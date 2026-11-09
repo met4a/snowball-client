@@ -7,7 +7,6 @@
     <meta name="description" content="Snowball Client is a free Minecraft: Java Edition launcher with a client built in, for 1.8.9, 1.21.11 and 26.2: a radial menu of HUD, PvP and performance modules, a skin changer, 3D menus, capes and emotes, and isolated instances that update themselves." />
     <link rel="canonical" href="https://snowball.krakensmp.xyz/" />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Snowball Client" />
     <meta property="og:url" content="https://snowball.krakensmp.xyz/" />
     <meta property="og:title" content="Snowball Client" />
     <meta property="og:description" content="A free Minecraft launcher with a client built in. Right Shift opens every HUD, PvP and performance module, on 1.8.9, 1.21.11 and 26.2." />
@@ -15,10 +14,8 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="theme-color" content="#05070a" />
     <link rel="icon" type="image/png" href="assets/logo.png" />
-    <link rel="apple-touch-icon" href="assets/logo.png" />
     <link rel="preload" href="assets/fonts/monocraft.ttf" as="font" type="font/ttf" crossorigin />
-    <link rel="preload" href="assets/shot-title.jpg" as="image" fetchpriority="high" />
-    <link rel="stylesheet" href="styles.css?v=9" />
+    <link rel="stylesheet" href="styles.css?v=7" />
     <link rel="stylesheet" href="demo.css?v=2" />
     <script>document.documentElement.classList.add('js');</script>
   </head>
@@ -36,138 +33,171 @@
       <symbol id="i-storage" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1" /><path d="M5 9v10h14V9M10 13h4" /></symbol>
       <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M12 4v12M6.5 10.5 12 16l5.5-5.5M5 20h14" /></symbol>
       <symbol id="i-windows" viewBox="0 0 24 24"><path d="M3 5.6 10.5 4.6v7H3zM12 4.4 21 3.2v8.4h-9zM3 12.6h7.5v7L3 18.6zM12 12.6h9v8.2l-9-1.2z" /></symbol>
-      <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z" /></symbol>
     </svg>
 
-    <a class="skip" href="#top">Skip to content</a>
     <header class="site-header">
-      <div class="wrap header-in">
-        <a class="brand" href="#top"><img src="assets/logo.png" alt="" width="26" height="26" />SNOWBALL <span>CLIENT</span></a>
-        <nav class="nav" id="site-nav" aria-label="Main">
+      <div class="wrap">
+        <a class="brand" href="#top"><img src="assets/logo.png" alt="" width="28" height="28" />SNOWBALL <span>CLIENT</span></a>
+        <nav class="nav" aria-label="Main">
           <a href="#features">Features</a>
           <a href="#try">Try it</a>
           <a href="#launcher">Launcher</a>
           <a href="store.html">Snowball+</a>
           <a href="#faq">FAQ</a>
         </nav>
-        <a class="btn primary sm header-cta" href="#download">Download</a>
-        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open menu"><span></span><span></span></button>
+        <a class="btn primary small" href="#download">Download</a>
       </div>
     </header>
 
     <main id="top">
-      <!-- ============ hero ============ -->
       <section class="hero">
-        <img class="hero-bg" src="assets/scene-sunset.jpg" alt="" width="1920" height="1080" />
-        <div class="wrap">
-          <div class="hero-grid">
-            <div class="hero-copy">
-              <a class="release" href="https://github.com/met4a/snowball-website/releases/tag/2.0.0"><b>NEW</b>2.0.0: Snowglass, a new glass look for the menus and HUD</a>
-              <h1><img src="assets/logo.png" alt="" width="64" height="64" />SNOWBALL <span>CLIENT</span></h1>
-              <p class="tagline">A free Minecraft launcher with its own client built in.</p>
-              <p class="lead">Press Right Shift in game for every HUD, PvP, performance and visual module. Change your skin, wear a cape, throw an emote. On Minecraft 1.8.9, 1.21.11 and 26.2.</p>
-              <div class="hero-actions">
-                <a class="btn primary lg" href="https://github.com/met4a/snowball-website/releases/download/2.0.0/SnowballClient-2.0.0-setup.exe"><svg class="ic" aria-hidden="true"><use href="#i-windows" /></svg>Download for Windows</a>
-                <a class="btn lg" href="#try"><svg class="ic" aria-hidden="true"><use href="#i-play" /></svg>Try the menu</a>
-              </div>
-              <p class="hero-meta">Version 2.0.0 <b>/</b> 116 MB <b>/</b> Windows 10 and 11 <b>/</b> <a href="#download">macOS beta</a></p>
+        <img class="hero-bg" src="assets/scene-sunset.jpg" alt="" width="1920" height="1080" fetchpriority="high" />
+        <div class="wrap hero-grid">
+          <div class="hero-copy">
+            <a class="pill" href="https://github.com/met4a/snowball-website/releases/tag/2.0.0"><b>NEW</b> 2.0.0: Snowglass, a new glass look for the menus and HUD</a>
+            <h1><img src="assets/logo.png" alt="" width="64" height="64" />SNOWBALL <span>CLIENT</span></h1>
+            <p class="tagline">A free Minecraft launcher with its own client built in.</p>
+            <p class="lead">Press Right Shift in game for every HUD, PvP, performance and visual module. Change your skin, wear a cape, throw an emote. On Minecraft 1.8.9, 1.21.11 and 26.2.</p>
+            <div class="hero-actions">
+              <a class="btn primary big" href="https://github.com/met4a/snowball-website/releases/download/2.0.0/SnowballClient-2.0.0-setup.exe"><svg class="ic" aria-hidden="true"><use href="#i-windows" /></svg>Download for Windows</a>
+              <a class="btn big" href="#try">Try the menu</a>
             </div>
-            <figure class="shot hero-shot">
-              <img src="assets/shot-title.jpg" alt="The Snowball Client main menu in Minecraft 26.2: the player's head and name, round buttons for Singleplayer and Multiplayer, and a Snowball Menu button" width="1600" height="900" fetchpriority="high" />
-              <figcaption>Minecraft 26.2 opens on Snowball's main menu</figcaption>
-            </figure>
+            <p class="hero-meta">Version 2.0.0 <b>/</b> 116 MB <b>/</b> Windows 10 and 11 <b>/</b> <a href="#download">macOS beta</a></p>
           </div>
-
-          <div class="facts" role="list" aria-label="At a glance">
-            <div role="listitem"><strong>3 versions</strong><span>Minecraft 1.8.9, 1.21.11 and 26.2</span></div>
-            <div role="listitem"><strong>10 categories</strong><span>of modules, one key away</span></div>
-            <div role="listitem"><strong>Visual only</strong><span>no X-ray, reach or aim assist</span></div>
-            <div role="listitem"><strong><a href="https://github.com/met4a/snowball-client">Open source</a></strong><span>MIT licence, on GitHub</span></div>
-          </div>
+          <figure class="shot hero-shot">
+            <img src="assets/shot-title.jpg" alt="The Snowball Client main menu in Minecraft 26.2: the player's head and name, round buttons for Singleplayer and Multiplayer, and a Snowball Menu button" width="1600" height="900" fetchpriority="high" />
+            <figcaption>Minecraft 26.2 opens on Snowball's main menu</figcaption>
+          </figure>
         </div>
       </section>
 
-      <!-- ============ features ============ -->
-      <section id="features" class="section">
+      <section class="facts" aria-label="At a glance">
+        <div class="wrap facts-row">
+          <div><strong>3 versions</strong><span>Minecraft 1.8.9, 1.21.11 and 26.2</span></div>
+          <div><strong>10 categories</strong><span>of modules, one key away</span></div>
+          <div><strong>Visual only</strong><span>no X-ray, reach or aim assist</span></div>
+          <div><strong><a href="https://github.com/met4a/snowball-client">Open source</a></strong><span>MIT licence, on GitHub</span></div>
+        </div>
+      </section>
+
+      <section id="new" class="new">
         <div class="wrap">
-          <div class="head reveal">
-            <p class="eyebrow">In game</p>
-            <h2>What you get when you press Right Shift</h2>
-            <p class="lead">Real screenshots from Snowball Client 1.10.0 on Minecraft 26.2. Pick a tab.</p>
+          <p class="eyebrow">NEW IN 1.11.0</p>
+          <h2>Keep playing after a crash. Hide your name for real.</h2>
+          <div class="new-grid">
+            <article class="new-item reveal">
+              <figure class="shot"><img src="assets/shot-anticrash.jpg" alt="The Anti-Crash screen: the error, the mod it most likely came from, the crash report, and buttons to rejoin the world, go to the title screen or quit" width="854" height="480" loading="lazy" /></figure>
+              <h3>Anti-Crash</h3>
+              <p>When a mod breaks while you play, Snowball saves your world and shows what went wrong and which mod it most likely was, instead of the game closing. Press Rejoin to carry on. Running out of memory or a graphics driver crash still closes the game.</p>
+            </article>
+            <article class="new-item reveal">
+              <figure class="shot"><img src="assets/shot-nickhider.jpg" alt="Third person view with Nick Hider on: the name above the player, the player list and the scoreboard all read You" width="854" height="480" loading="lazy" /></figure>
+              <h3>Nick Hider, everywhere</h3>
+              <p>Your name is swapped above your head, in the Tab list, on the scoreboard and in chat. Only on your screen: nothing is sent to the server, and other players keep their names.</p>
+            </article>
           </div>
-          <div class="reveal">
-            <div class="tabs" role="tablist" aria-label="Screenshots">
-              <button type="button" role="tab" id="t-menu" aria-controls="p-menu" aria-selected="true">The menu</button>
-              <button type="button" role="tab" id="t-boost" aria-controls="p-boost" aria-selected="false" tabindex="-1">FPS Boost</button>
-              <button type="button" role="tab" id="t-hud" aria-controls="p-hud" aria-selected="false" tabindex="-1">HUD</button>
-              <button type="button" role="tab" id="t-pvp" aria-controls="p-pvp" aria-selected="false" tabindex="-1">PvP</button>
-              <button type="button" role="tab" id="t-settings" aria-controls="p-settings" aria-selected="false" tabindex="-1">Settings</button>
-              <button type="button" role="tab" id="t-time" aria-controls="p-time" aria-selected="false" tabindex="-1">Time Changer</button>
-            </div>
-            <div class="tab-panels">
-              <div class="tab-panel" role="tabpanel" id="p-menu" aria-labelledby="t-menu">
-                <figure class="shot"><img src="assets/shot-menu.jpg" alt="The Snowball radial menu with the CLIENT category open: Client HUD, Presets, HUD Layout, Menu and Accessibility, Cosmetics, Skins, 3D Menus and Watermark" width="1600" height="900" loading="lazy" /></figure>
-                <div class="tab-text">
-                  <h3>Ten categories around one wheel</h3>
-                  <p>Pick a category and its modules line up beside the wheel, each with a line saying what it does. Start typing to search all of them at once.</p>
-                </div>
-              </div>
-              <div class="tab-panel" role="tabpanel" id="p-boost" aria-labelledby="t-boost" hidden>
-                <figure class="shot"><img src="assets/shot-boost.jpg" alt="The FPS BOOST category: Max FPS, Balanced, Quality and Off cards, the Boost switch, Smart Culling with 14 entities hidden, and Advanced" width="1600" height="900" loading="lazy" /></figure>
-                <div class="tab-text">
-                  <h3>More FPS without a manual</h3>
-                  <p>Pick Max FPS, Balanced or Quality and Boost sets your video options and the right optimisation mods. Turn it off and your own settings come back. Smart Culling is on from the start.</p>
-                </div>
-              </div>
-              <div class="tab-panel" role="tabpanel" id="p-hud" aria-labelledby="t-hud" hidden>
-                <figure class="shot"><img src="assets/shot-hud.jpg" alt="The Snowball HUD over a sunset: FPS, coordinates, CPS, speed, keystrokes, a compass at the top and memory use" width="1600" height="900" loading="lazy" /></figure>
-                <div class="tab-text">
-                  <h3>A HUD you place yourself</h3>
-                  <p>FPS, coordinates, compass, CPS, keystrokes, armour, potions, memory and more. The HUD editor lets you drag, resize and turn each one, with snapping, undo and presets.</p>
-                </div>
-              </div>
-              <div class="tab-panel" role="tabpanel" id="p-pvp" aria-labelledby="t-pvp" hidden>
-                <figure class="shot"><img src="assets/shot-pvp.jpg" alt="The PVP category: Custom Crosshair, Armor HUD, CPS Counter, Combo Counter, Reach Display, Target Info and Crystal Glow" width="1600" height="900" loading="lazy" /></figure>
-                <div class="tab-text">
-                  <h3>PvP tools that stay fair</h3>
-                  <p>Your own crosshair, armour, CPS, combos, the reach of your last hit and who you are aiming at. They only report what you already see and do: nothing changes your reach or aims for you.</p>
-                </div>
-              </div>
-              <div class="tab-panel" role="tabpanel" id="p-settings" aria-labelledby="t-settings" hidden>
-                <figure class="shot"><img src="assets/shot-settings.jpg" alt="The settings of Block Outline: a keybind, a colour set to 7FCBFF and a thickness slider, with Reset to defaults" width="1600" height="900" loading="lazy" /></figure>
-                <div class="tab-text">
-                  <h3>Every module, your way</h3>
-                  <p>Each module has its own keybind and settings: colours with a picker, sliders, choices, and a reset. Save the whole setup as a profile and switch between them.</p>
-                </div>
-              </div>
-              <div class="tab-panel" role="tabpanel" id="p-time" aria-labelledby="t-time" hidden>
-                <figure class="shot compare">
-                  <img src="assets/shot-noon.jpg" alt="The view at noon, as the server has it" width="1600" height="900" loading="lazy" />
-                  <img class="compare-top" src="assets/shot-sunset-hud.jpg" alt="The same view with Time Changer set to sunset" width="1600" height="900" loading="lazy" />
-                  <span class="compare-line" aria-hidden="true"></span>
-                  <span class="compare-tag left" aria-hidden="true">WITH TIME CHANGER</span>
-                  <span class="compare-tag right" aria-hidden="true">WITHOUT</span>
-                  <input class="compare-range" type="range" min="0" max="100" value="50" aria-label="Compare with and without Time Changer" />
-                </figure>
-                <div class="tab-text">
-                  <h3>Your own sky</h3>
-                  <p>Time Changer picks the time of day you see, and only you. The server, the mobs and everyone else keep the real time. Drag across the picture to compare.</p>
-                </div>
-              </div>
+
+          <div class="since">
+            <p class="since-title">Also new since 1.9</p>
+            <ul class="since-list">
+              <li><b>Skin changer</b>Equip any skin with a click; it changes your real Minecraft skin</li>
+              <li><b>3D Menus as windows</b>Snowball's menus as glass windows standing in the world</li>
+              <li><b>Map Art Viewer</b>Maps show their picture in the slot, in chests and on the hotbar</li>
+              <li><b>Discord presence</b>Discord shows you are on Snowball, never your account or server address</li>
+              <li><b>Liquid glass</b>Menus, panels and HUD in liquid glass, frosted glass or the classic flat look</li>
+              <li><b>Emotes</b>Press B for sixteen poses in your own skin, seen by other Snowball players</li>
+              <li><b>Capes</b>Eight to wear free; <a href="store.html">Snowball+</a> adds three more and a Cape Studio for your own, animated if you like</li>
+              <li><b>Spotify</b>The song you are playing on your HUD, with keys for play, pause and skip. No sign-in</li>
+              <li><b>Smart Culling</b>Skips drawing what walls hide, for more FPS in busy places</li>
+              <li><b>Crystal Glow</b>End crystals in your colour, glowing in the dark</li>
+            </ul>
+            <div class="capes" role="img" aria-label="The eight Snowball capes: Snowball, Frost, Aurora, Northern Lights, Midnight, Void, Sakura and Ember">
+              <img src="assets/capes/snowball.png" alt="" width="40" height="64" loading="lazy" />
+              <img src="assets/capes/frost.png" alt="" width="40" height="64" loading="lazy" />
+              <img src="assets/capes/aurora.png" alt="" width="40" height="64" loading="lazy" />
+              <img src="assets/capes/northern_lights.png" alt="" width="40" height="64" loading="lazy" />
+              <img src="assets/capes/midnight.png" alt="" width="40" height="64" loading="lazy" />
+              <img src="assets/capes/void.png" alt="" width="40" height="64" loading="lazy" />
+              <img src="assets/capes/sakura.png" alt="" width="40" height="64" loading="lazy" />
+              <img src="assets/capes/ember.png" alt="" width="40" height="64" loading="lazy" />
             </div>
           </div>
         </div>
       </section>
 
-      <!-- ============ try it ============ -->
-      <section id="try" class="section band try">
+      <section id="features" class="tour">
+        <div class="wrap">
+          <p class="eyebrow">IN GAME</p>
+          <h2>What you get when you press Right Shift</h2>
+          <p class="lead">Real screenshots from Snowball Client 1.10.0 on Minecraft 26.2. Pick a tab.</p>
+          <div class="tabs" role="tablist" aria-label="Screenshots">
+            <button type="button" role="tab" id="t-menu" aria-controls="p-menu" aria-selected="true">The menu</button>
+            <button type="button" role="tab" id="t-boost" aria-controls="p-boost" aria-selected="false" tabindex="-1">FPS Boost</button>
+            <button type="button" role="tab" id="t-hud" aria-controls="p-hud" aria-selected="false" tabindex="-1">HUD</button>
+            <button type="button" role="tab" id="t-pvp" aria-controls="p-pvp" aria-selected="false" tabindex="-1">PvP</button>
+            <button type="button" role="tab" id="t-settings" aria-controls="p-settings" aria-selected="false" tabindex="-1">Settings</button>
+            <button type="button" role="tab" id="t-time" aria-controls="p-time" aria-selected="false" tabindex="-1">Time Changer</button>
+          </div>
+          <div class="tab-panels">
+            <div class="tab-panel" role="tabpanel" id="p-menu" aria-labelledby="t-menu">
+              <figure class="shot"><img src="assets/shot-menu.jpg" alt="The Snowball radial menu with the CLIENT category open: Client HUD, Presets, HUD Layout, Menu and Accessibility, Cosmetics, Skins, 3D Menus and Watermark" width="1600" height="900" /></figure>
+              <div class="tab-text">
+                <h3>Ten categories around one wheel</h3>
+                <p>Pick a category and its modules line up beside the wheel, each with a line saying what it does. Start typing to search all of them at once.</p>
+              </div>
+            </div>
+            <div class="tab-panel" role="tabpanel" id="p-boost" aria-labelledby="t-boost" hidden>
+              <figure class="shot"><img src="assets/shot-boost.jpg" alt="The FPS BOOST category: Max FPS, Balanced, Quality and Off cards, the Boost switch, Smart Culling with 14 entities hidden, and Advanced" width="1600" height="900" loading="lazy" /></figure>
+              <div class="tab-text">
+                <h3>More FPS without a manual</h3>
+                <p>Pick Max FPS, Balanced or Quality and Boost sets your video options and the right optimisation mods. Turn it off and your own settings come back. Smart Culling is on from the start.</p>
+              </div>
+            </div>
+            <div class="tab-panel" role="tabpanel" id="p-hud" aria-labelledby="t-hud" hidden>
+              <figure class="shot"><img src="assets/shot-hud.jpg" alt="The Snowball HUD over a sunset: FPS, coordinates, CPS, speed, keystrokes, a compass at the top and memory use" width="1600" height="900" loading="lazy" /></figure>
+              <div class="tab-text">
+                <h3>A HUD you place yourself</h3>
+                <p>FPS, coordinates, compass, CPS, keystrokes, armour, potions, memory and more. The HUD editor lets you drag, resize and turn each one, with snapping, undo and presets.</p>
+              </div>
+            </div>
+            <div class="tab-panel" role="tabpanel" id="p-pvp" aria-labelledby="t-pvp" hidden>
+              <figure class="shot"><img src="assets/shot-pvp.jpg" alt="The PVP category: Custom Crosshair, Armor HUD, CPS Counter, Combo Counter, Reach Display, Target Info and Crystal Glow" width="1600" height="900" loading="lazy" /></figure>
+              <div class="tab-text">
+                <h3>PvP tools that stay fair</h3>
+                <p>Your own crosshair, armour, CPS, combos, the reach of your last hit and who you are aiming at. They only report what you already see and do: nothing changes your reach or aims for you.</p>
+              </div>
+            </div>
+            <div class="tab-panel" role="tabpanel" id="p-settings" aria-labelledby="t-settings" hidden>
+              <figure class="shot"><img src="assets/shot-settings.jpg" alt="The settings of Block Outline: a keybind, a colour set to 7FCBFF and a thickness slider, with Reset to defaults" width="1600" height="900" loading="lazy" /></figure>
+              <div class="tab-text">
+                <h3>Every module, your way</h3>
+                <p>Each module has its own keybind and settings: colours with a picker, sliders, choices, and a reset. Save the whole setup as a profile and switch between them.</p>
+              </div>
+            </div>
+            <div class="tab-panel" role="tabpanel" id="p-time" aria-labelledby="t-time" hidden>
+              <figure class="shot compare">
+                <img src="assets/shot-noon.jpg" alt="The view at noon, as the server has it" width="1600" height="900" loading="lazy" />
+                <img class="compare-top" src="assets/shot-sunset-hud.jpg" alt="The same view with Time Changer set to sunset" width="1600" height="900" loading="lazy" />
+                <span class="compare-line" aria-hidden="true"></span>
+                <span class="compare-tag left" aria-hidden="true">WITH TIME CHANGER</span>
+                <span class="compare-tag right" aria-hidden="true">WITHOUT</span>
+                <input class="compare-range" type="range" min="0" max="100" value="50" aria-label="Compare with and without Time Changer" />
+              </figure>
+              <div class="tab-text">
+                <h3>Your own sky</h3>
+                <p>Time Changer picks the time of day you see, and only you. The server, the mobs and everyone else keep the real time. Drag across the picture to compare.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="try" class="try">
         <div class="wrap wide">
-          <div class="head center reveal">
-            <p class="eyebrow">Try it</p>
-            <h2>Play with the menu right here</h2>
-            <p class="lead">A working copy of the in-game menu. Pick a category, switch modules on and off and watch the HUD change. Start typing to search, or press Right Shift.</p>
-          </div>
-          <div class="demo reveal" id="demo">
+          <p class="eyebrow center">TRY IT</p>
+          <h2 class="center">Play with the menu right here</h2>
+          <p class="lead center">A working copy of the in-game menu. Pick a category, switch modules on and off and watch the HUD change. Start typing to search, or press Right Shift.</p>
+          <div class="demo" id="demo">
             <div class="demo-in">
               <div class="demo-scene" aria-hidden="true"></div>
               <div class="demo-hud" aria-hidden="true">
@@ -215,158 +245,69 @@
       </section>
       <script src="demo.js?v=4" defer></script>
 
-      <!-- ============ every module ============ -->
-      <section id="modules" class="section">
+      <section id="modules" class="modules">
         <div class="wrap">
-          <div class="head reveal">
-            <p class="eyebrow">Every module</p>
-            <h2>What is in each category</h2>
-            <p class="lead">All of it is client-side and visual or informational: no X-ray, ESP, reach, aim assist or auto clicking.</p>
-          </div>
-          <div class="cat-grid reveal">
-            <div class="cat"><h3><svg class="ic" aria-hidden="true"><use href="#i-client" /></svg>CLIENT</h3><p>Client HUD, Presets, HUD Layout, Menu &amp; Accessibility, Cosmetics, Skins, 3D Menus, Watermark, Custom Text, FPS Counter, Ping Counter, Coordinates, Direction HUD, Memory Usage, Pack Display</p></div>
-            <div class="cat"><h3><svg class="ic" aria-hidden="true"><use href="#i-fps" /></svg>FPS BOOST</h3><p>Boost with Max FPS, Balanced and Quality, Smart Culling, and under Advanced: Sodium, Lithium, FerriteCore, Entity Culling, ImmediatelyFast, Animation Optimization, Background FPS Limit, Particle Limiter, Performance Advisor</p></div>
-            <div class="cat"><h3><svg class="ic" aria-hidden="true"><use href="#i-render" /></svg>RENDER</h3><p>FOV Settings, Weather Effects, Potion HUD, No Hurt Shake, Low Fire, Block Outline, Time Changer, plus Boost, Zoom and the cameras</p></div>
-            <div class="cat"><h3><svg class="ic" aria-hidden="true"><use href="#i-pvp" /></svg>PVP</h3><p>Custom Crosshair, Armor HUD, CPS Counter, Combo Counter, Reach Display, Target Info, Crystal Glow</p></div>
-            <div class="cat"><h3><svg class="ic" aria-hidden="true"><use href="#i-move" /></svg>MOVE</h3><p>Toggle Sprint, Speed</p></div>
-            <div class="cat"><h3><svg class="ic" aria-hidden="true"><use href="#i-visuals" /></svg>VISUALS</h3><p>Fullbright, Zoom, Freelook, Snaplook, Hit Colour, Glass GUI, Crystal Glow, 3D Menus</p></div>
-            <div class="cat"><h3><svg class="ic" aria-hidden="true"><use href="#i-world" /></svg>WORLD</h3><p>Waypoints, Render Distance, Entity Distance</p></div>
-            <div class="cat"><h3><svg class="ic" aria-hidden="true"><use href="#i-misc" /></svg>MISC</h3><p>Chat Upgrades, Emotes, Spotify, Discord presence, Nick Hider, Notifications, Screenshot Utility, Time Display, Server Information, Session Timer</p></div>
-            <div class="cat"><h3><svg class="ic" aria-hidden="true"><use href="#i-qol" /></svg>QOL</h3><p>Keystrokes, Nether Travel, EZ Pots, Third-Person Camera, Coordinates</p></div>
-            <div class="cat"><h3><svg class="ic" aria-hidden="true"><use href="#i-storage" /></svg>STORAGE</h3><p>Container Preview, Container Search, Item Counter, Screenshots, Config Profiles, Mod Profiles, Resource Packs, Shader Packs</p></div>
+          <p class="eyebrow">EVERY MODULE</p>
+          <h2>What is in each category</h2>
+          <p class="lead">All of it is client-side and visual or informational: no X-ray, ESP, reach, aim assist or auto clicking.</p>
+          <div class="cat-grid">
+            <div class="cat reveal"><h3><svg class="ic" aria-hidden="true"><use href="#i-client" /></svg>CLIENT</h3><p>Client HUD, Presets, HUD Layout, Menu &amp; Accessibility, Cosmetics, Skins, 3D Menus, Watermark, Custom Text, FPS Counter, Ping Counter, Coordinates, Direction HUD, Memory Usage, Pack Display</p></div>
+            <div class="cat reveal"><h3><svg class="ic" aria-hidden="true"><use href="#i-fps" /></svg>FPS BOOST</h3><p>Boost with Max FPS, Balanced and Quality, Smart Culling, and under Advanced: Sodium, Lithium, FerriteCore, Entity Culling, ImmediatelyFast, Animation Optimization, Background FPS Limit, Particle Limiter, Performance Advisor</p></div>
+            <div class="cat reveal"><h3><svg class="ic" aria-hidden="true"><use href="#i-render" /></svg>RENDER</h3><p>FOV Settings, Weather Effects, Potion HUD, No Hurt Shake, Low Fire, Block Outline, Time Changer, plus Boost, Zoom and the cameras</p></div>
+            <div class="cat reveal"><h3><svg class="ic" aria-hidden="true"><use href="#i-pvp" /></svg>PVP</h3><p>Custom Crosshair, Armor HUD, CPS Counter, Combo Counter, Reach Display, Target Info, Crystal Glow</p></div>
+            <div class="cat reveal"><h3><svg class="ic" aria-hidden="true"><use href="#i-move" /></svg>MOVE</h3><p>Toggle Sprint, Speed</p></div>
+            <div class="cat reveal"><h3><svg class="ic" aria-hidden="true"><use href="#i-visuals" /></svg>VISUALS</h3><p>Fullbright, Zoom, Freelook, Snaplook, Hit Colour, Glass GUI, Crystal Glow, 3D Menus</p></div>
+            <div class="cat reveal"><h3><svg class="ic" aria-hidden="true"><use href="#i-world" /></svg>WORLD</h3><p>Waypoints, Render Distance, Entity Distance</p></div>
+            <div class="cat reveal"><h3><svg class="ic" aria-hidden="true"><use href="#i-misc" /></svg>MISC</h3><p>Chat Upgrades, Emotes, Spotify, Discord presence, Nick Hider, Notifications, Screenshot Utility, Time Display, Server Information, Session Timer</p></div>
+            <div class="cat reveal"><h3><svg class="ic" aria-hidden="true"><use href="#i-qol" /></svg>QOL</h3><p>Keystrokes, Nether Travel, EZ Pots, Third-Person Camera, Coordinates</p></div>
+            <div class="cat reveal"><h3><svg class="ic" aria-hidden="true"><use href="#i-storage" /></svg>STORAGE</h3><p>Container Preview, Container Search, Item Counter, Screenshots, Config Profiles, Mod Profiles, Resource Packs, Shader Packs</p></div>
           </div>
           <div class="callouts">
-            <div class="callout card reveal"><h3>Nether Travel</h3><p>Type a position and see where the portal comes out on the other side: X and Z divided or multiplied by 8, Y unchanged. Enter copies it for /tp.</p></div>
-            <div class="callout card reveal"><h3>EZ Pots</h3><p>Hear a potion before it runs out. Every effect gets its own sound and warning times, so Strength and Speed never sound the same.</p></div>
-            <div class="callout card reveal"><h3>Low Fire</h3><p>The burning overlay is squashed to the bottom of the screen instead of slid off it, so the flames keep their shape and never blink.</p></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ============ highlights ============ -->
-      <section id="new" class="section">
-        <div class="wrap">
-          <div class="head reveal">
-            <p class="eyebrow">New in 1.11.0</p>
-            <h2>Keep playing after a crash. Hide your name for real.</h2>
-          </div>
-          <div class="new-grid">
-            <article class="feature card reveal">
-              <figure class="shot"><img src="assets/shot-anticrash.jpg" alt="The Anti-Crash screen: the error, the mod it most likely came from, the crash report, and buttons to rejoin the world, go to the title screen or quit" width="854" height="480" loading="lazy" /></figure>
-              <div class="feature-body">
-                <h3>Anti-Crash</h3>
-                <p>When a mod breaks while you play, Snowball saves your world and shows what went wrong and which mod it most likely was, instead of the game closing. Press Rejoin to carry on. Running out of memory or a graphics driver crash still closes the game.</p>
-              </div>
-            </article>
-            <article class="feature card reveal">
-              <figure class="shot"><img src="assets/shot-nickhider.jpg" alt="Third person view with Nick Hider on: the name above the player, the player list and the scoreboard all read You" width="854" height="480" loading="lazy" /></figure>
-              <div class="feature-body">
-                <h3>Nick Hider, everywhere</h3>
-                <p>Your name is swapped above your head, in the Tab list, on the scoreboard and in chat. Only on your screen: nothing is sent to the server, and other players keep their names.</p>
-              </div>
-            </article>
-          </div>
-
-          <div class="since card reveal">
-            <p class="since-title">Also new since 1.9</p>
-            <ul class="since-list">
-              <li><b>Skin changer</b>Equip any skin with a click; it changes your real Minecraft skin</li>
-              <li><b>3D Menus as windows</b>Snowball's menus as glass windows standing in the world</li>
-              <li><b>Map Art Viewer</b>Maps show their picture in the slot, in chests and on the hotbar</li>
-              <li><b>Discord presence</b>Discord shows you are on Snowball, never your account or server address</li>
-              <li><b>Liquid glass</b>Menus, panels and HUD in liquid glass, frosted glass or the classic flat look</li>
-              <li><b>Emotes</b>Press B for sixteen poses in your own skin, seen by other Snowball players</li>
-              <li><b>Spotify</b>The song you are playing on your HUD, with keys for play, pause and skip. No sign-in</li>
-              <li><b>Smart Culling</b>Skips drawing what walls hide, for more FPS in busy places</li>
-              <li><b>Crystal Glow</b>End crystals in your colour, glowing in the dark</li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      <!-- ============ capes and badges ============ -->
-      <section id="cosmetics" class="section">
-        <div class="wrap">
-          <div class="head reveal">
-            <p class="eyebrow">Cosmetics</p>
-            <h2>Capes and badges</h2>
-          </div>
-          <div class="cosmetics">
-            <div class="cos card reveal">
-              <div>
-                <h3>Capes</h3>
-                <p>Eight to wear free; <a href="store.html">Snowball+</a> adds three more and a Cape Studio for your own, animated if you like.</p>
-              </div>
-              <div class="capes" role="img" aria-label="The eight Snowball capes: Snowball, Frost, Aurora, Northern Lights, Midnight, Void, Sakura and Ember">
-                <img src="assets/capes/snowball.png" alt="" width="40" height="64" loading="lazy" />
-                <img src="assets/capes/frost.png" alt="" width="40" height="64" loading="lazy" />
-                <img src="assets/capes/aurora.png" alt="" width="40" height="64" loading="lazy" />
-                <img src="assets/capes/northern_lights.png" alt="" width="40" height="64" loading="lazy" />
-                <img src="assets/capes/midnight.png" alt="" width="40" height="64" loading="lazy" />
-                <img src="assets/capes/void.png" alt="" width="40" height="64" loading="lazy" />
-                <img src="assets/capes/sakura.png" alt="" width="40" height="64" loading="lazy" />
-                <img src="assets/capes/ember.png" alt="" width="40" height="64" loading="lazy" />
-              </div>
-            </div>
-            <div class="cos card reveal">
-              <div>
-                <h3>Badges</h3>
-                <p>Players on Snowball Client carry a snowball in Tab and above their head, but only while they are playing with it. Snowball+ and the Snowball team have badges of their own.</p>
-              </div>
-              <ul class="badge-grid" aria-label="Snowball badges">
-                <li><img src="assets/badges/snowball.png" alt="" width="7" height="7" />Snowball</li>
-                <li><img src="assets/badges/plus.png" alt="" width="11" height="7" />Snowball+</li>
-                <li><img src="assets/badges/tester.png" alt="" width="7" height="7" />Tester</li>
-                <li><img src="assets/badges/bug_hunter.png" alt="" width="7" height="7" />Bug Hunter</li>
-                <li><img src="assets/badges/partner.png" alt="" width="7" height="7" />Partner</li>
-                <li><img src="assets/badges/staff.png" alt="" width="7" height="7" />Staff</li>
-                <li><img src="assets/badges/developer.png" alt="" width="7" height="7" />Developer</li>
-                <li><img src="assets/badges/owner.png" alt="" width="7" height="7" />Owner</li>
-              </ul>
+            <div class="callout reveal"><h3>Nether Travel</h3><p>Type a position and see where the portal comes out on the other side: X and Z divided or multiplied by 8, Y unchanged. Enter copies it for /tp.</p></div>
+            <div class="callout reveal"><h3>EZ Pots</h3><p>Hear a potion before it runs out. Every effect gets its own sound and warning times, so Strength and Speed never sound the same.</p></div>
+            <div class="callout reveal"><h3>Low Fire</h3><p>The burning overlay is squashed to the bottom of the screen instead of slid off it, so the flames keep their shape and never blink.</p></div>
+            <div class="callout reveal">
+              <h3>Badges</h3>
+              <p>Players on Snowball Client carry a snowball in Tab and above their head, but only while they are playing with it.</p>
+              <p class="badges" role="img" aria-label="Snowball, Snowball+, Tester, Bug Hunter and Staff badges"><img src="assets/ranks/snowball.png" alt="" width="32" height="32" /><img src="assets/ranks/plus.png" alt="" width="32" height="32" /><img class="comet" src="assets/ranks/tester.png" alt="" width="11" height="7" /><img class="comet" src="assets/ranks/bug_hunter.png" alt="" width="11" height="7" /><img class="comet" src="assets/ranks/staff.png" alt="" width="11" height="7" /></p>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- ============ versions ============ -->
-      <section id="versions" class="section">
-        <div class="wrap split">
-          <div class="head reveal">
-            <p class="eyebrow">Versions</p>
-            <h2>Old Minecraft and new, one client</h2>
-            <p class="lead">Create a Fabric instance for one of these and the launcher sets up the loader, the API, Java and Snowball Client for you. Settings are stored the same way on each, so they follow you between versions.</p>
-            <p class="note">The launcher itself runs any Java Edition version, with Fabric, Quilt, Forge or NeoForge. Snowball Client is added on the three above.</p>
-          </div>
-          <div class="ver-list">
-            <div class="ver card reveal">
+      <section id="versions" class="versions">
+        <div class="wrap">
+          <p class="eyebrow">VERSIONS</p>
+          <h2>Old Minecraft and new, one client</h2>
+          <p class="lead">Create a Fabric instance for one of these and the launcher sets up the loader, the API, Java and Snowball Client for you. Settings are stored the same way on each, so they follow you between versions.</p>
+          <div class="ver-grid">
+            <div class="ver reveal">
               <span class="ver-num">1.8.9</span>
-              <div>
-                <p>For PvP. The same menus, HUD and config files, on Legacy Fabric.</p>
-                <p class="muted">Emotes, capes, Crystal Glow and badges above other players need 1.21.11 or newer.</p>
-              </div>
+              <p>For PvP. The same menus, HUD and config files, on Legacy Fabric.</p>
+              <p class="muted">Emotes, capes, Crystal Glow and badges above other players need 1.21.11 or newer.</p>
             </div>
-            <div class="ver card reveal">
+            <div class="ver reveal">
               <span class="ver-num">1.21.11</span>
               <p>Everything Snowball has, on the version most servers run.</p>
             </div>
-            <div class="ver card reveal">
+            <div class="ver reveal">
               <span class="ver-num">26.2</span>
               <p>Everything Snowball has, on the newest Minecraft.</p>
             </div>
           </div>
+          <p class="note">The launcher itself runs any Java Edition version, with Fabric, Quilt, Forge or NeoForge. Snowball Client is added on the three above.</p>
         </div>
       </section>
 
-      <!-- ============ launcher ============ -->
-      <section id="launcher" class="section">
+      <section id="launcher" class="launcher">
         <div class="wrap">
           <div class="split">
-            <div class="head reveal">
-              <p class="eyebrow">Launcher</p>
+            <div>
+              <p class="eyebrow">LAUNCHER</p>
               <h2>Instances that never get in each other's way</h2>
               <p class="lead">Each instance has its own version, mods, worlds and settings, so your PvP setup never breaks your modpack. Pick one and press Play: Minecraft, Java, the loader and Snowball Client are handled for you.</p>
             </div>
-            <figure class="shot launcher-shot reveal"><img src="assets/launcher-home.png?v=3" alt="The Snowball Client launcher home page: the selected instance with its version, loader, mods and memory, a Play button, and the Snowball player count" width="1280" height="800" loading="lazy" /></figure>
+            <figure class="shot"><img src="assets/launcher-home.png?v=3" alt="The Snowball Client launcher home page: the selected instance with its version, loader, mods and memory, a Play button, and the Snowball player count" width="1280" height="800" loading="lazy" /></figure>
           </div>
           <div class="points">
             <div class="point reveal"><h3>Updates itself</h3><p>New versions arrive in the background and install when you restart. You download an installer once.</p></div>
@@ -394,34 +335,31 @@
         </div>
       </section>
 
-      <!-- ============ download ============ -->
-      <section id="download" class="section band">
+      <section id="download" class="download">
         <div class="wrap">
-          <div class="head center reveal">
-            <p class="eyebrow">Download</p>
-            <h2>Get Snowball Client</h2>
-            <p class="lead">Free, with nothing to buy inside it. You need a Microsoft account that owns Minecraft: Java Edition.</p>
-          </div>
+          <p class="eyebrow center">DOWNLOAD</p>
+          <h2 class="center">Get Snowball Client</h2>
+          <p class="lead center">Free, with nothing to buy inside it. You need a Microsoft account that owns Minecraft: Java Edition.</p>
 
-          <div class="dl-card card reveal">
+          <div class="dl-main reveal">
             <div class="dl-info">
-              <img src="assets/logo.png" alt="" width="52" height="52" />
+              <img src="assets/logo.png" alt="" width="56" height="56" />
               <div>
                 <h3>Snowball Client 2.0.0</h3>
                 <p>For Windows 10 and 11 (64-bit). Installs with a Start menu shortcut and updates itself from then on.</p>
               </div>
             </div>
-            <a class="btn primary lg" href="https://github.com/met4a/snowball-website/releases/download/2.0.0/SnowballClient-2.0.0-setup.exe"><svg class="ic" aria-hidden="true"><use href="#i-arrow" /></svg>Download installer <small>.exe, 116 MB</small></a>
+            <a class="btn primary big" href="https://github.com/met4a/snowball-website/releases/download/2.0.0/SnowballClient-2.0.0-setup.exe"><svg class="ic" aria-hidden="true"><use href="#i-arrow" /></svg>Download installer <small>.exe, 116 MB</small></a>
           </div>
 
           <div class="dl-alt">
-            <a class="dl-opt card lift reveal" href="https://github.com/met4a/snowball-website/releases/download/2.0.0/SnowballClient-2.0.0-portable.exe">
+            <a class="dl-opt reveal" href="https://github.com/met4a/snowball-website/releases/download/2.0.0/SnowballClient-2.0.0-portable.exe">
               <b>Portable</b><span>One file you run from anywhere. Nothing is installed, and it tells you when a new version is out.</span><small>.exe, 116 MB</small>
             </a>
-            <a class="dl-opt card lift reveal" href="https://github.com/met4a/snowball-website/releases/download/2.0.0/SnowballClient-2.0.0-win.zip">
+            <a class="dl-opt reveal" href="https://github.com/met4a/snowball-website/releases/download/2.0.0/SnowballClient-2.0.0-win.zip">
               <b>Zip</b><span>For when your browser refuses a .exe. Unpack it and run Snowball Client Launcher.exe.</span><small>.zip, 158 MB</small>
             </a>
-            <div class="dl-opt card reveal">
+            <div class="dl-opt mac reveal">
               <b>macOS beta</b><span>Version 2.0.0, the same as Windows. It does not update itself yet: new versions are a download from here.</span>
               <span class="mac-links"><a href="https://github.com/met4a/snowball-website/releases/download/2.0.0/SnowballClient-2.0.0-mac-arm64.dmg">Apple Silicon</a><a href="https://github.com/met4a/snowball-website/releases/download/2.0.0/SnowballClient-2.0.0-mac-x64.dmg">Intel</a></span>
               <small>.dmg, about 135 MB</small>
@@ -469,132 +407,94 @@
         </div>
       </section>
 
-      <!-- ============ FAQ ============ -->
-      <section id="faq" class="section">
-        <div class="wrap faq-grid">
-          <div class="faq-head">
-            <div class="head reveal">
-              <p class="eyebrow">FAQ</p>
-              <h2>Questions</h2>
-              <p class="lead">About Snowball+? See <a href="store.html">its own page</a>.</p>
-            </div>
-          </div>
-          <div class="faq-list">
-            <details>
-              <summary>Is Snowball Client allowed on servers?</summary>
-              <p>Snowball Client only adds visual, interface and quality-of-life features. It has no hacks such as X-ray, ESP, reach, aim assist or auto clickers. Some servers ban all client mods, so always follow each server's rules.</p>
-            </details>
-            <details>
-              <summary>Does it cost anything?</summary>
-              <p>No. Snowball Client is free, with nothing to buy inside it. You still need to own Minecraft: Java Edition.</p>
-            </details>
-            <details>
-              <summary>Do you see my Microsoft password?</summary>
-              <p>No. You sign in on Microsoft's own page. The launcher only receives a sign-in token from Microsoft, which is encrypted on your computer and never sent to us.</p>
-            </details>
-            <details>
-              <summary>Who sees my skin, cape and emotes?</summary>
-              <p>A skin from the skin changer is your real Minecraft skin, so everyone sees it: you at once, other players after you rejoin a server. Capes and emotes are Snowball's own, so only other Snowball players see them, on Minecraft 1.21.11 or newer. Turn off "See others' cosmetics" to see everyone's own capes instead.</p>
-            </details>
-            <details>
-              <summary>Which Minecraft versions are supported?</summary>
-              <p>The launcher runs any Java Edition version. Snowball Client itself is built for Minecraft 1.8.9, 1.21.11 and 26.2, and is set up automatically when you create a Fabric instance for one of them (1.8.9 uses Legacy Fabric).</p>
-            </details>
-            <details>
-              <summary>Do I have to reinstall it for every update?</summary>
-              <p>No. The launcher updates itself when it starts: if a new version is out it is installed and Snowball restarts into it, waiting if a game is running, and your instances, mods and settings are untouched. Two exceptions: versions 1.6.2 and older had a fault that stopped them updating, and versions 1.7.0 to 1.8.1 refuse every update with "not signed by the application owner". On any of those, download the installer above and run it once; from then on Snowball updates itself. The portable build cannot replace itself, so it tells you when a new file is on the website.</p>
-            </details>
-            <details>
-              <summary>How do I move over from another launcher?</summary>
-              <p>Open Instances and choose Import from another launcher. Snowball looks for Lunar Client, Feather, the Modrinth App, CurseForge, Prism, MultiMC, ATLauncher, GDLauncher and your .minecraft folder (used by the Minecraft Launcher, Badlion and LabyMod), and copies what you pick: mods, settings, resource packs, shader packs, worlds, keybinds and servers. Nothing is moved or deleted, so your old launcher keeps working exactly as it did.</p>
-            </details>
-            <details>
-              <summary>Can I add my own mods, or use shaders?</summary>
-              <p>Yes. Each instance has its own mods folder, and the Mods page shows what is installed, warns about duplicates and version conflicts, and lets you turn mods on and off. For shaders, install Iris and Sodium from the mod browser and your shader packs work as usual; Snowball's own features are drawn on top.</p>
-            </details>
-            <details>
-              <summary>How do I know a mod is safe?</summary>
-              <p>The Mods page has a Check mods button. Mods downloaded from Modrinth are recognised by their fingerprint (a SHA-1 checksum - only that is sent, never the file) and set aside as known releases. Every other jar is read on your computer and reported in plain language: whether it can run programs, read your Discord or browser folders, reach your Minecraft session, or send data to a webhook.</p>
-            </details>
-            <details>
-              <summary>Will a performance profile install mods I did not ask for?</summary>
-              <p>No. Profiles use the optimisation mods your instance already has and skip the rest, so picking one never downloads anything. If you would rather Snowball fetched them for you, turn on "Install optimisation mods" in Settings.</p>
-            </details>
-            <details>
-              <summary>How do I open it on a Mac?</summary>
-              <p>The Mac build is a beta, on version 2.0.0 like Windows, and not signed with an Apple certificate yet, so the first time macOS says it cannot check it. Open System Settings, then Privacy &amp; Security, and choose Open Anyway next to Snowball Client (or Control-click the app and choose Open). On GitHub's Mac machines it starts Minecraft 1.21.11 with Snowball Client on Apple Silicon and Intel, and 26.2 on Apple Silicon; 1.8.9 could not be checked there because those machines have no graphics card - tell us how it runs on yours.</p>
-            </details>
-            <details>
-              <summary>Does Snowball Client collect anything about me?</summary>
-              <p>No accounts, no tracking and no telemetry. Sign-in happens on Microsoft's own page, the token is encrypted on your computer, and logs stay on your disk with tokens redacted. Snowball's own server only hears about you for chat, your badge, capes and emotes - the <a href="privacy.html">privacy page</a> lists exactly what.</p>
-            </details>
-            <details>
-              <summary>Why do I not see someone's Snowball badge?</summary>
-              <p>A badge only shows while that player is playing with Snowball Client. Somebody who used it once and now plays on another client has no badge, and it goes a few minutes after they close the game. You can hide your own under Menu &amp; Accessibility, "Show others I use Snowball".</p>
-            </details>
-            <details>
-              <summary>Something broke. Where do I look?</summary>
-              <p>The Home page shows a readable activity log while the game starts, with the full technical log one tab away, and Settings has a button that opens the launcher's log folder. Crashes open a window with the crash report path.</p>
-            </details>
-          </div>
+      <section id="faq" class="faq">
+        <div class="wrap narrow">
+          <p class="eyebrow">FAQ</p>
+          <h2>Questions</h2>
+          <details>
+            <summary>Is Snowball Client allowed on servers?</summary>
+            <p>Snowball Client only adds visual, interface and quality-of-life features. It has no hacks such as X-ray, ESP, reach, aim assist or auto clickers. Some servers ban all client mods, so always follow each server's rules.</p>
+          </details>
+          <details>
+            <summary>Does it cost anything?</summary>
+            <p>No. Snowball Client is free, with nothing to buy inside it. You still need to own Minecraft: Java Edition.</p>
+          </details>
+          <details>
+            <summary>Do you see my Microsoft password?</summary>
+            <p>No. You sign in on Microsoft's own page. The launcher only receives a sign-in token from Microsoft, which is encrypted on your computer and never sent to us.</p>
+          </details>
+          <details>
+            <summary>Who sees my skin, cape and emotes?</summary>
+            <p>A skin from the skin changer is your real Minecraft skin, so everyone sees it: you at once, other players after you rejoin a server. Capes and emotes are Snowball's own, so only other Snowball players see them, on Minecraft 1.21.11 or newer. Turn off "See others' cosmetics" to see everyone's own capes instead.</p>
+          </details>
+          <details>
+            <summary>Which Minecraft versions are supported?</summary>
+            <p>The launcher runs any Java Edition version. Snowball Client itself is built for Minecraft 1.8.9, 1.21.11 and 26.2, and is set up automatically when you create a Fabric instance for one of them (1.8.9 uses Legacy Fabric).</p>
+          </details>
+          <details>
+            <summary>Do I have to reinstall it for every update?</summary>
+            <p>No. The launcher updates itself when it starts: if a new version is out it is installed and Snowball restarts into it, waiting if a game is running, and your instances, mods and settings are untouched. Two exceptions: versions 1.6.2 and older had a fault that stopped them updating, and versions 1.7.0 to 1.8.1 refuse every update with "not signed by the application owner". On any of those, download the installer above and run it once; from then on Snowball updates itself. The portable build cannot replace itself, so it tells you when a new file is on the website.</p>
+          </details>
+          <details>
+            <summary>How do I move over from another launcher?</summary>
+            <p>Open Instances and choose Import from another launcher. Snowball looks for Lunar Client, Feather, the Modrinth App, CurseForge, Prism, MultiMC, ATLauncher, GDLauncher and your .minecraft folder (used by the Minecraft Launcher, Badlion and LabyMod), and copies what you pick: mods, settings, resource packs, shader packs, worlds, keybinds and servers. Nothing is moved or deleted, so your old launcher keeps working exactly as it did.</p>
+          </details>
+          <details>
+            <summary>Can I add my own mods, or use shaders?</summary>
+            <p>Yes. Each instance has its own mods folder, and the Mods page shows what is installed, warns about duplicates and version conflicts, and lets you turn mods on and off. For shaders, install Iris and Sodium from the mod browser and your shader packs work as usual; Snowball's own features are drawn on top.</p>
+          </details>
+          <details>
+            <summary>How do I know a mod is safe?</summary>
+            <p>The Mods page has a Check mods button. Mods downloaded from Modrinth are recognised by their fingerprint (a SHA-1 checksum - only that is sent, never the file) and set aside as known releases. Every other jar is read on your computer and reported in plain language: whether it can run programs, read your Discord or browser folders, reach your Minecraft session, or send data to a webhook.</p>
+          </details>
+          <details>
+            <summary>Will a performance profile install mods I did not ask for?</summary>
+            <p>No. Profiles use the optimisation mods your instance already has and skip the rest, so picking one never downloads anything. If you would rather Snowball fetched them for you, turn on "Install optimisation mods" in Settings.</p>
+          </details>
+          <details>
+            <summary>How do I open it on a Mac?</summary>
+            <p>The Mac build is a beta, on version 2.0.0 like Windows, and not signed with an Apple certificate yet, so the first time macOS says it cannot check it. Open System Settings, then Privacy &amp; Security, and choose Open Anyway next to Snowball Client (or Control-click the app and choose Open). On GitHub's Mac machines it starts Minecraft 1.21.11 with Snowball Client on Apple Silicon and Intel, and 26.2 on Apple Silicon; 1.8.9 could not be checked there because those machines have no graphics card - tell us how it runs on yours.</p>
+          </details>
+          <details>
+            <summary>Does Snowball Client collect anything about me?</summary>
+            <p>No accounts, no tracking and no telemetry. Sign-in happens on Microsoft's own page, the token is encrypted on your computer, and logs stay on your disk with tokens redacted. Snowball's own server only hears about you for chat, your badge, capes and emotes - the <a href="privacy.html">privacy page</a> lists exactly what.</p>
+          </details>
+          <details>
+            <summary>Why do I not see someone's Snowball badge?</summary>
+            <p>A badge only shows while that player is playing with Snowball Client. Somebody who used it once and now plays on another client has no badge, and it goes a few minutes after they close the game. You can hide your own under Menu &amp; Accessibility, "Show others I use Snowball".</p>
+          </details>
+          <details>
+            <summary>Something broke. Where do I look?</summary>
+            <p>The Home page shows a readable activity log while the game starts, with the full technical log one tab away, and Settings has a button that opens the launcher's log folder. Crashes open a window with the crash report path.</p>
+          </details>
         </div>
       </section>
 
-      <!-- ============ closing call ============ -->
-      <section class="section end">
-        <div class="wrap">
-          <div class="cta card reveal">
-            <img src="assets/logo.png" alt="" width="56" height="56" />
-            <div>
-              <h2>Ready when you are</h2>
-              <p class="lead">One download, then it keeps itself up to date.</p>
-            </div>
-            <a class="btn primary lg" href="#download"><svg class="ic" aria-hidden="true"><use href="#i-arrow" /></svg>Download Snowball Client</a>
-          </div>
+      <section class="end">
+        <div class="wrap end-in">
+          <img src="assets/logo.png" alt="" width="72" height="72" />
+          <h2>Ready when you are</h2>
+          <p class="lead center">One download, then it keeps itself up to date.</p>
+          <a class="btn primary big" href="#download"><svg class="ic" aria-hidden="true"><use href="#i-arrow" /></svg>Download Snowball Client</a>
         </div>
       </section>
     </main>
 
-    <footer class="site-footer">
+    <footer>
       <div class="wrap">
-        <div class="footer-grid">
-          <div class="footer-brand">
-            <a class="brand" href="#top"><img src="assets/logo.png" alt="" width="26" height="26" />SNOWBALL <span>CLIENT</span></a>
-            <p>A free Minecraft launcher with its own client built in.</p>
-          </div>
-          <div class="footer-col">
-            <p class="footer-h">Product</p>
-            <ul>
-              <li><a href="#download">Download</a></li>
-              <li><a href="#try">Try the menu</a></li>
-              <li><a href="#features">Features</a></li>
-              <li><a href="store.html">Snowball+</a></li>
-            </ul>
-          </div>
-          <div class="footer-col">
-            <p class="footer-h">Project</p>
-            <ul>
-              <li><a href="https://github.com/met4a/snowball-website/releases">Releases</a></li>
-              <li><a href="https://github.com/met4a/snowball-client/blob/main/CHANGELOG.md">Changelog</a></li>
-              <li><a href="https://github.com/met4a/snowball-client">Source</a></li>
-              <li><a href="#faq">FAQ</a></li>
-            </ul>
-          </div>
-          <div class="footer-col">
-            <p class="footer-h">Legal</p>
-            <ul>
-              <li><a href="privacy.html">Privacy</a></li>
-              <li><a href="terms.html">Terms</a></li>
-            </ul>
-          </div>
+        <a class="brand small" href="#top"><img src="assets/logo.png" alt="" width="22" height="22" />SNOWBALL <span>CLIENT</span></a>
+        <div class="links">
+          <a href="#download">Download</a>
+          <a href="store.html">Snowball+</a>
+          <a href="https://github.com/met4a/snowball-website/releases">Releases</a>
+          <a href="https://github.com/met4a/snowball-client">Source</a>
+          <a href="privacy.html">Privacy</a>
+          <a href="terms.html">Terms</a>
         </div>
-        <div class="footer-bottom">
-          <p>&copy; 2026 Snowball Client.</p>
-          <p>Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.</p>
-        </div>
+        <p class="disclaimer">&copy; 2026 Snowball Client. Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.</p>
       </div>
     </footer>
 
-    <script src="site.js?v=3" defer></script>
+    <script src="site.js?v=1" defer></script>
   </body>
 </html>

@@ -14,7 +14,6 @@
     "ClientClockManagerMixin",
     "CrystalGlowMixin",
     "EntityRenderDispatcherMixin",
-    "FogRendererMixin",
     "FramerateLimitTrackerMixin",
     "GameRendererMixin",
     "GuiRendererMixin",
@@ -22,7 +21,6 @@
     "ItemStackMixin",
     "LevelRendererMixin",
     "LightmapRenderStateExtractorMixin",
-    "LivingEntityRendererMixin",
     "LoadingOverlayMixin",
     "MapArtSlotMixin",
     "MinecraftCrashMixin",
@@ -38,7 +36,6 @@
     "ScreenEffectRendererMixin",
     "SetScreenMixin",
     "SidebarNickMixin",
-    "SkyRendererMixin",
     "TextureAtlasMixin",
     "WeatherEffectRendererMixin"
   ],
