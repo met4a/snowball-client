@@ -1,7 +1,7 @@
 {
 	"providers": [
-		{ "type": "bitmap", "file": "snowballclient:gui/tab_snowball.png", "ascent": 7, "height": 8, "chars": ["\uE000"] },
-		{ "type": "bitmap", "file": "snowballclient:gui/tab_snowball_plus.png", "ascent": 7, "height": 8, "chars": ["\uE001"] },
+		{ "type": "bitmap", "file": "snowballclient:gui/tab_snowball.png", "ascent": 7, "height": 7, "chars": ["\uE000"] },
+		{ "type": "bitmap", "file": "snowballclient:gui/tab_snowball_plus.png", "ascent": 7, "height": 7, "chars": ["\uE001"] },
 		{ "type": "bitmap", "file": "snowballclient:gui/rank/tester.png", "ascent": 7, "height": 7, "chars": ["\uE002"] },
 		{ "type": "bitmap", "file": "snowballclient:gui/rank/bug_hunter.png", "ascent": 7, "height": 7, "chars": ["\uE003"] },
 		{ "type": "bitmap", "file": "snowballclient:gui/rank/partner.png", "ascent": 7, "height": 7, "chars": ["\uE004"] },

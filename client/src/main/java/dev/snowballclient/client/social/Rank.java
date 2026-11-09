@@ -11,8 +11,9 @@ import java.util.Locale;
  */
 public enum Rank {
 	// Each badge is a glyph of Snowball's own icon font, published by client/tools/make-rank-badges.mjs
-	// in this order: Snowball and Snowball+ wear the snowball, every rank above them the flying
-	// snowball with its trail in the rank's colour.
+	// in this order: a glass chip with a mark in it. Snowball wears the logo's snowball on dark glass,
+	// Snowball+ the snowball and a plus on ice blue, and every rank above them its own mark on its own
+	// colour.
 	SNOWBALL("snowball", "Snowball", "Snowball", '\uE000', 0xFFC7D2DD),
 	PLUS("plus", "Snowball+", "Snowball+", '\uE001', 0xFF9FD8FF),
 	TESTER("tester", "Snowball Tester", "Tester", '\uE002', 0xFF5CD6A8),
@@ -26,7 +27,7 @@ public enum Rank {
 	private final String id;
 	/** The full name, for profiles and the admin panel. */
 	private final String name;
-	/** The short name that goes in square brackets in the player list. */
+	/** The rank's short name. The player list shows the badge rather than writing it out. */
 	private final String tag;
 	/** The glyph of Snowball's own icon font that draws this rank's badge. */
 	private final char badge;
@@ -58,14 +59,6 @@ public enum Rank {
 
 	public int color() {
 		return color;
-	}
-
-	/**
-	 * Staff, Developer and Owner are shown by their icon alone, never by a written rank: the flying
-	 * snowball is the rank, and its trail's tint says which one.
-	 */
-	public boolean iconOnly() {
-		return ordinal() >= STAFF.ordinal();
 	}
 
 	/** Snowball+ features belong to Plus and to every rank above it. */

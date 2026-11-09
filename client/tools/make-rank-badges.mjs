@@ -1,110 +1,80 @@
 /**
  * Builds Snowball's rank badges.
  *
- * Every Snowball player wears the snowball in the player list, the way a Lunar player wears the
- * moon, so a Snowball player is recognisable before you read a word: Snowball and Snowball+ wear
- * the ball itself. Every rank above them wears the flying snowball, the 11x7 ball with a trail
- * behind it, and the trail takes the rank's colour - green for Tester, gold for Bug Hunter, orange
- * for Partner - so the set reads as one family and the colour says which rank it is. Staff,
- * Developer and Owner were drawn by hand first; the others follow the same pixels with their trail
- * worked out from the rank colour (see flyingSnowball below).
+ * Every badge is a Snowglass chip: a small rounded tile of glass with a mark in it, the way an app
+ * shows a role. The tile says the tier and the mark says the rank:
+ *   - Snowball, worn by every Snowball player: the snowball from the logo, in the logo's own
+ *     colours, on dark glass like the HUD tiles. Quiet, so a server full of Snowball players is not
+ *     a wall of colour.
+ *   - Snowball+: the same snowball and a plus on polished ice, the accent blue, in a wider chip.
+ *     The jump from dark glass to colour is what makes Plus read as the richer badge.
+ *   - Every rank above: polished glass in the rank's own colour, with its own mark - a check for
+ *     Tester, a target for Bug Hunter, a star for Partner, a shield for Staff, a prompt for
+ *     Developer, a crown for Owner. No rank is written out as a [Tag] beside the name, so the mark
+ *     has to say who someone is on its own.
  *
- * (The older badges set a drawn emblem into the ball; rank-icons.mjs still draws those emblems
- * for the preview sheet.)
+ * The chips are pixel art at their real size, 7 tall, and the font draws them at height 7: one texel
+ * is one font pixel, so at every GUI scale each texel becomes a whole block of screen pixels and
+ * nothing can blur or drop a row. Seven rows is the height of Minecraft's capitals, so a chip lines
+ * up with the name beside it. (The old snowball was 32px art drawn at 8, which only came out clean
+ * at GUI scale 4.) Every chip is glass the same way: a lighter top edge catches the light, the fill
+ * darkens downward, the corners are half see-through so the tile reads as rounded, and coloured
+ * chips put a soft shadow under their mark.
  *
- * The badge is composed at 32x32 and the font draws it at 8, an exact quarter, so nothing lands
- * between pixels. The old badges were 16px art declared at height 9 - a fractional reduction, and
- * that is what made them look muddy.
+ * Writes the client's font bitmaps and icons.json; with --preview, a page showing each badge.
+ * The launcher keeps its own copies of the older badges (client/tools/make-staff-icons.mjs and
+ * launcher/src/renderer/assets/ranks), sized by its own CSS, so this does not touch them.
  *
  *   node client/tools/make-rank-badges.mjs [--preview]
  */
-import { deflateSync, inflateSync } from 'node:zlib';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { deflateSync } from 'node:zlib';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderEmblem } from './rank-icons.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const SOURCE = join(here, 'source-logos');
 
 // Only the main tree. The 1.8.9 build takes its assets from here through its own
 // copySharedAssets task, so writing a second copy there makes processResources see duplicates.
 const TREES = [join(here, '..', 'src', 'main', 'resources', 'assets', 'snowballclient')];
-const LAUNCHER = join(here, '..', '..', 'launcher', 'src', 'renderer', 'assets', 'ranks');
 
-/** The badge canvas. 32 is an exact 4x of the height 8 the font draws it at. */
-const SIZE = 32;
-/** How wide the emblem is drawn. Big enough to read, small enough to stay an attachment. */
-const EMBLEM = 15;
+/** The chip, in font pixels. Seven is the height of Minecraft's capitals. */
+const SIZE = 7;
 
-/** `emblem` is null for the two ranks that are only the snowball. Colours match Rank.java. */
+/**
+ * The marks, 5x5, set one pixel in from the chip's edge. x is white; s is the mark's second tone,
+ * a pale tint of the chip. The snowball has its own letters, for the logo's colours (see BALL).
+ */
+const MARKS = {
+  snowball: ['.pwp.', 'pwwwg', 'pwwgb', 'gggbc', '.bcc.'],
+  // Snowball+'s plus, beside the snowball in its wider chip.
+  plus: ['.....', '.x...', 'xxx..', '.x...', '.....'],
+  check: ['.....', '....x', '...x.', 'x.x..', '.x...'],
+  target: ['.xxx.', 'x...x', 'x.x.x', 'x...x', '.xxx.'],
+  star: ['..x..', '..x..', 'xxxxx', '.xxx.', '.x.x.'],
+  // Halved like a heraldic shield, so it still reads as one when it is only seven pixels tall.
+  shield: ['xxxss', 'xxxss', 'xxxss', '.xxs.', '..x..'],
+  prompt: ['.....', 'x....', '.x...', 'x.xxx', '.....'],
+  crown: ['.....', '..x..', 'x.x.x', 'xxxxx', 'xxxxx'],
+};
+
+/**
+ * In the font's order, which Rank.java follows. `color` is the chip's; it matches Rank.java except
+ * for Snowball+, whose chip uses the deeper Snowglass accent (#3A9BFF) because white on its pale
+ * rank colour would not read. Snowball has no colour: it is dark glass.
+ */
 const RANKS = [
-  { id: 'snowball', name: 'Snowball', file: 'tab_snowball.png', ball: '_ball.png', emblem: null, color: '#C7D2DD' },
-  { id: 'plus', name: 'Snowball+', file: 'tab_snowball_plus.png', ball: '_ball_plus.png', emblem: null, color: '#9FD8FF' },
-  { id: 'tester', name: 'Tester', file: 'rank/tester.png', flying: true, emblem: 'tester', color: '#5CD6A8' },
-  { id: 'bug_hunter', name: 'Bug Hunter', file: 'rank/bug_hunter.png', flying: true, emblem: 'bug_hunter', color: '#FFD166' },
-  { id: 'partner', name: 'Partner', file: 'rank/partner.png', flying: true, emblem: 'partner', color: '#FFA24D' },
-  // Staff, Developer and Owner wear the flying snowball with trails tuned by hand. They stay listed
-  // so the font keeps its order; this tool leaves their files alone.
-  { id: 'staff', name: 'Staff', file: 'rank/staff.png', pixelArt: true },
-  { id: 'developer', name: 'Developer', file: 'rank/developer.png', pixelArt: true },
-  { id: 'owner', name: 'Owner', file: 'rank/owner.png', pixelArt: true },
+  { id: 'snowball', name: 'Snowball', file: 'tab_snowball.png', mark: 'snowball', color: null },
+  { id: 'plus', name: 'Snowball+', file: 'tab_snowball_plus.png', mark: 'snowball', plus: true, color: '#3A9BFF' },
+  { id: 'tester', name: 'Tester', file: 'rank/tester.png', mark: 'check', color: '#5CD6A8' },
+  { id: 'bug_hunter', name: 'Bug Hunter', file: 'rank/bug_hunter.png', mark: 'target', color: '#FFD166' },
+  { id: 'partner', name: 'Partner', file: 'rank/partner.png', mark: 'star', color: '#FFA24D' },
+  { id: 'staff', name: 'Staff', file: 'rank/staff.png', mark: 'shield', color: '#5C8CFF' },
+  { id: 'developer', name: 'Developer', file: 'rank/developer.png', mark: 'prompt', color: '#B57BFF' },
+  { id: 'owner', name: 'Owner', file: 'rank/owner.png', mark: 'crown', color: '#7FCBFF' },
 ];
 
-// ------------------------------------------------------------- PNG in/out
-
-function decode(file) {
-  const b = readFileSync(file);
-  let p = 8, w = 0, h = 0, depth = 8, ct = 6, plte = null, trns = null;
-  const idat = [];
-  while (p < b.length) {
-    const len = b.readUInt32BE(p);
-    const type = b.toString('ascii', p + 4, p + 8);
-    const d = b.subarray(p + 8, p + 8 + len);
-    if (type === 'IHDR') { w = d.readUInt32BE(0); h = d.readUInt32BE(4); depth = d[8]; ct = d[9]; }
-    else if (type === 'PLTE') plte = d;
-    else if (type === 'tRNS') trns = d;
-    else if (type === 'IDAT') idat.push(d);
-    else if (type === 'IEND') break;
-    p += 12 + len;
-  }
-  const raw = inflateSync(Buffer.concat(idat));
-  const ch = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[ct];
-  const bpp = Math.max(1, (ch * depth) / 8);
-  const stride = Math.ceil((w * ch * depth) / 8);
-  const out = Buffer.alloc(h * stride);
-  for (let y = 0; y < h; y++) {
-    const f = raw[y * (stride + 1)];
-    const line = raw.subarray(y * (stride + 1) + 1, y * (stride + 1) + 1 + stride);
-    for (let i = 0; i < stride; i++) {
-      const a = i >= bpp ? out[y * stride + i - bpp] : 0;
-      const up = y > 0 ? out[(y - 1) * stride + i] : 0;
-      const ul = y > 0 && i >= bpp ? out[(y - 1) * stride + i - bpp] : 0;
-      let v = line[i];
-      if (f === 1) v += a;
-      else if (f === 2) v += up;
-      else if (f === 3) v += (a + up) >> 1;
-      else if (f === 4) {
-        const pa = Math.abs(up - ul), pb = Math.abs(a - ul), pc = Math.abs(a + up - 2 * ul);
-        v += pa <= pb && pa <= pc ? a : pb <= pc ? up : ul;
-      }
-      out[y * stride + i] = v & 255;
-    }
-  }
-  const px = [];
-  for (let y = 0; y < h; y++) {
-    const row = [];
-    for (let x = 0; x < w; x++) {
-      if (ct === 6) { const o = y * stride + x * 4; row.push([out[o], out[o + 1], out[o + 2], out[o + 3]]); }
-      else if (ct === 2) { const o = y * stride + x * 3; row.push([out[o], out[o + 1], out[o + 2], 255]); }
-      else if (ct === 3) { const i = out[y * stride + x]; row.push([plte[i * 3], plte[i * 3 + 1], plte[i * 3 + 2], trns && i < trns.length ? trns[i] : 255]); }
-      else if (ct === 4) { const o = y * stride + x * 2; row.push([out[o], out[o], out[o], out[o + 1]]); }
-      else { const v = out[y * stride + x]; row.push([v, v, v, 255]); }
-    }
-    px.push(row);
-  }
-  return { w, h, px };
-}
+// ------------------------------------------------------------- PNG out
 
 let CRC = null;
 function crc32(buf) {
@@ -140,137 +110,102 @@ function encode(grid) {
   ]);
 }
 
-// ------------------------------------------------------------- compositing
+// ------------------------------------------------------------- the chip
 
-const blank = (w, h) => Array.from({ length: h }, () => Array.from({ length: w }, () => [0, 0, 0, 0]));
+const WHITE = [255, 255, 255];
+const BLACK = [0, 0, 0];
+const hexColour = (c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+/** The logo's snowball: a white core, pale ice, a grey-cyan body and a cyan rim. */
+const BALL = { w: WHITE, p: hexColour('#E2FFFF'), g: hexColour('#CFE3E3'), b: hexColour('#A9D3D6'), c: hexColour('#7FC6CF') };
 
-/** Trims to the pixels actually drawn, so scaling works on the art and not on the margin. */
-function crop({ w, h, px }) {
-  let x0 = w, y0 = h, x1 = -1, y1 = -1;
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    if (px[y][x][3] > 24) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-  }
-  if (x1 < 0) return { w: 1, h: 1, px: [[[0, 0, 0, 0]]] };
-  const out = [];
-  for (let y = y0; y <= y1; y++) out.push(px[y].slice(x0, x1 + 1));
-  return { w: x1 - x0 + 1, h: y1 - y0 + 1, px: out };
+/** Source-over, for the shadow under a mark. */
+function over(grid, x, y, [r, g, b, a]) {
+  const d = grid[y][x], k = a / 255, da = d[3] / 255, oa = k + da * (1 - k);
+  grid[y][x] = [r, g, b].map((v, i) => Math.round((v * k + d[i] * da * (1 - k)) / oa)).concat(Math.round(oa * 255));
 }
-
-/** Nearest neighbour, the only honest way to resize pixel art. */
-function scaleTo(sprite, box) {
-  const ratio = Math.min(box / sprite.w, box / sprite.h);
-  const w = Math.max(1, Math.round(sprite.w * ratio));
-  const h = Math.max(1, Math.round(sprite.h * ratio));
-  const out = blank(w, h);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    out[y][x] = sprite.px[Math.min(sprite.h - 1, Math.floor((y * sprite.h) / h))][Math.min(sprite.w - 1, Math.floor((x * sprite.w) / w))];
-  }
-  return { w, h, px: out };
-}
-
-/** Accepts either a {w,h,px} sprite or a plain RGBA grid. */
-function draw(target, sprite, ox, oy) {
-  const px = sprite.px ?? sprite;
-  const h = px.length;
-  const w = px[0].length;
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const [r, g, b, a] = px[y][x];
-    const ty = oy + y, tx = ox + x;
-    if (a < 24 || ty < 0 || tx < 0 || ty >= target.length || tx >= target[0].length) continue;
-    target[ty][tx] = [r, g, b, 255];
-  }
-}
-
-const ball = scaleTo(crop(decode(join(SOURCE, '_ball.png'))), SIZE);
-const ballPlus = scaleTo(crop(decode(join(SOURCE, '_ball_plus.png'))), SIZE);
 
 /**
- * The flying snowball, 11x7, as the staff badges draw it: the same ball for every rank, with a trail
- * (and two flecks of spray) in the rank's colour, paler towards the ball. Letters: a fleck, d the
- * trail's faint edge, e the trail; b, c, f, g and h are the ball's own shades.
+ * The tile: `top` fading to `bottom`, the first row lit as `shine`. A corner pixel keeps 96/255 of
+ * its colour, which is what rounds the tile without cutting it into a cross.
  */
-const FLYING = [
-  '..a........',
-  '.......bcc.',
-  '...deebfccf',
-  '.deeeegfffb',
-  'a..dedgbfbg',
-  '.......hgg.',
-  '...a.......',
-];
-const BALL = { b: [0xb8, 0xe2, 0xff, 255], c: [255, 255, 255, 255], f: [0xe4, 0xf5, 0xff, 255], g: [0x7f, 0xcb, 0xff, 255], h: [0x4e, 0x9c, 0xd6, 255] };
-
-function flyingSnowball(color) {
-  const c = hexColour(color);
-  const toward = (t) => c.map((v) => Math.round(v + (255 - v) * t));
-  const trail = { a: [...toward(0.85), 0xe6], d: [...toward(0.14), 0xb0], e: [...toward(0.53), 255] };
-  return FLYING.map((row) => [...row].map((ch) => (ch === '.' ? [0, 0, 0, 0] : BALL[ch] ?? trail[ch])));
+function tile(width, { top, bottom, shine }) {
+  return Array.from({ length: SIZE }, (_, y) => Array.from({ length: width }, (_, x) => {
+    const corner = (x === 0 || x === width - 1) && (y === 0 || y === SIZE - 1);
+    return [...(y === 0 ? shine : mix(top, bottom, y / (SIZE - 1))), corner ? 96 : 255];
+  }));
 }
 
-function hexColour(c) {
-  return [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+/**
+ * Sets a mark into the tile, `ox` pixels further right than the first; with `shadow`, a pixel of it
+ * under every edge the mark has below.
+ */
+function setMark(grid, rows, tones, shadow, ox = 0) {
+  const at = (x, y) => rows[y]?.[x] ?? '.';
+  if (shadow) {
+    rows.forEach((row, y) => [...row].forEach((ch, x) => {
+      if (ch !== '.' && at(x, y + 1) === '.') over(grid, ox + x + 1, y + 2, shadow);
+    }));
+  }
+  rows.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch !== '.') grid[y + 1][ox + x + 1] = [...tones[ch], 255];
+  }));
+  return grid;
 }
 
 function badge(rank) {
-  if (rank.flying) return flyingSnowball(rank.color);
-  const canvas = blank(SIZE, SIZE);
-  const base = rank.ball === '_ball_plus.png' ? ballPlus : ball;
-  draw(canvas, base, Math.floor((SIZE - base.w) / 2), Math.floor((SIZE - base.h) / 2));
-  if (!rank.emblem) return canvas;
-
-  const emblem = renderEmblem(rank.emblem, rank.emblemColor ?? rank.color, EMBLEM);
-  const w = emblem[0].length;
-  const h = emblem.length;
-  // Seated on the lower-right of the ball rather than hung off its corner: centred at 68% of the
-  // canvas, the emblem overlaps the ball across most of its width and still clears the edge.
-  const ox = Math.min(SIZE - w, Math.round(SIZE * 0.68 - w / 2));
-  const oy = Math.min(SIZE - h, Math.round(SIZE * 0.68 - h / 2));
-  draw(canvas, emblem, ox, oy);
-  return canvas;
+  // Snowball+ is four pixels wider, for the plus beside its snowball.
+  const width = rank.plus ? SIZE + 4 : SIZE;
+  let grid, tones, shadow;
+  if (!rank.color) {
+    // Dark glass, the colours of the Snowglass HUD tiles.
+    grid = tile(width, { top: hexColour('#2B3746'), bottom: hexColour('#121921'), shine: hexColour('#55657A') });
+    tones = { ...BALL, x: hexColour('#F2FAFF'), s: hexColour('#9FD8FF') };
+    shadow = null;
+  } else {
+    const c = hexColour(rank.color);
+    grid = tile(width, { top: mix(c, BLACK, 0.12), bottom: mix(c, BLACK, 0.5), shine: mix(c, WHITE, 0.45) });
+    tones = { ...BALL, x: WHITE, s: mix(c, WHITE, 0.62) };
+    shadow = [...mix(c, BLACK, 0.72), 120];
+  }
+  setMark(grid, MARKS[rank.mark], tones, shadow);
+  if (rank.plus) setMark(grid, MARKS.plus, tones, shadow, 6);
+  return grid;
 }
+
+// ------------------------------------------------------------- output
 
 let count = 0;
 const write = (to, data) => { mkdirSync(dirname(to), { recursive: true }); writeFileSync(to, data); count++; };
 
-const built = RANKS.filter((rank) => !rank.pixelArt).map((rank) => ({ rank, data: encode(badge(rank)) }));
-// Small enough to read in the font: every flying snowball is drawn at its own 7-pixel height.
-const small = (rank) => rank.pixelArt || rank.flying;
+const built = RANKS.map((rank) => ({ rank, data: encode(badge(rank)) }));
 
 for (const tree of TREES) {
   for (const { rank, data } of built) write(join(tree, 'textures', 'gui', rank.file), data);
 
   /**
-   * One bitmap provider per rank, in RANKS order. A 32px badge drawn at height 8 with ascent 7 sits on
-   * the baseline; the 11x7 flying snowball is drawn at its own height, 7, so it lines up with capitals.
-   * The last entry is the two-pixel gap RankText puts between the badge and the name.
+   * One bitmap provider per rank, in RANKS order, each drawn at its own height of 7 with ascent 7 so
+   * it sits on the baseline beside the capitals. The last entry is the two-pixel gap RankText puts
+   * between the badge and the name.
    */
-  const providers = RANKS.map((rank, i) => ({ file: `gui/${rank.file}`, height: small(rank) ? 7 : 8, char: `\\uE00${i}` }));
-  const json = `{\n\t"providers": [\n${providers
-    .map((p) => `\t\t{ "type": "bitmap", "file": "snowballclient:${p.file}", "ascent": 7, "height": ${p.height}, "chars": ["${p.char}"] }`)
+  const json = `{\n\t"providers": [\n${RANKS.map((rank, i) => `\t\t{ "type": "bitmap", "file": "snowballclient:gui/${rank.file}", "ascent": 7, "height": ${SIZE}, "chars": ["\\uE00${i}"] }`)
     .concat(['\t\t{ "type": "space", "advances": { "\\uE0F0": 2 } }'])
     .join(',\n')}\n\t]\n}\n`;
   write(join(tree, 'font', 'icons.json'), json);
 }
 
-// The launcher shows the same badge in chat, the people list and the admin panel.
-for (const { rank, data } of built) write(join(LAUNCHER, `${rank.id}.png`), data);
-
-for (const { rank } of built) console.log(`${rank.name.padEnd(12)} ${rank.flying ? `flying snowball, ${rank.color} trail` : rank.emblem ? `ball + ${rank.emblem} at ${EMBLEM}px` : 'ball only'}`);
+for (const { rank } of built) console.log(`${rank.name.padEnd(12)} ${rank.color ? `${rank.color} glass` : 'dark glass'}, ${rank.mark}`);
 console.log(`\n${count} files written.`);
 
 if (process.argv.includes('--preview')) {
-  // A page showing each badge at the size the player list draws it, magnified, and the emblem on
-  // its own, which is how it appears in profiles and on the website.
-  const b64 = (rank) => built.find((b) => b.rank.id === rank.id).data.toString('base64');
-  const solo = (rank) => (rank.emblem && !rank.flying ? encode(renderEmblem(rank.emblem, rank.emblemColor ?? rank.color, 32)).toString('base64') : null);
+  // Each badge at the size the player list draws it at GUI scales 1 to 4, and magnified.
+  const src = (rank) => `data:image/png;base64,${built.find((b) => b.rank.id === rank.id).data.toString('base64')}`;
   const row = (rank) => {
-    const img = `<img src="data:image/png;base64,${b64(rank)}">`;
-    const only = solo(rank);
+    const img = `<img src="${src(rank)}">`;
     return `<tr>
-      <td class="s8">${img}</td>
-      <td class="s64">${img}</td>
-      <td class="s32">${only ? `<img src="data:image/png;base64,${only}">` : '<span class="f">—</span>'}</td>
-      <td class="tab"><span class="s16">${img}</span><span style="color:${rank.color}">[${rank.name}]</span> <span class="pl">Met4a</span></td>
+      <td class="scales">${[1, 2, 3, 4].map((s) => `<img src="${src(rank)}" style="height:${SIZE * s}px">`).join('')}</td>
+      <td class="big">${img}</td>
+      <td class="tab"><span class="s16">${img}</span><span class="pl">Met4a</span></td>
     </tr>`;
   };
   writeFileSync(join(here, 'rank-badges-preview.html'), `<!doctype html><meta charset=utf-8><title>Snowball rank badges</title>
@@ -282,16 +217,14 @@ if (process.argv.includes('--preview')) {
  th{text-align:left;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#6e7987;font-weight:600;padding:0 20px 8px 0;border-bottom:1px solid #222831}
  td{padding:10px 20px 10px 0;border-bottom:1px solid #1a1f27;vertical-align:middle}
  img{image-rendering:pixelated;display:inline-block;vertical-align:middle}
- .s8 img{height:8px;width:auto}
- .s16 img{height:16px;width:auto;margin-right:6px}
- .s32 img{width:32px;height:32px}
- .s64 img{height:64px;width:auto}
+ .scales img{margin-right:10px}
+ .s16 img{height:14px;margin-right:6px}
+ .big img{height:56px}
  .tab{font:15px Consolas,monospace;white-space:nowrap}
  .pl{color:#fff}
- .f{font:12px Consolas,monospace;color:#6e7987}
 </style>
 <h1>Snowball rank badges</h1>
-<p class=sub>Every player wears the snowball. Every rank above Snowball+ wears the flying snowball, its trail in the rank's colour, so the set reads as one family and the colour says which rank it is.</p>
-<table><tr><th>In game</th><th>Badge</th><th>Emblem</th><th>As it reads in TAB</th></tr>${built.map(({ rank }) => row(rank)).join('')}</table>`);
+<p class=sub>Snowglass chips: the logo's snowball on dark glass for every Snowball player, the snowball and a plus on polished ice for Snowball+, and the rank's own colour and mark above that. Each is pixel art seven pixels tall, drawn one texel per font pixel.</p>
+<table><tr><th>GUI scale 1-4</th><th>Badge</th><th>As it reads in TAB</th></tr>${built.map(({ rank }) => row(rank)).join('')}</table>`);
   console.log('preview: client/tools/rank-badges-preview.html');
 }

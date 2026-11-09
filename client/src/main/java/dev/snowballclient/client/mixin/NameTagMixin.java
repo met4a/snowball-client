@@ -39,7 +39,7 @@ public class NameTagMixin {
 		// A Snowball+ name colour; the backend only passes one on for Snowball+ players.
 		int colour = rank == null ? -1 : Looks.colour(entity.getUUID());
 		if (colour >= 0) shown = shown.copy().withColor(colour);
-		if (rank != null) shown = Component.empty().append(RankText.prefix(rank, true, false)).append(shown);
+		if (rank != null) shown = Component.empty().append(RankText.prefix(rank)).append(shown);
 		if (shown != original) name.setReturnValue(shown);
 	}
 }
