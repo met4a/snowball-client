@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(LivingEntityRenderer.class)
 public abstract class LivingEntityRendererMixin {
 	// Split so the build's "render(" renaming between versions leaves the method name alone.
-	private static final String EXTRACT = "extractRenderState" + "(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)V";
+	private static final String EXTRACT = "extract" + "RenderState(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)V";
 	private static final int FULL_BRIGHT = 0xF000F0;
 
 	@Inject(method = EXTRACT, at = @At("TAIL"))

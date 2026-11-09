@@ -177,7 +177,8 @@ public final class LyricsSource {
 		HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
 		if (response.statusCode() == 404) return null;
 		if (response.statusCode() != 200) throw new IllegalStateException("LRCLIB answered " + response.statusCode());
-		return JsonParser.parseString(response.body());
+		// The constructor form, as 1.8.9 ships a Gson from before parseString.
+		return new JsonParser().parse(response.body());
 	}
 
 	/** Spotify joins artists with commas; the library knows songs by their main artist. */
